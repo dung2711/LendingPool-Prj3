@@ -3,9 +3,10 @@
 pragma solidity ^0.8.28;
 
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
-import {MyOracle} from "./MyOracle.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+import {IMyOracle} from "./interfaces/Interfaces.sol";
 
 contract PriceRouter is Ownable {
     // PriceRouter contract code goes here
@@ -48,7 +49,7 @@ contract PriceRouter is Ownable {
         emit FeedRemoved(asset);
     }
 
-    function getPrice(address asset) external view returns (uint){
+    function getPrice(address asset) public view returns (uint){
         require(feeds[asset].source != Source.NONE, "No price feed available");
         FeedInfo memory feedInfo = feeds[asset];
         if(feedInfo.source == Source.CHAINLINK){
@@ -63,7 +64,7 @@ contract PriceRouter is Ownable {
             return uint(price); // Normalize to 18 decimals
         } else if(feedInfo.source == Source.MYORACLE){
             // Assuming MyOracle has a function getPriceMyOracle(address token) returns (uint)
-            uint price = MyOracle(myOracle).getPriceMyOracle(feedInfo.feedOrToken);
+            uint price = IMyOracle(myOracle).getPriceMyOracle(feedInfo.feedOrToken);
             uint decimal = IERC20Metadata(asset).decimals();
             if(decimal > 18){
                 return price / (10 ** (decimal - 18)); // Normalize to 18 decimals

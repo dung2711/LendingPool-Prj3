@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.28;
 
-import {LendingPool} from "./LendingPool.sol";
+import {ILendingPool} from "./interfaces/Interfaces.sol";
 
 contract InterestRateModel {
-    // InterestRateModel contract code goes here
+    uint constant SCALE = 1e18;
 
     // _______State_______
     uint public baseRate; // e.g. 0.02e18 = 2% base rate
@@ -30,6 +30,8 @@ contract InterestRateModel {
         uint _optimalUtilization,
         uint _reserveFactor
     ) {
+        require(_optimalUtilization <= 1e18, "Invalid optimal utilization");
+        require(_reserveFactor <= 1e18, "Invalid reserve factor");
         baseRate = _baseRate;
         rateSlope1 = _rateSlope1;
         rateSlope2 = _rateSlope2;
@@ -56,19 +58,19 @@ contract InterestRateModel {
     }
 
     function getBorrowRate(address asset) public view returns (uint) {
-        uint utilizationRate = LendingPool(lendingPool).getUtilizationRate(asset);
+        uint utilizationRate = ILendingPool(lendingPool).getUtilizationRate(asset);
         if(utilizationRate == 0) return baseRate;
         if(utilizationRate <= optimalUtilization){
-           return baseRate + utilizationRate * rateSlope1 / 1e18;
+           return baseRate + utilizationRate * rateSlope1 / SCALE;
         } else {
-           return baseRate + rateSlope1 * optimalUtilization / 1e18 + 
-                                            rateSlope2 * (utilizationRate - optimalUtilization) / 1e18;
+           return baseRate + rateSlope1 * optimalUtilization / SCALE + 
+                                            rateSlope2 * (utilizationRate - optimalUtilization) / SCALE;
         }
     }
 
     function getDepositRate(address asset) public view returns (uint) {
         uint borrowRate = getBorrowRate(asset);
-        uint utilizationRate = LendingPool(lendingPool).getUtilizationRate(asset);
-        return (borrowRate * utilizationRate * (1e18-reserveFactor)) / 1e36;
+        uint utilizationRate = ILendingPool(lendingPool).getUtilizationRate(asset);
+        return (borrowRate * utilizationRate * (SCALE-reserveFactor)) / (SCALE * SCALE);
     }
 }

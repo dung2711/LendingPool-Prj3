@@ -4,10 +4,13 @@ pragma solidity ^0.8.28;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {PriceRouter} from "./PriceRouter.sol";
-import {InterestRateModel} from "./InterestRateModel";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract LendingPool is Ownable {
+import {IPriceRouter} from "./interfaces/Interfaces.sol";
+import {IInterestRateModel} from "./interfaces/Interfaces.sol";
+import {ILiquidation} from "./interfaces/Interfaces.sol";
+
+contract LendingPool is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint public constant SECONDS_PER_YEAR = 60 * 60 * 24 * 365;
@@ -21,6 +24,8 @@ contract LendingPool is Ownable {
     event Borrow(address indexed user, address indexed asset, uint amount);
     event Repay(address indexed user, address indexed asset, uint amount);
     event Withdraw(address indexed user, address indexed asset, uint amount);
+    event CollateralSeized(address indexed borrower, address indexed collateralAsset, uint seizeAmount);
+    event RepayFromLiquidation(address indexed borrower, address indexed repayAsset, uint repayAmount);
     event Accrue(address indexed asset, uint interestAccrued, uint depositInterestAccrued, 
                                 uint newTotalBorrows, uint newBorrowIndex, uint newTotalDeposits, uint newDepositIndex);
 
@@ -72,6 +77,11 @@ contract LendingPool is Ownable {
 
     modifier onlyAdmin() {
         require(isAdmin[msg.sender], "Not an admin");
+        _;
+    }
+
+    modifier onlyLiquidation() {
+        require(msg.sender == liquidation, "Not liquidation contract");
         _;
     }
 
@@ -127,7 +137,6 @@ contract LendingPool is Ownable {
         liquidationThreshold = _liquidationThreshold;
     }
 
-
     /// Interest functions
     function getUtilizationRate(address asset) public view returns (uint) {
         Market memory market = markets[asset];
@@ -142,7 +151,7 @@ contract LendingPool is Ownable {
         uint timeElapsed = block.timestamp - m.lastUpdateTimestamp;
         if(timeElapsed == 0) return;
 
-        InterestRateModel i = InterestRateModel(m.interestRateModel);
+        IInterestRateModel i = IInterestRateModel(m.interestRateModel);
         uint borrowRate = i.getBorrowRate(asset);
         uint depositRate = i.getDepositRate(asset);
 
@@ -178,20 +187,30 @@ contract LendingPool is Ownable {
     }
 
     function getAccountLiquidity(address user) public view returns (uint totalDepositedUSD, uint totalBorrowedUSD) {
-        uint totalDepositedUSD;
-        uint totalBorrowedUSD;
-        PriceRouter pr = PriceRouter(priceRouter);
-        for(uint i=0; i<userMarkets[user].length; i++){
-            address asset = userMarkets[user][i];
-            Balance memory balance = userBalances[user][asset];
-            totalDepositedUSD += pr.getPrice(asset) * balance.deposited / SCALE;
-            totalBorrowedUSD += pr.getPrice(asset) * balance.borrowed / SCALE;
+        IPriceRouter pr = IPriceRouter(priceRouter);
+        address[] memory assets = userMarkets[user];
+        for(uint i=0; i<assets.length; i++){
+            address asset = assets[i];
+            uint currentDeposit = _currentUserDeposit(user, asset);
+            uint currentBorrow = _currentUserBorrow(user, asset);
+            uint assetPrice = pr.getPrice(asset);
+            totalDepositedUSD += assetPrice * currentDeposit / SCALE;
+            totalBorrowedUSD += assetPrice * currentBorrow / SCALE;
         }
         return (totalDepositedUSD, totalBorrowedUSD);
     }
 
+    /// View helpers
+    function getUserCurrentDeposit(address user, address asset) external view returns (uint) {
+        return _currentUserDeposit(user, asset);
+    }
+
+    function getUserCurrentBorrow(address user, address asset) external view returns (uint) {
+        return _currentUserBorrow(user, asset);
+    }
+
     /// Core Logic: deposit, borrow, repay, withdraw
-    function deposit(address asset, uint amount) external onlySupportedMarket(asset) amountGreaterThanZero(amount) {
+    function deposit(address asset, uint amount) external nonReentrant onlySupportedMarket(asset) amountGreaterThanZero(amount) {
         accrueInterest(asset);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
         Market storage m = markets[asset];
@@ -208,25 +227,25 @@ contract LendingPool is Ownable {
         emit Deposit(msg.sender, asset, amount);
     }
 
-    function borrow(address asset, uint amount) external onlySupportedMarket(asset) amountGreaterThanZero(amount) {
+    function borrow(address asset, uint amount) external nonReentrant onlySupportedMarket(asset) amountGreaterThanZero(amount) {
         accrueInterest(asset);
         Market storage m = markets[asset];
         Balance storage b = userBalances[msg.sender][asset];
         // Calculate total collateral and ensure user can borrow
-        (uint totalDepositedUSD, uint totalBorrowedUSD) = this.getAccountLiquidity(msg.sender);
-        uint assetPrice = PriceRouter(priceRouter).getPrice(asset);
+        (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(msg.sender);
+        uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint amountUSD = assetPrice * amount / SCALE;
         require(totalDepositedUSD * collateralFactor / SCALE >= (totalBorrowedUSD + amountUSD), "Insufficient collateral");
         // Update userBalances and totalBorrows
-        IERC20(asset).safeTransfer(msg.sender, amount);
         uint currentBorrow = _currentUserBorrow(msg.sender, asset);
         b.borrowed = amount + currentBorrow;
         b.borrowIndexSnapShot = m.borrowIndex;
         m.totalBorrows += amount;
+        IERC20(asset).safeTransfer(msg.sender, amount);
         emit Borrow(msg.sender, asset, amount);
     }
 
-    function repay(address asset, uint amount) external onlySupportedMarket(asset) amountGreaterThanZero(amount) {
+    function repay(address asset, uint amount) external nonReentrant onlySupportedMarket(asset) amountGreaterThanZero(amount) {
         // Repay logic
         accrueInterest(asset);
         Market storage m = markets[asset];
@@ -234,18 +253,25 @@ contract LendingPool is Ownable {
         // Update userBalances and totalBorrows
         uint currentBorrow = _currentUserBorrow(msg.sender, asset);
         require(currentBorrow >= amount, "Repay amount exceeds borrowed");
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        b.borrowed = currentBorrow - amount;
-        if(b.borrowed == 0){
+
+        uint payAmount = amount;
+        if(payAmount > currentBorrow){
+            payAmount = currentBorrow;
+        }
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), payAmount);
+        uint newBorrow = currentBorrow - payAmount;
+        if (newBorrow == 0) {
+            b.borrowed = 0;
             b.borrowIndexSnapShot = 0;
         } else {
+            b.borrowed = newBorrow;
             b.borrowIndexSnapShot = m.borrowIndex;
         }
-        m.totalBorrows -= amount;
-        emit Repay(msg.sender, asset, amount);
+        m.totalBorrows -= payAmount;
+        emit Repay(msg.sender, asset, payAmount);
     }
 
-    function withdraw(address asset, uint amount) external onlySupportedMarket(asset) amountGreaterThanZero(amount) {
+    function withdraw(address asset, uint amount) external nonReentrant onlySupportedMarket(asset) amountGreaterThanZero(amount) {
         accrueInterest(asset);
         Market storage m = markets[asset];
         Balance storage b = userBalances[msg.sender][asset];
@@ -254,27 +280,73 @@ contract LendingPool is Ownable {
         require(currentDeposit >= amount, "Withdraw amount exceeds deposited");
         // Check if user has sufficient collateral after withdrawal
         (uint totalDepositedUSD, uint totalBorrowedUSD) = this.getAccountLiquidity(msg.sender);
-        uint assetPrice = PriceRouter(priceRouter).getPrice(asset);
+        uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint amountUSD = assetPrice * amount / SCALE;
         require((totalDepositedUSD - amountUSD) * collateralFactor / SCALE > totalBorrowedUSD, "Insufficient collateral");
         // Update userBalances and totalDeposits
-        IERC20(asset).safeTransfer(msg.sender, amount);
-        b.deposited = currentDeposit - amount;
-        if(b.deposited == 0){
+        uint newDeposit = currentDeposit - amount;
+        if (newDeposit == 0) {
+            b.deposited = 0;
             b.depositIndexSnapShot = 0;
         } else {
+            b.deposited = newDeposit;
             b.depositIndexSnapShot = m.depositIndex;
         }
         m.totalDeposits -= amount;
+        IERC20(asset).safeTransfer(msg.sender, amount);
         emit Withdraw(msg.sender, asset, amount);
     }
 
-    /// View helpers
-    function getUserCurrentDeposit(address user, address asset) external view returns (uint) {
-        return _currentUserDeposit(user, asset);
-    }
+    /// Liquidation hooks (only callable by Liquidation contract)
+    function seizeCollateral(
+        address borrower,
+        address collateralAsset,
+        uint seizeAmount,
+        address recipient
+    ) external onlyLiquidation amountGreaterThanZero(seizeAmount) {
+        accrueInterest(collateralAsset);
+        Balance storage borrowerBalance = userBalances[borrower][collateralAsset];
+        Market storage m = markets[collateralAsset];
+        uint currentBorrowerDeposit = _currentUserDeposit(borrower, collateralAsset);
+        require(currentBorrowerDeposit >= seizeAmount, "Not enough collateral");
+        // Update borrower balances
+        uint newDeposit = currentBorrowerDeposit - seizeAmount;
+        if (newDeposit == 0) {
+            borrowerBalance.deposited = 0;
+            borrowerBalance.depositIndexSnapShot = 0;
+        } else {
+            borrowerBalance.deposited = newDeposit;
+            borrowerBalance.depositIndexSnapShot = m.depositIndex;
+        }
+        m.totalDeposits -= seizeAmount;
 
-    function getUserCurrentBorrow(address user, address asset) external view returns (uint) {
-        return _currentUserBorrow(user, asset);
+        IERC20(collateralAsset).safeTransfer(recipient, seizeAmount);
+        emit CollateralSeized(borrower, collateralAsset, seizeAmount);
+    }
+    //TODO: fix repayFromLiquidation, currentBorrow * collateralFactor ?
+    function repayFromLiquidation(
+        address borrower,
+        address repayAsset,
+        uint repayAmount
+    ) external onlyLiquidation amountGreaterThanZero(repayAmount) {
+        accrueInterest(repayAsset);
+        Market storage m = markets[repayAsset];
+        Balance storage b = userBalances[borrower][repayAsset];
+        // Update borrower balances
+        uint currentBorrow = _currentUserBorrow(borrower, repayAsset);
+
+        // repayAmount should not exceed currentBorrow: checked in Liquidation contract
+        uint newBorrow = currentBorrow - repayAmount;
+        if (newBorrow == 0) {
+            b.borrowed = 0;
+            b.borrowIndexSnapShot = 0;
+        } else {
+            b.borrowed = newBorrow;
+            b.borrowIndexSnapShot = m.borrowIndex;
+        }
+        b.borrowIndexSnapShot = m.borrowIndex;
+        m.totalBorrows -= actualRepay;
+
+        emit RepayFromLiquidation(borrower, repayAsset, actualRepay);
     }
 }

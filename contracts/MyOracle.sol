@@ -19,7 +19,7 @@ contract MyOracle is Ownable {
         emit PriceUpdated(asset, price);
     }
 
-    function getPriceMyOracle(address asset) external view returns (uint) {
+    function getPriceMyOracle(address asset) public view returns (uint) {
         return prices[asset]; // price in 18 decimals   
     }
 }
