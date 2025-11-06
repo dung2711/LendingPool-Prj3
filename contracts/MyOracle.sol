@@ -11,7 +11,7 @@ contract MyOracle is Ownable {
     mapping(address => uint) public prices; // asset => price in 18 decimals
 
     constructor() Ownable(msg.sender) {}
-
+    
     function setPrice(address asset, uint price) external onlyOwner {
         require(asset != address(0), "Invalid asset address");
         require(price > 0, "Price must be greater than zero");

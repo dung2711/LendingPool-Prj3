@@ -59,7 +59,7 @@ contract InterestRateModel {
 
     function getBorrowRate(address asset) public view returns (uint) {
         uint utilizationRate = ILendingPool(lendingPool).getUtilizationRate(asset);
-        if(utilizationRate == 0) return baseRate;
+        if(utilizationRate == 0) return 0;
         if(utilizationRate <= optimalUtilization){
            return baseRate + utilizationRate * rateSlope1 / SCALE;
         } else {

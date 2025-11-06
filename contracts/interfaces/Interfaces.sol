@@ -1,9 +1,10 @@
-// SPDX-License-Identidier: MIT
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.28;
 
 interface ILendingPool {
     function accrueInterest(address asset) external;
+    function getUtilizationRate(address asset) external view returns (uint);
     function getAccountLiquidity(address user) external view returns (uint totalDepositedUSD, uint totalBorrowedUSD);
     function getUserCurrentDeposit(address user, address asset) external view returns (uint);
     function getUserCurrentBorrow(address user, address asset) external view returns (uint);
@@ -29,16 +30,16 @@ interface IMyOracle {
 }
 
 interface ILiquidation {
-    function isAccountLiquidatable(address user) public view returns (bool);
+    function isAccountLiquidatable(address user) external view returns (bool);
     function getCloseFactor() external view returns (uint);
     function calculateSeizeAmount(
         address repayAsset,
         address collateralAsset,
         uint repayAmount
-    ) public view returns (uint seizeAmount);
+    ) external view returns (uint seizeAmount);
 }
 
 interface IInterestRateModel {
     function getBorrowRate(address asset) external view returns (uint);
-    function getDepositRate(address asset) external view returns (uint)
+    function getDepositRate(address asset) external view returns (uint);
 }

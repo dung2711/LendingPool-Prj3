@@ -4,11 +4,10 @@ pragma solidity ^0.8.28;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {IPriceRouter} from "./interfaces/Interfaces.sol";
 import {IInterestRateModel} from "./interfaces/Interfaces.sol";
-import {ILiquidation} from "./interfaces/Interfaces.sol";
 
 contract LendingPool is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -52,8 +51,6 @@ contract LendingPool is Ownable, ReentrancyGuard {
     mapping(address => mapping(address => bool)) public userMarketExists; // user => asset => exists
 
     uint public collateralFactor; // 18 decimals
-    uint public closeFactor; // 18 decimals
-    uint public liquidationThreshold; // 18 decimals
 
     address public liquidation;
     address public priceRouter;
@@ -63,15 +60,11 @@ contract LendingPool is Ownable, ReentrancyGuard {
     constructor(
         address _liquidation,
         address _priceRouter,
-        uint _collateralFactor,
-        uint _closeFactor,
-        uint _liquidationThreshold
-    ) {
+        uint _collateralFactor
+    ) Ownable(msg.sender) {
         liquidation = _liquidation;
         priceRouter = _priceRouter;
         collateralFactor = _collateralFactor;
-        closeFactor = _closeFactor;
-        liquidationThreshold = _liquidationThreshold;
         isAdmin[msg.sender] = true;
     }
 
@@ -131,10 +124,8 @@ contract LendingPool is Ownable, ReentrancyGuard {
         liquidation = _liquidation;
     }
 
-    function setCollateralParams(uint _collateralFactor, uint _closeFactor, uint _liquidationThreshold) external onlyAdmin {
+    function setCollateralParams(uint _collateralFactor) external onlyAdmin {
         collateralFactor = _collateralFactor;
-        closeFactor = _closeFactor;
-        liquidationThreshold = _liquidationThreshold;
     }
 
     /// Interest functions
@@ -345,8 +336,8 @@ contract LendingPool is Ownable, ReentrancyGuard {
             b.borrowIndexSnapShot = m.borrowIndex;
         }
         b.borrowIndexSnapShot = m.borrowIndex;
-        m.totalBorrows -= actualRepay;
+        m.totalBorrows -= repayAmount;
 
-        emit RepayFromLiquidation(borrower, repayAsset, actualRepay);
+        emit RepayFromLiquidation(borrower, repayAsset, repayAmount);
     }
 }
