@@ -6,8 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import {IPriceRouter} from "./interfaces/Interfaces.sol";
-import {IInterestRateModel} from "./interfaces/Interfaces.sol";
+import {IPriceRouter, IInterestRateModel, ILiquidation} from "./interfaces/Interfaces.sol";
 
 contract LendingPool is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -46,6 +45,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
     }
 
     mapping(address => Market) public markets; // asset => Market
+    address[] public allMarkets; // list of all supported assets
     mapping(address => mapping(address => Balance)) public userBalances; // user => asset => Balance
     mapping(address => address[]) public userMarkets; // user => list of assets
     mapping(address => mapping(address => bool)) public userMarketExists; // user => asset => exists
@@ -108,6 +108,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
             lastUpdateTimestamp: block.timestamp,
             interestRateModel: interestRateModel
         });
+        allMarkets.push(asset);
         emit MarketSupported(asset, interestRateModel);
     }
 
@@ -210,7 +211,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
         uint currentBalance = _currentUserDeposit(msg.sender, asset);
         b.deposited = amount + currentBalance;
         b.depositIndexSnapShot = m.depositIndex;
-        m.totalDeposits += amount;
+        m.totalDeposits += amount;  
         if(!userMarketExists[msg.sender][asset]){
             userMarkets[msg.sender].push(asset);
             userMarketExists[msg.sender][asset] = true;
@@ -262,7 +263,12 @@ contract LendingPool is Ownable, ReentrancyGuard {
         emit Repay(msg.sender, asset, payAmount);
     }
 
-    function withdraw(address asset, uint amount) external nonReentrant onlySupportedMarket(asset) amountGreaterThanZero(amount) {
+    function withdraw(address asset, uint amount) 
+        external 
+        nonReentrant 
+        onlySupportedMarket(asset) 
+        amountGreaterThanZero(amount) 
+    {
         accrueInterest(asset);
         Market storage m = markets[asset];
         Balance storage b = userBalances[msg.sender][asset];
@@ -314,7 +320,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
         IERC20(collateralAsset).safeTransfer(recipient, seizeAmount);
         emit CollateralSeized(borrower, collateralAsset, seizeAmount);
     }
-    //TODO: fix repayFromLiquidation, currentBorrow * collateralFactor ?
+    
     function repayFromLiquidation(
         address borrower,
         address repayAsset,
@@ -339,5 +345,141 @@ contract LendingPool is Ownable, ReentrancyGuard {
         m.totalBorrows -= repayAmount;
 
         emit RepayFromLiquidation(borrower, repayAsset, repayAmount);
+    }
+
+    /// Helpers for frontend
+    function getAllMarkets() external view returns (address[] memory) {
+        return allMarkets;
+    }
+
+    /**
+     * @notice Returns market information for a given asset.
+     * @param asset The address of the asset to query.
+     * @return totalDeposits The total amount deposited in the market.
+     * @return totalBorrows The total amount borrowed from the market.
+     * @return depositRate The current deposit interest rate for the asset.
+     * @return borrowRate The current borrow interest rate for the asset.
+     * @return utilizationRate The current utilization rate of the market.
+     */
+    function getMarketInfo(address asset) external view returns (
+        uint totalDeposits,
+        uint totalBorrows,
+        uint depositRate,
+        uint borrowRate,
+        uint utilizationRate
+    ) {
+        Market memory m = markets[asset];
+        require(m.isSupported, "Market not supported");
+        totalDeposits = m.totalDeposits;
+        totalBorrows = m.totalBorrows;
+        utilizationRate = getUtilizationRate(asset);
+        borrowRate = IInterestRateModel(m.interestRateModel).getBorrowRate(asset);
+        depositRate = IInterestRateModel(m.interestRateModel).getDepositRate(asset);
+    }
+
+    function getUserInfo(address user) external view returns (
+        address[] memory assets,
+        uint[] memory deposited,
+        uint[] memory borrowed,
+        uint totalDeposited,
+        uint totalBorrowedUSD,
+        uint healthFactor // 18 decimals
+    ) {
+        assets = userMarkets[user];
+        uint len = assets.length;
+        deposited = new uint[](len);
+        borrowed = new uint[](len);
+        for(uint i=0; i<len; i++){
+            address asset = assets[i];
+            deposited[i] = _currentUserDeposit(user, asset);
+            borrowed[i] = _currentUserBorrow(user, asset);
+        }
+        (totalDeposited, totalBorrowedUSD) = getAccountLiquidity(user);
+        if(totalBorrowedUSD == 0){
+            healthFactor = type(uint).max;
+        } else {
+            uint liquidationThreshold = ILiquidation(liquidation).liquidationThreshold();
+            healthFactor = (totalDeposited * liquidationThreshold) / totalBorrowedUSD;
+        }
+    }
+
+    function preViewBorrow(address user, address asset, uint amount) 
+        external 
+        view 
+        returns (
+            uint totalDepositedUSD, 
+            uint totalBorrowedUSD, 
+            uint newBorrowUSD, 
+            uint newHealthFactor
+        ) 
+    {   
+        require(markets[asset].isSupported, "Market not supported");
+        require(amount > 0, "Amount must be greater than zero");
+        (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
+        uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
+        uint amountUSD = assetPrice * amount / SCALE;
+        newBorrowUSD = totalBorrowedUSD + amountUSD;
+        if(newBorrowUSD == 0){
+            newHealthFactor = type(uint).max;
+        } else {
+            uint liquidationThreshold = ILiquidation(liquidation).liquidationThreshold();
+            newHealthFactor = (totalDepositedUSD * liquidationThreshold) / newBorrowUSD;
+        }
+    }
+
+    function preViewWithdraw(address user, address asset, uint amount) 
+        external 
+        view 
+        returns (
+            uint totalDepositedUSD, 
+            uint totalBorrowedUSD, 
+            uint newDepositedUSD, 
+            uint newHealthFactor
+        ) 
+    {   
+        require(markets[asset].isSupported, "Market not supported");
+        require(amount > 0, "Amount must be greater than zero");
+        (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
+        uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
+        uint amountUSD = assetPrice * amount / SCALE;
+        newDepositedUSD = totalDepositedUSD > amountUSD ? totalDepositedUSD - amountUSD : 0;
+        if(totalBorrowedUSD == 0){
+            newHealthFactor = type(uint).max;
+        } else {
+            uint liquidationThreshold = ILiquidation(liquidation).liquidationThreshold();
+            newHealthFactor = (newDepositedUSD * liquidationThreshold) / totalBorrowedUSD;
+        }
+    }
+
+    function preViewRepay(address user, address asset, uint amount) 
+        external 
+        view 
+        returns (
+            uint totalBorrowedUSD, 
+            uint newBorrowedUSD
+        ) 
+    {   
+        require(markets[asset].isSupported, "Market not supported");
+        require(amount > 0, "Amount must be greater than zero");
+        ( , totalBorrowedUSD) = getAccountLiquidity(user);
+        uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
+        uint amountUSD = assetPrice * amount / SCALE;
+        newBorrowedUSD = totalBorrowedUSD > amountUSD ? totalBorrowedUSD - amountUSD : 0;
+    }
+
+    function preViewDeposit(address user, address asset, uint amount) 
+        external 
+        view 
+        returns (
+            uint totalDepositedUSD, 
+            uint newDepositedUSD
+        ) 
+    {   
+        require(markets[asset].isSupported, "Market not supported");
+        require(amount > 0, "Amount must be greater than zero");
+        (totalDepositedUSD, ) = getAccountLiquidity(user);
+        uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
+        uint amountUSD = assetPrice * amount / SCALE;
+        newDepositedUSD = totalDepositedUSD + amountUSD;
     }
 }

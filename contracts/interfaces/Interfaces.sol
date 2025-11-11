@@ -37,6 +37,7 @@ interface ILiquidation {
         address collateralAsset,
         uint repayAmount
     ) external view returns (uint seizeAmount);
+    function liquidationThreshold() external view returns (uint);
 }
 
 interface IInterestRateModel {
