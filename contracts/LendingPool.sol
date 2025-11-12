@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -195,8 +196,10 @@ contract LendingPool is Ownable, ReentrancyGuard {
             uint currentDeposit = _currentUserDeposit(user, asset);
             uint currentBorrow = _currentUserBorrow(user, asset);
             uint assetPrice = pr.getPrice(asset);
-            totalDepositedUSD += assetPrice * currentDeposit / SCALE;
-            totalBorrowedUSD += assetPrice * currentBorrow / SCALE;
+            uint decimals = IERC20Metadata(asset).decimals();
+            // Normalize to 18 decimals: (18 decimals price * token decimals) * 10^(18 - token decimals) / 10^18
+            totalDepositedUSD += assetPrice * currentDeposit / decimals;
+            totalBorrowedUSD += assetPrice * currentBorrow / decimals;
         }
         return (totalDepositedUSD, totalBorrowedUSD);
     }
@@ -235,7 +238,8 @@ contract LendingPool is Ownable, ReentrancyGuard {
         // Calculate total collateral and ensure user can borrow
         (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(msg.sender);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
-        uint amountUSD = assetPrice * amount / SCALE;
+        uint decimals = IERC20Metadata(asset).decimals();
+        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
         require(totalDepositedUSD * collateralFactor / SCALE >= (totalBorrowedUSD + amountUSD), "Insufficient collateral");
         // Update userBalances and totalBorrows
         uint currentBorrow = _currentUserBorrow(msg.sender, asset);
@@ -287,7 +291,8 @@ contract LendingPool is Ownable, ReentrancyGuard {
         // Check if user has sufficient collateral after withdrawal
         (uint totalDepositedUSD, uint totalBorrowedUSD) = this.getAccountLiquidity(msg.sender);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
-        uint amountUSD = assetPrice * amount / SCALE;
+        uint decimals = IERC20Metadata(asset).decimals();
+        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
         require((totalDepositedUSD - amountUSD) * collateralFactor / SCALE > totalBorrowedUSD, "Insufficient collateral");
         // Update userBalances and totalDeposits
         uint newDeposit = currentDeposit - amount;
@@ -426,7 +431,8 @@ contract LendingPool is Ownable, ReentrancyGuard {
         require(amount > 0, "Amount must be greater than zero");
         (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
-        uint amountUSD = assetPrice * amount / SCALE;
+        uint decimals = IERC20Metadata(asset).decimals();
+        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
         newBorrowUSD = totalBorrowedUSD + amountUSD;
         if(newBorrowUSD == 0){
             newHealthFactor = type(uint).max;
@@ -450,7 +456,8 @@ contract LendingPool is Ownable, ReentrancyGuard {
         require(amount > 0, "Amount must be greater than zero");
         (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
-        uint amountUSD = assetPrice * amount / SCALE;
+        uint decimals = IERC20Metadata(asset).decimals();
+        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
         newDepositedUSD = totalDepositedUSD > amountUSD ? totalDepositedUSD - amountUSD : 0;
         if(totalBorrowedUSD == 0){
             newHealthFactor = type(uint).max;
@@ -472,7 +479,8 @@ contract LendingPool is Ownable, ReentrancyGuard {
         require(amount > 0, "Amount must be greater than zero");
         ( , totalBorrowedUSD) = getAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
-        uint amountUSD = assetPrice * amount / SCALE;
+        uint decimals = IERC20Metadata(asset).decimals();
+        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
         newBorrowedUSD = totalBorrowedUSD > amountUSD ? totalBorrowedUSD - amountUSD : 0;
     }
 
@@ -488,7 +496,8 @@ contract LendingPool is Ownable, ReentrancyGuard {
         require(amount > 0, "Amount must be greater than zero");
         (totalDepositedUSD, ) = getAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
-        uint amountUSD = assetPrice * amount / SCALE;
+        uint decimals = IERC20Metadata(asset).decimals();
+        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
         newDepositedUSD = totalDepositedUSD + amountUSD;
     }
 }
