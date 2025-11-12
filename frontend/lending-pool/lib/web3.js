@@ -26,8 +26,6 @@ const getContract = async (contractAddress, contractABI) => {
     if (typeof window !== "undefined" && window.ethereum) {
         provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
-        console.log("Contract address:", contractAddress);
-console.log("ABI:", contractABI);
         return new ethers.Contract(contractAddress, contractABI, signer);
     } else {
         provider = ethers.getDefaultProvider();

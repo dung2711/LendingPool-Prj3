@@ -22,6 +22,8 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import HistoryIcon from '@mui/icons-material/History';
 import MenuIcon from '@mui/icons-material/Menu';
 import HomeIcon from '@mui/icons-material/Home';
+import GavelIcon from '@mui/icons-material/Gavel';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 
 const drawerWidth = 260;
 
@@ -30,7 +32,9 @@ const navItems = [
     { title: 'Dashboard', path: '/dashboard', icon: DashboardIcon },
     { title: 'Supply', path: '/supply', icon: AccountBalanceIcon },
     { title: 'Borrow', path: '/borrow', icon: TrendingUpIcon },
+    { title: 'Liquidation', path: '/liquidation', icon: GavelIcon },
     { title: 'History', path: '/history', icon: HistoryIcon },
+    { title: 'Admin', path: '/admin', icon: AdminPanelSettingsIcon },
 ];
 
 export default function Navbar() {

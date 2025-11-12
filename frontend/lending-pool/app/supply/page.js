@@ -14,17 +14,14 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
-import TextField from '@mui/material/TextField';
 import Alert from '@mui/material/Alert';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Tooltip from '@mui/material/Tooltip';
 import { getLendingPoolContract, getToken, getPriceRouterContract } from '@/lib/web3';
+import DepositDialog from '@/components/DepositDialog';
+import WithdrawDialog from '@/components/WithdrawDialog';
 
 export default function Supply() {
     const [account, setAccount] = useState(null);
@@ -33,9 +30,8 @@ export default function Supply() {
     const [userDeposits, setUserDeposits] = useState([]);
     const [totalDepositedUSD, setTotalDepositedUSD] = useState(0);
     const [selectedAsset, setSelectedAsset] = useState(null);
-    const [depositAmount, setDepositAmount] = useState('');
-    const [openDialog, setOpenDialog] = useState(false);
-    const [transactionLoading, setTransactionLoading] = useState(false);
+    const [openDepositDialog, setOpenDepositDialog] = useState(false);
+    const [openWithdrawDialog, setOpenWithdrawDialog] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [showZeroBalance, setShowZeroBalance] = useState(false);
@@ -92,19 +88,22 @@ export default function Supply() {
                 allMarkets.map(async (marketAddress) => {
                     try {
                         const tokenContract = await getToken(marketAddress);
-                        const [symbol, balance, marketInfo, userDeposit] = await Promise.all([
+                        const [symbol, decimals, balance, marketInfo, userDeposit] = await Promise.all([
                             tokenContract.symbol(),
+                            tokenContract.decimals(),
                             tokenContract.balanceOf(userAddress),
                             lendingPool.getMarketInfo(marketAddress),
                             lendingPool.getUserCurrentDeposit(userAddress, marketAddress)
                         ]);
-                        const assetPrice = await priceRouter.getPrice(marketAddress);
-                        const userDepositInUSD = assetPrice * userDeposit / (10n ** 18n);
-                        const balanceInUSD = assetPrice * balance / (10n ** 18n);
+                        const assetPrice = await priceRouter.getPrice(marketAddress); // 18 decimals
+                        console.log(assetPrice);
+                        const userDepositInUSD = assetPrice * userDeposit / (10n ** BigInt(decimals));
+                        const balanceInUSD = assetPrice * balance / (10n ** BigInt(decimals));
                         return {
                             address: marketAddress,
                             symbol,
-                            balance,
+                            decimals,
+                            balance: balance * (10n ** (18n - BigInt(decimals))), // normalize to 18 decimals
                             balanceInUSD,
                             depositRate: marketInfo.depositRate,
                             userDeposit,
@@ -117,7 +116,7 @@ export default function Supply() {
                 })
             );
 
-            const validMarkets = marketData.filter(m => m !== null);
+            const validMarkets = marketData.filter(m => (m !== null));
             setMarkets(validMarkets);
 
             // Filter user deposits (only assets with deposits > 0)
@@ -135,68 +134,27 @@ export default function Supply() {
         }
     };
 
-    const handleOpenDialog = (asset) => {
+    const handleOpenDepositDialog = (asset) => {
         setSelectedAsset(asset);
-        setDepositAmount('');
-        setOpenDialog(true);
-        setError('');
+        setOpenDepositDialog(true);
         setSuccess('');
     };
 
-    const handleCloseDialog = () => {
-        setOpenDialog(false);
+    const handleOpenWithdrawDialog = (asset) => {
+        setSelectedAsset(asset);
+        setOpenWithdrawDialog(true);
+        setSuccess('');
+    }
+
+    const handleCloseDepositDialog = () => {
+        setOpenDepositDialog(false);
         setSelectedAsset(null);
-        setDepositAmount('');
-        setError('');
     };
 
-    const handleDeposit = async () => {
-        if (!depositAmount || !selectedAsset) return;
-
-        try {
-            setTransactionLoading(true);
-            setError('');
-
-            const lendingPool = await getLendingPoolContract();
-            const tokenContract = await getToken(selectedAsset.address);
-            const amountInWei = ethers.parseEther(depositAmount);
-
-            // Check balance
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const signer = await provider.getSigner();
-            const userAddress = await signer.getAddress();
-            const balance = await tokenContract.balanceOf(userAddress);
-
-            if (balance < amountInWei) {
-                setError('Insufficient balance');
-                setTransactionLoading(false);
-                return;
-            }
-
-            // Approve
-            const approveTx = await tokenContract.approve(await lendingPool.getAddress(), amountInWei);
-            await approveTx.wait();
-
-            // Deposit
-            const depositTx = await lendingPool.deposit(selectedAsset.address, amountInWei);
-            await depositTx.wait();
-
-            setSuccess(`Successfully deposited ${depositAmount} ${selectedAsset.symbol}`);
-            setDepositAmount('');
-            
-            // Refresh data
-            setTimeout(() => {
-                fetchData();
-                handleCloseDialog();
-            }, 2000);
-
-        } catch (err) {
-            console.error('Error depositing:', err);
-            setError(err.message || 'Transaction failed');
-        } finally {
-            setTransactionLoading(false);
-        }
-    };
+    const handleCloseWithdrawDialog = () => {
+        setOpenWithdrawDialog(false);
+        setSelectedAsset(null);
+    }
 
     const formatRate = (rate) => {
         const rateNum = parseFloat(ethers.formatUnits(rate, 18)) * 100;
@@ -204,7 +162,8 @@ export default function Supply() {
     };
 
     const formatAmount = (amount) => {
-        return parseFloat(ethers.formatEther(amount)).toFixed(4);
+        const formated = ethers.formatEther(amount);
+        return parseFloat(formated).toFixed(4);
     };
 
     // Filter markets based on showZeroBalance checkbox
@@ -303,6 +262,7 @@ export default function Supply() {
                                                 <TableCell align="right">
                                                     <Button
                                                         variant="contained"
+                                                        onClick={() => handleOpenWithdrawDialog(deposit)}
                                                     >
                                                         Withdraw
                                                     </Button>
@@ -398,7 +358,7 @@ export default function Supply() {
                                                     <Button
                                                         variant="contained"
                                                         disabled={market.balance === 0n}
-                                                        onClick={() => handleOpenDialog(market)}
+                                                        onClick={() => handleOpenDepositDialog(market)}
                                                     >
                                                         Deposit
                                                     </Button>
@@ -414,46 +374,25 @@ export default function Supply() {
             </Box>
 
             {/* Deposit Dialog */}
-            <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-                <DialogTitle>
-                    Deposit {selectedAsset?.symbol}
-                </DialogTitle>
-                <DialogContent>
-                    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-                    {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
-                    
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Available: {selectedAsset && formatAmount(selectedAsset.balance)} {selectedAsset?.symbol}
-                    </Typography>
-                    
-                    <TextField
-                        fullWidth
-                        label="Amount"
-                        type="number"
-                        value={depositAmount}
-                        onChange={(e) => setDepositAmount(e.target.value)}
-                        inputProps={{ step: "0.000001", min: "0" }}
-                        sx={{ mb: 2 }}
-                    />
-                    
-                    <Typography variant="body2" color="text.secondary">
-                        Current APY: {selectedAsset && formatRate(selectedAsset.depositRate)}
-                    </Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseDialog} disabled={transactionLoading}>
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={handleDeposit}
-                        variant="contained"
-                        disabled={transactionLoading || !depositAmount}
-                        startIcon={transactionLoading ? <CircularProgress size={20} /> : null}
-                    >
-                        {transactionLoading ? 'Processing...' : 'Deposit'}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            {openDepositDialog && <DepositDialog
+                handleCloseDialog={handleCloseDepositDialog}
+                selectedAsset={selectedAsset}
+                fetchData={fetchData}
+                setSuccess={setSuccess}
+                formatAmount={formatAmount}
+                formatRate={formatRate}
+            />
+            }
+            {/* Withdraw Dialog */}
+            {openWithdrawDialog && <WithdrawDialog
+                handleCloseDialog={handleCloseWithdrawDialog}
+                selectedAsset={selectedAsset}
+                fetchData={fetchData}
+                setSuccess={setSuccess}
+                formatAmount={formatAmount}
+            />
+            }
+            
         </Box>
     );
 }
