@@ -55,11 +55,12 @@ contract PriceRouter is Ownable {
         if(feedInfo.source == Source.CHAINLINK){
             AggregatorV3Interface priceFeed = AggregatorV3Interface(feedInfo.feedOrToken);
             (,int price,,,) = priceFeed.latestRoundData();
-            uint decimal = IERC20Metadata(asset).decimals();
-            if(decimal > 18){
-                price = price / int(10 ** (decimal - 18));
+            require(price > 0, "Invalid price from Chainlink");
+            uint feedDecimal = priceFeed.decimals();
+            if(feedDecimal > 18){
+                price = price / int(10 ** (feedDecimal - 18));
             } else {
-                price = price * int(10 ** (18 - decimal));
+                price = price * int(10 ** (18 - feedDecimal));
             }
             return uint(price); // Normalize to 18 decimals
         } else if(feedInfo.source == Source.MYORACLE){

@@ -46,6 +46,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
 
     mapping(address => Market) public markets; // asset => Market
     address[] public allMarkets; // list of all supported assets
+    mapping(address => bool) public marketExists; // asset => exists
     mapping(address => mapping(address => Balance)) public userBalances; // user => asset => Balance
     mapping(address => address[]) public userMarkets; // user => list of assets
     mapping(address => mapping(address => bool)) public userMarketExists; // user => asset => exists
@@ -99,7 +100,13 @@ contract LendingPool is Ownable, ReentrancyGuard {
     }
 
     function supportMarket(address asset, address interestRateModel) external onlyAdmin {
-        markets[asset] = Market({
+        if(marketExists[asset]){
+            markets[asset].isSupported = true;
+            markets[asset].interestRateModel = interestRateModel;
+            emit MarketSupported(asset, interestRateModel);
+            return;
+        } else {
+            markets[asset] = Market({
             isSupported: true,
             totalDeposits: 0,
             totalBorrows: 0,
@@ -107,9 +114,11 @@ contract LendingPool is Ownable, ReentrancyGuard {
             depositIndex: SCALE,
             lastUpdateTimestamp: block.timestamp,
             interestRateModel: interestRateModel
-        });
-        allMarkets.push(asset);
-        emit MarketSupported(asset, interestRateModel);
+            });
+            allMarkets.push(asset);
+            marketExists[asset] = true;
+            emit MarketSupported(asset, interestRateModel);
+        }
     }
 
     function unsupportMarket(address asset) external onlyAdmin {

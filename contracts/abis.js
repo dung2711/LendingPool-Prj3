@@ -668,6 +668,25 @@ const lendingPoolABI = [
           "type": "address"
         }
       ],
+      "name": "marketExists",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
       "name": "markets",
       "outputs": [
         {

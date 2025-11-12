@@ -1,8 +1,8 @@
 {
-  "LendingPoolProtocol#InterestRateModel": "0xdCb7e13c7574bCEc1b7207f51cef1695434DA526",
-  "LendingPoolProtocol#MyOracle": "0xE03e7B7F0D3Cc670dA2c50bE60c896fDEf3340d1",
-  "LendingPoolProtocol#MyToken": "0x6D87A43E11Bd30833A9c5d3E211C2C44606d9855",
-  "LendingPoolProtocol#PriceRouter": "0xD29e77CdaFCdB54BF4D84d8C9519c0A997CD1354",
-  "LendingPoolProtocol#LendingPool": "0xeb5307e0D0499841052Ed89a4D328BB6844b6d01",
-  "LendingPoolProtocol#Liquidation": "0x5E797Fda15a2A9E75a0A0248A9F2f05eC3e87E62"
+  "LendingPoolProtocol#InterestRateModel": "0xd5dE3bD1327aF577A46c4FeD2E74B472c6BA48Cb",
+  "LendingPoolProtocol#MyOracle": "0x624Da01414EAa8Ae404D2b49237355D700EE76ef",
+  "LendingPoolProtocol#MyToken": "0x928d32112F2c3cbE394c89A62A4dD5A8A95EF32c",
+  "LendingPoolProtocol#PriceRouter": "0x402236Eb47839aaEc015b25D80b658e4cBaa1067",
+  "LendingPoolProtocol#LendingPool": "0x610AfF8e9a182C4C7858b609d09d01F25Fb42472",
+  "LendingPoolProtocol#Liquidation": "0x9a4b9b20c3c829ED51Ed0c10cABB0Cb3CF2a73F7"
 }
