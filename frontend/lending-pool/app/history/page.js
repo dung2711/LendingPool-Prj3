@@ -406,7 +406,7 @@ export default function History() {
                                     <TableRow sx={{ bgcolor: 'grey.100' }}>
                                         <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>Asset</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Amount</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>Amount</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>Transaction</TableCell>
                                     </TableRow>
@@ -427,7 +427,7 @@ export default function History() {
                                                     {tx.symbol}
                                                 </Typography>
                                             </TableCell>
-                                            <TableCell align="right">
+                                            <TableCell>
                                                 <Typography variant="body2" fontWeight="medium">
                                                     {tx.amountFormatted.toFixed(4)}
                                                 </Typography>

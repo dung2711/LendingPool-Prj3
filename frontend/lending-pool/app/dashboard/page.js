@@ -31,6 +31,7 @@ export default function Dashboard() {
     const [totalBorrowedUSD, setTotalBorrowedUSD] = useState(0n);
     const [healthFactor, setHealthFactor] = useState(0n);
     const [netAPY, setNetAPY] = useState(0);
+    const [collateralFactor, setCollateralFactor] = useState(0n);
 
     useEffect(() => {
         checkWalletAndFetch();
@@ -77,12 +78,17 @@ export default function Dashboard() {
             const userAddress = await signer.getAddress();
 
             // Get user info
+            // Now getUserInfo returns properly normalized 18-decimal USD values after contract fix
             const [assets, deposited, borrowed, totalDeposited, totalBorrowed, healthFactor] = 
                 await lendingPool.getUserInfo(userAddress);
+
+            // Get collateral factor from the contract
+            const collateralFactorValue = await lendingPool.collateralFactor();
 
             setTotalSuppliedUSD(totalDeposited);
             setTotalBorrowedUSD(totalBorrowed);
             setHealthFactor(healthFactor);
+            setCollateralFactor(collateralFactorValue);
 
             // Fetch detailed market data for user's positions
             const marketData = await Promise.all(
@@ -96,18 +102,20 @@ export default function Dashboard() {
                         ]);
                         const assetPrice = await priceRouter.getPrice(assetAddress);
                         
-                        const depositedAmount = deposited[index];
-                        const borrowedAmount = borrowed[index];
+                        const depositedAmount = deposited[index]; // token decimals
+                        const borrowedAmount = borrowed[index];   // token decimals
                         
-                        const depositedUSD = assetPrice * depositedAmount / (10n ** 18n);
-                        const borrowedUSD = assetPrice * borrowedAmount / (10n ** 18n);
+                        // assetPrice is 18 decimals, amounts are in token decimals
+                        // Normalize to 18 decimal USD
+                        const depositedUSD = assetPrice * depositedAmount / (10n ** BigInt(decimals));
+                        const borrowedUSD = assetPrice * borrowedAmount / (10n ** BigInt(decimals));
 
                         return {
                             address: assetAddress,
                             symbol,
                             decimals,
-                            deposited: depositedAmount,
-                            borrowed: borrowedAmount,
+                            deposited: depositedAmount * (10n ** (18n - BigInt(decimals))), // normalize to 18 decimals
+                            borrowed: borrowedAmount * (10n ** (18n - BigInt(decimals))), // normalize to 18 decimals
                             depositedUSD,
                             borrowedUSD,
                             depositRate: marketInfo.depositRate,
@@ -123,22 +131,26 @@ export default function Dashboard() {
             const validMarkets = marketData.filter(m => m !== null);
             setMarkets(validMarkets);
 
-            // Calculate net APY
+            // Calculate net APY using the corrected totalDeposited from getUserInfo
             if (totalDeposited > 0n) {
-                let totalSupplyInterest = 0n;
-                let totalBorrowInterest = 0n;
+                let totalSupplyInterestUSD = 0n;
+                let totalBorrowInterestUSD = 0n;
 
                 validMarkets.forEach(market => {
-                    if (market.deposited > 0n) {
-                        totalSupplyInterest += (market.depositedUSD * market.depositRate) / (10n ** 18n);
+                    if (market.depositedUSD > 0n) {
+                        // depositRate is annual rate (18 decimals)
+                        // depositedUSD is in 18 decimal USD
+                        totalSupplyInterestUSD += (market.depositedUSD * market.depositRate) / (10n ** 18n);
                     }
-                    if (market.borrowed > 0n) {
-                        totalBorrowInterest += (market.borrowedUSD * market.borrowRate) / (10n ** 18n);
+                    if (market.borrowedUSD > 0n) {
+                        totalBorrowInterestUSD += (market.borrowedUSD * market.borrowRate) / (10n ** 18n);
                     }
                 });
 
-                const netInterest = totalSupplyInterest - totalBorrowInterest;
-                const netAPYValue = Number(netInterest * 100n / totalDeposited) / 1e18;
+                const netInterestUSD = totalSupplyInterestUSD - totalBorrowInterestUSD;
+                // Both netInterestUSD and totalDeposited are in 18 decimal USD
+                // (18 decimals * 100) / 18 decimals = dimensionless percentage
+                const netAPYValue = Number(netInterestUSD * 100n / totalDeposited);
                 setNetAPY(netAPYValue);
             }
 
@@ -154,8 +166,9 @@ export default function Dashboard() {
         return `${rateNum.toFixed(2)}%`;
     };
 
-    const formatAmount = (amount, decimals = 18) => {
-        return parseFloat(ethers.formatUnits(amount, decimals)).toFixed(decimals <= 6 ? decimals : 4);
+    const formatAmount = (amount) => {
+        const formated = ethers.formatEther(amount);
+        return parseFloat(formated).toFixed(4);
     };
 
     const formatHealthFactor = (hf) => {
@@ -187,8 +200,11 @@ export default function Dashboard() {
     };
 
     const calculateBorrowLimit = () => {
-        if (totalSuppliedUSD === 0n) return 0;
-        return Number((totalBorrowedUSD * 100n) / totalSuppliedUSD) / 1e18;
+        if (totalSuppliedUSD === 0n || collateralFactor === 0n) return 0;
+        // Calculate max borrowable amount: totalSupplied * collateralFactor / 1e18
+        const maxBorrowableUSD = (totalSuppliedUSD * collateralFactor) / (10n ** 18n);
+        // Calculate percentage of borrow limit used
+        return Number((totalBorrowedUSD * 100n) / maxBorrowableUSD);
     };
 
     if (!account) {
@@ -322,7 +338,7 @@ export default function Dashboard() {
                                     </Typography>
                                 </Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Using ${formatAmount(totalBorrowedUSD)} of ${formatAmount(totalSuppliedUSD)} collateral
+                                    Borrowed ${formatAmount(totalBorrowedUSD)} of ${formatAmount((totalSuppliedUSD * collateralFactor) / (10n ** 18n))} max borrowable
                                 </Typography>
                             </CardContent>
                         </Card>
@@ -361,7 +377,7 @@ export default function Dashboard() {
                                                     </TableCell>
                                                     <TableCell align="right">
                                                         <Typography variant="body2">
-                                                            {formatAmount(market.deposited, market.decimals)}
+                                                            {formatAmount(market.deposited)}
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell align="right">
@@ -416,7 +432,7 @@ export default function Dashboard() {
                                                     </TableCell>
                                                     <TableCell align="right">
                                                         <Typography variant="body2">
-                                                            {formatAmount(market.borrowed, market.decimals)}
+                                                            {formatAmount(market.borrowed)}
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell align="right">
