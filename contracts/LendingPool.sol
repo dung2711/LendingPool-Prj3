@@ -198,8 +198,8 @@ contract LendingPool is Ownable, ReentrancyGuard {
             uint assetPrice = pr.getPrice(asset);
             uint decimals = IERC20Metadata(asset).decimals();
             // Normalize to 18 decimals: (18 decimals price * token decimals) * 10^(18 - token decimals) / 10^18
-            totalDepositedUSD += assetPrice * currentDeposit / decimals;
-            totalBorrowedUSD += assetPrice * currentBorrow / decimals;
+            totalDepositedUSD += assetPrice * currentDeposit / (10 ** decimals);
+            totalBorrowedUSD += assetPrice * currentBorrow / (10 ** decimals);
         }
         return (totalDepositedUSD, totalBorrowedUSD);
     }
