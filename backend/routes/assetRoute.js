@@ -3,7 +3,7 @@ import { getAllAssets, getAssetByAddress, createAsset, updateAssetBalances, dele
 
 const route = express.Router();
 
-route.get("/assets/:address", async (req, res) => {
+route.get("/:address", async (req, res) => {
     try {
         const address = req.params.address;
         const asset = await getAssetByAddress(address);
@@ -13,7 +13,7 @@ route.get("/assets/:address", async (req, res) => {
     }
 });
 
-route.get("/assets", async (req, res) => {
+route.get("/", async (req, res) => {
     try {
         const assets = await getAllAssets();
         res.status(200).json(assets);
@@ -22,7 +22,7 @@ route.get("/assets", async (req, res) => {
     }
 });
 
-route.post("/assets", async (req, res) => {
+route.post("/", async (req, res) => {
     try {
         const assetData = req.body;
         const asset = await createAsset(assetData);
@@ -32,7 +32,7 @@ route.post("/assets", async (req, res) => {
     }
 });
 
-route.put("/assets/:address", async (req, res) => {
+route.put("/:address", async (req, res) => {
     try {
         const address = req.params.address;
         const { totalSupply, totalBorrow, depositIndex, borrowIndex, lastUpdateTimestamp, depositRate, borrowRate } = req.body;
@@ -44,7 +44,7 @@ route.put("/assets/:address", async (req, res) => {
     }
 });
 
-route.delete("/assets/:address", async (req, res) => {
+route.delete("/:address", async (req, res) => {
     try {
         const address = req.params.address;
         const deleted = await deleteAsset(address);

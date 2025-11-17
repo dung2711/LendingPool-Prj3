@@ -9,7 +9,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 const route = express.Router();
 
-route.get("/users/:address", async (req, res) => {
+route.get("/:address", async (req, res) => {
     try {
         const address = req.params.address;
         const user = await getUserByAddress(address);
@@ -19,7 +19,7 @@ route.get("/users/:address", async (req, res) => {
     }
 });
 
-route.post("/users", async (req, res) => {
+route.post("/", async (req, res) => {
     try {
         const { address } = req.body;
         const user = await createUser(address);

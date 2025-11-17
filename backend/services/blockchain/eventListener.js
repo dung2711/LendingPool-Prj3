@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
+import { EventEmitter } from 'events';
 import { getProvider, config } from './config.js';
-import { getLendingPoolContract } from './contract.js';
+import { getLendingPoolContract, getLiquidationContract } from './contract.js';
 import {
     handleDeposit,
     handleWithdraw,
@@ -9,18 +10,27 @@ import {
     handleCollateralSeized,
     handleAccrue,
     handleMarketSupported,
-    handleMarketUnsupported
+    handleMarketUnsupported,
+    handleCollateralFactorUpdated,
+    handleLiquidationParamsUpdated,
+    calculateLiquidatableUsers
 } from './eventHandlers.js';
 
 /**
  * Event listener class for LendingPool contract
  */
-class EventListener {
+class EventListener extends EventEmitter {
     constructor() {
+        super();
         this.provider = null;
-        this.contract = null;
+        this.lendingPoolContract = null;
+        this.liquidationContract = null;
         this.isListening = false;
-        this.eventHandlers = new Map();
+        this.lendingPoolEventHandlers = new Map();
+        this.liquidationEventHandlers = new Map();
+        this.lastLiquidatableCheck = 0;
+        this.liquidatableCheckInterval = 10; // Check every 10 blocks
+        this.lastLiquidatableUpdate = null;
         this.setupEventHandlers();
     }
 
@@ -28,14 +38,16 @@ class EventListener {
      * Setup event handlers mapping
      */
     setupEventHandlers() {
-        this.eventHandlers.set('Deposit', handleDeposit);
-        this.eventHandlers.set('Withdraw', handleWithdraw);
-        this.eventHandlers.set('Borrow', handleBorrow);
-        this.eventHandlers.set('Repay', handleRepay);
-        this.eventHandlers.set('CollateralSeized', handleCollateralSeized);
-        this.eventHandlers.set('Accrue', handleAccrue);
-        this.eventHandlers.set('MarketSupported', handleMarketSupported);
-        this.eventHandlers.set('MarketUnsupported', handleMarketUnsupported);
+        this.lendingPoolEventHandlers.set('Deposit', handleDeposit);
+        this.lendingPoolEventHandlers.set('Withdraw', handleWithdraw);
+        this.lendingPoolEventHandlers.set('Borrow', handleBorrow);
+        this.lendingPoolEventHandlers.set('Repay', handleRepay);
+        this.lendingPoolEventHandlers.set('CollateralSeized', handleCollateralSeized);
+        this.lendingPoolEventHandlers.set('Accrue', handleAccrue);
+        this.lendingPoolEventHandlers.set('MarketSupported', handleMarketSupported);
+        this.lendingPoolEventHandlers.set('MarketUnsupported', handleMarketUnsupported);
+        this.lendingPoolEventHandlers.set('CollateralFactorUpdated', handleCollateralFactorUpdated);
+        this.liquidationEventHandlers.set('LiquidationParamsUpdated', handleLiquidationParamsUpdated);
     }
 
     /**
@@ -55,11 +67,13 @@ class EventListener {
                 this.provider = getProvider(false);
             }
             
-            this.contract = getLendingPoolContract(this.provider);
+            this.lendingPoolContract = getLendingPoolContract(this.provider);
+            this.liquidationContract = getLiquidationContract(this.provider);
             
             const network = await this.provider.getNetwork();
             console.log(`✅ Connected to network: ${network.name} (chainId: ${network.chainId})`);
-            console.log(`✅ LendingPool contract: ${await this.contract.getAddress()}`);
+            console.log(`✅ LendingPool contract: ${await this.lendingPoolContract.getAddress()}`);
+            console.log(`✅ Liquidation contract: ${await this.liquidationContract.getAddress()}`);
             
             return true;
         } catch (error) {
@@ -77,7 +91,7 @@ class EventListener {
             return;
         }
 
-        if (!this.provider || !this.contract) {
+        if (!this.provider || !this.lendingPoolContract || !this.liquidationContract) {
             await this.initialize();
         }
 
@@ -85,8 +99,8 @@ class EventListener {
             console.log('Starting event listeners...');
             
             // Set up listeners for each event
-            for (const [eventName, handler] of this.eventHandlers) {
-                this.contract.on(eventName, async (...args) => {
+            for (const [eventName, handler] of this.lendingPoolEventHandlers) {
+                this.lendingPoolContract.on(eventName, async (...args) => {
                     try {
                         // Last argument is the event object
                         const event = args[args.length - 1];
@@ -101,8 +115,52 @@ class EventListener {
                     }
                 });
                 
-                console.log(`   ✓ Listening to ${eventName}`);
+                console.log(`Listening to ${eventName}`);
             }
+            for (const [eventName, handler] of this.liquidationEventHandlers) {
+                this.liquidationContract.on(eventName, async (...args) => {
+                    try {
+                        // Last argument is the event object
+                        const event = args[args.length - 1];
+                        
+                        // Get block to extract timestamp
+                        const block = await this.provider.getBlock(event.blockNumber);
+                        
+                        // Call the handler
+                        await handler(event, block.timestamp);
+                    } catch (error) {
+                        console.error(`Error processing ${eventName} event:`, error);
+                    }
+                });
+                
+                console.log(`Listening to ${eventName}`);
+            }
+            
+
+            // Throttled liquidatable users calculation
+            this.provider.on('block', async (blockNumber) => {
+                try {
+                    // Only calculate every N blocks to reduce load
+                    if (blockNumber - this.lastLiquidatableCheck >= this.liquidatableCheckInterval) {
+                        this.lastLiquidatableCheck = blockNumber;
+                        console.log(`🔍 Checking liquidatable users at block ${blockNumber}...`);
+                        
+                        const liquidatableUsers = await calculateLiquidatableUsers();
+                        this.lastLiquidatableUpdate = new Date();
+                        
+                        // Emit event for frontend notification (if using WebSocket)
+                        this.emit('liquidatableUsersUpdated', {
+                            users: liquidatableUsers,
+                            blockNumber,
+                            timestamp: this.lastLiquidatableUpdate
+                        });
+                        
+                        console.log(`✅ Liquidatable users updated: ${liquidatableUsers.length} users found`);
+                    }
+                } catch (error) {
+                    console.error('Error in liquidatable users check:', error);
+                }
+            });
             
             this.isListening = true;
             console.log('✅ All event listeners started');
@@ -125,7 +183,8 @@ class EventListener {
             console.log('🛑 Stopping event listeners...');
             
             // Remove all listeners
-            this.contract.removeAllListeners();
+            this.lendingPoolContract.removeAllListeners();
+            this.liquidationContract.removeAllListeners();
             
             this.isListening = false;
             console.log('✅ Event listeners stopped');
@@ -142,9 +201,33 @@ class EventListener {
         return {
             isListening: this.isListening,
             provider: this.provider ? 'connected' : 'disconnected',
-            contract: this.contract ? await this.contract.getAddress() : null,
-            eventsMonitored: Array.from(this.eventHandlers.keys())
+            lendingPoolContract: this.lendingPoolContract ? await this.lendingPoolContract.getAddress() : null,
+            liquidationContract: this.liquidationContract ? await this.liquidationContract.getAddress() : null,
+            eventsMonitored: Array.from(this.lendingPoolEventHandlers.keys())
+                .concat(Array.from(this.liquidationEventHandlers.keys())),
+            lastLiquidatableUpdate: this.lastLiquidatableUpdate
         };
+    }
+
+    /**
+     * Get last liquidatable users update timestamp
+     */
+    getLastLiquidatableUpdate() {
+        return this.lastLiquidatableUpdate;
+    }
+
+    /**
+     * Force liquidatable users calculation
+     */
+    async forceLiquidatableCheck() {
+        console.log('🔄 Forcing liquidatable users check...');
+        const liquidatableUsers = await calculateLiquidatableUsers();
+        this.lastLiquidatableUpdate = new Date();
+        this.emit('liquidatableUsersUpdated', {
+            users: liquidatableUsers,
+            timestamp: this.lastLiquidatableUpdate
+        });
+        return liquidatableUsers;
     }
 
     /**
@@ -155,7 +238,8 @@ class EventListener {
     async syncPastEvents(fromBlock, toBlock = 'latest') {
         // Use HTTP provider for historical sync (more reliable than WebSocket)
         const httpProvider = getProvider(false);
-        const syncContract = getLendingPoolContract(httpProvider);
+        const syncLendingPoolContract = getLendingPoolContract(httpProvider);
+        const syncLiquidationContract = getLiquidationContract(httpProvider);
 
         try {
             console.log(`🔄 Syncing events from block ${fromBlock} to ${toBlock}...`);
@@ -173,11 +257,11 @@ class EventListener {
                 
                 console.log(`   Processing blocks ${start} to ${end}...`);
                 
-                // Query all events for this batch
-                for (const [eventName, handler] of this.eventHandlers) {
+                // Query LendingPool events
+                for (const [eventName, handler] of this.lendingPoolEventHandlers) {
                     try {
-                        const filter = syncContract.filters[eventName]();
-                        const events = await syncContract.queryFilter(filter, start, end);
+                        const filter = syncLendingPoolContract.filters[eventName]();
+                        const events = await syncLendingPoolContract.queryFilter(filter, start, end);
                         
                         for (const event of events) {
                             const block = await httpProvider.getBlock(event.blockNumber);
@@ -185,10 +269,29 @@ class EventListener {
                         }
                         
                         if (events.length > 0) {
-                            console.log(`Found ${events.length} ${eventName} events`);
+                            console.log(`   Found ${events.length} ${eventName} events (LendingPool)`);
                         }
                     } catch (error) {
-                        console.error(`Error syncing ${eventName}:`, error.message);
+                        console.error(`   Error syncing LendingPool ${eventName}:`, error.message);
+                    }
+                }
+                
+                // Query Liquidation events
+                for (const [eventName, handler] of this.liquidationEventHandlers) {
+                    try {
+                        const filter = syncLiquidationContract.filters[eventName]();
+                        const events = await syncLiquidationContract.queryFilter(filter, start, end);
+                        
+                        for (const event of events) {
+                            const block = await httpProvider.getBlock(event.blockNumber);
+                            await handler(event, block.timestamp);
+                        }
+                        
+                        if (events.length > 0) {
+                            console.log(`   Found ${events.length} ${eventName} events (Liquidation)`);
+                        }
+                    } catch (error) {
+                        console.error(`   Error syncing Liquidation ${eventName}:`, error.message);
                     }
                 }
                 

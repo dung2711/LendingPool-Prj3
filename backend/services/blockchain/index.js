@@ -47,6 +47,13 @@ export const getBlockchainStatus = async () => {
 };
 
 /**
+ * Get event listener instance for subscribing to events
+ */
+export const getEventListener = () => {
+    return eventListener;
+};
+
+/**
  * Sync historical events
  * @param {number} fromBlock - Starting block number
  * @param {number} toBlock - Ending block number (default: latest)
@@ -54,6 +61,3 @@ export const getBlockchainStatus = async () => {
 export const syncHistoricalEvents = async (fromBlock, toBlock = 'latest') => {
     return await eventListener.syncPastEvents(fromBlock, toBlock);
 };
-
-// Export event listener instance
-export { eventListener };

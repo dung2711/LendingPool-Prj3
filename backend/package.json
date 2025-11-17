@@ -15,7 +15,8 @@
     "ethers": "^6.15.0",
     "express": "^5.1.0",
     "nodemon": "^3.1.11",
-    "sequelize": "^6.37.7"
+    "sequelize": "^6.37.7",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "pg": "^8.16.3"

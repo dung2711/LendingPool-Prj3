@@ -1,15 +1,28 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import sequelize from "./config/database.js";
 import assetRoute from './routes/assetRoute.js';
 import userRoute from './routes/userRoute.js';
 import transactionRoute from './routes/transactionRoute.js';
 import userAssetRoute from './routes/userAssetRoute.js';
-import { initializeBlockchainServices, stopBlockchainServices, getBlockchainStatus } from './services/blockchain/index.js';
+import marketConfigRoute from './routes/marketConfigRoute.js';
+import liquidatableUserRoute from './routes/liquidatableUsersRoute.js';
+import { initializeBlockchainServices, stopBlockchainServices, getBlockchainStatus, getEventListener } from './services/blockchain/index.js';
 
 const app = express();
 const PORT = process.env.PORT;
+
+// Create HTTP server and Socket.io
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"]
+  }
+});
 
 try {
     await sequelize.authenticate();
@@ -44,10 +57,12 @@ app.get('/health', async (req, res) => {
 });
 
 // API Routes
-app.use("/api", assetRoute);
-app.use("/api", userRoute);
-app.use("/api", transactionRoute);
-app.use("/api", userAssetRoute);
+app.use("/api/assets", assetRoute);
+app.use("/api/users", userRoute);
+app.use("/api/transactions", transactionRoute);
+app.use("/api/user-assets", userAssetRoute);
+app.use("/api/market-config", marketConfigRoute);
+app.use("/api/liquidatable-users", liquidatableUserRoute);
 
 // 404 handler
 app.use((req, res) => {
@@ -66,13 +81,35 @@ app.use((err, req, res, next) => {
   });
 });
 
+// WebSocket connection handling
+io.on('connection', (socket) => {
+  console.log(`✅ Client connected: ${socket.id}`);
+  
+  socket.on('disconnect', () => {
+    console.log(`❌ Client disconnected: ${socket.id}`);
+  });
+});
+
 // Start server
-const server = app.listen(PORT, async () => {
+httpServer.listen(PORT, async () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`WebSocket server is ready`);
   
   // Initialize blockchain event listeners
   try {
     await initializeBlockchainServices();
+    
+    // Subscribe to liquidatable users updates
+    const eventListener = getEventListener();
+    eventListener.on('liquidatableUsersUpdated', (data) => {
+      console.log(`📡 Broadcasting liquidatable users update to ${io.engine.clientsCount} clients`);
+      io.emit('liquidatableUsersUpdated', {
+        count: data.users.length,
+        users: data.users,
+        blockNumber: data.blockNumber,
+        timestamp: data.timestamp
+      });
+    });
   } catch (error) {
     console.error('Failed to start blockchain services:', error.message);
     console.log('Server running without blockchain event listening\n');
@@ -81,19 +118,21 @@ const server = app.listen(PORT, async () => {
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('\n🛑 SIGTERM signal received: closing HTTP server');
+  console.log('\nSIGTERM signal received: closing HTTP server');
   await stopBlockchainServices();
-  server.close(() => {
-    console.log('✅ HTTP server closed');
+  io.close();
+  httpServer.close(() => {
+    console.log('HTTP server closed');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', async () => {
-  console.log('\n🛑 SIGINT signal received: closing HTTP server');
+  console.log('\nSIGINT signal received: closing HTTP server');
   await stopBlockchainServices();
-  server.close(() => {
-    console.log('✅ HTTP server closed');
+  io.close();
+  httpServer.close(() => {
+    console.log('HTTP server closed');
     process.exit(0);
   });
 });

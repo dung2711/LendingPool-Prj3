@@ -107,9 +107,9 @@ export const getAllTransactions = async ({ limit = 100, offset = 0, type = null 
  * @throws {Error} If input is invalid or transaction already exists
  */
 export const createTransaction = async (txData) => {
-    const { hash, userAddress, assetAddress, type, amount, blockNumber, timestamp } = txData;
+    const { hash, userAddress, assetAddress, type, amount, amountUSD, blockNumber, timestamp } = txData;
     
-    if (!hash || !userAddress || !assetAddress || !type || !amount || !blockNumber || !timestamp) {
+    if (!hash || !userAddress || !assetAddress || !type || !amount || !amountUSD || !blockNumber || !timestamp) {
         throw new Error('All transaction fields are required (hash, userAddress, assetAddress, type, amount, blockNumber, timestamp)');
     }
     if (!hash.startsWith('0x') || hash.length !== 66) {
@@ -140,6 +140,7 @@ export const createTransaction = async (txData) => {
             assetAddress,
             type,
             amount,
+            amountUSD,
             blockNumber,
             timestamp
         });
@@ -161,9 +162,9 @@ export const createTransaction = async (txData) => {
  * @throws {Error} If input is invalid
  */
 export const getOrCreateTransaction = async (txData) => {
-    const { hash, userAddress, assetAddress, type, amount, blockNumber, timestamp } = txData;
+    const { hash, userAddress, assetAddress, type, amount, amountUSD, blockNumber, timestamp } = txData;
     
-    if (!hash || !userAddress || !assetAddress || !type || !amount || !timestamp) {
+    if (!hash || !userAddress || !assetAddress || !type || !amount || !amountUSD || !timestamp) {
         throw new Error('All transaction fields are required');
     }
     if (!hash.startsWith('0x') || hash.length !== 66) {
@@ -179,7 +180,7 @@ export const getOrCreateTransaction = async (txData) => {
     try {
         const [transaction, created] = await Transaction.findOrCreate({
             where: { hash },
-            defaults: { hash, userAddress, assetAddress, type, amount, blockNumber, timestamp }
+            defaults: { hash, userAddress, assetAddress, type, amount, amountUSD, blockNumber, timestamp }
         });
         return { transaction, created };
     } catch (error) {

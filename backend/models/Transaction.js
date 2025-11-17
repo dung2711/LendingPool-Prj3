@@ -23,6 +23,11 @@ const Transaction = sequelize.define('Transaction', {
         type: DataTypes.DECIMAL(78,0),
         allowNull: false
     },
+    amountUSD: {
+        type: DataTypes.DECIMAL(78,0),
+        allowNull: true,
+        comment: 'USD value at transaction time (18 decimals)'
+    },
     blockNumber: {
         type: DataTypes.INTEGER,
         allowNull: false

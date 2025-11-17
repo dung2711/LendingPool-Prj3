@@ -13,6 +13,8 @@ export const config = {
     
     // Contract addresses
     lendingPoolAddress: process.env.LENDING_POOL_ADDRESS,
+    liquidationAddress: process.env.LIQUIDATION_ADDRESS,
+    priceRouterAddress: process.env.PRICE_ROUTER_ADDRESS,
     
     // Network configuration
     chainId: parseInt(process.env.CHAIN_ID || '31337'),

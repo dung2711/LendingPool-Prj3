@@ -67,6 +67,14 @@ export const getUserAsset = async (userAddress, assetAddress) => {
     }
 };
 
+export const getAllAssetsUsers = async () => {
+    try {
+        return await User_Asset.findAll();
+    } catch (error) {
+        throw new Error(`Failed to fetch all user-assets: ${error.message}`);
+    }
+};
+
 /**
  * Create a new user-asset association
  * @param {Object} data - User-asset data
@@ -136,6 +144,7 @@ export const createUserAsset = async (data) => {
  * @throws {Error} If addresses are invalid or association not found
  */
 export const updateUserAsset = async (userAddress, assetAddress, updates) => {
+    console.log('Updating user asset:', userAddress, assetAddress, updates);
     if (!userAddress || !assetAddress) {
         throw new Error('Both user and asset addresses are required');
     }

@@ -3,7 +3,7 @@ import { getAssetsByUser, createUserAsset, updateUserAsset } from "../controller
 
 const route = express.Router();
 
-route.get("/user-assets/:address", async (req, res) => {
+route.get("/:address", async (req, res) => {
     try {
         const address = req.params.address;
         const userAssets = await getAssetsByUser(address);
@@ -13,7 +13,7 @@ route.get("/user-assets/:address", async (req, res) => {
     }
 });
 
-route.post("/user-assets", async (req, res) => {
+route.post("/", async (req, res) => {
     try {
         const { userAddress, assetAddress, deposited,
             borrowed,
@@ -29,7 +29,7 @@ route.post("/user-assets", async (req, res) => {
     }
 });
 
-route.put("/user-assets", async (req, res) => {
+route.put("/", async (req, res) => {
     try {
         const { userAddress, assetAddress, deposited,
             borrowed,
