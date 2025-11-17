@@ -14,6 +14,11 @@ contract Liquidation is ReentrancyGuard {
     // Liquidation contract code goes here
     uint public constant SCALE = 1e18;
 
+    event LiquidationParamsUpdated(
+        uint liquidationThreshold,
+        uint closeFactor,
+        uint liquidationIncentive
+    );
     event LiquidationExecuted(
         address indexed liquidator,
         address indexed borrower,
@@ -73,6 +78,11 @@ contract Liquidation is ReentrancyGuard {
         liquidationThreshold = _liquidationThreshold;
         closeFactor = _closeFactor;
         liquidationIncentive = _liquidationIncentive;
+        emit LiquidationParamsUpdated(
+            _liquidationThreshold,
+            _closeFactor,
+            _liquidationIncentive
+        );
     }
 
     /// Helpers

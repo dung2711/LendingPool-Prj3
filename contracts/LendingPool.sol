@@ -19,6 +19,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
     event AdminRemoved(address indexed admin);
     event MarketSupported(address indexed asset, address interestRateModel);
     event MarketUnsupported(address indexed asset);
+    event CollateralFactorUpdated(uint newCollateralFactor);
     event Deposit(address indexed user, address indexed asset, uint amount);
     event Borrow(address indexed user, address indexed asset, uint amount);
     event Repay(address indexed user, address indexed asset, uint amount);
@@ -137,6 +138,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
 
     function setCollateralParams(uint _collateralFactor) external onlyAdmin {
         collateralFactor = _collateralFactor;
+        emit CollateralFactorUpdated(_collateralFactor);
     }
 
     /// Interest functions

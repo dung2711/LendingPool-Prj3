@@ -162,6 +162,19 @@ const lendingPoolABI = [
       "anonymous": false,
       "inputs": [
         {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newCollateralFactor",
+          "type": "uint256"
+        }
+      ],
+      "name": "CollateralFactorUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
           "indexed": true,
           "internalType": "address",
           "name": "borrower",
@@ -1672,6 +1685,31 @@ const liquidationABI = [
         }
       ],
       "name": "LiquidationExecuted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "liquidationThreshold",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "closeFactor",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "liquidationIncentive",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidationParamsUpdated",
       "type": "event"
     },
     {
