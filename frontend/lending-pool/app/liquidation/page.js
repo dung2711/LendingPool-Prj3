@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
+import { io } from 'socket.io-client';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
@@ -25,12 +26,15 @@ import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
 import { getLendingPoolContract, getToken, getPriceRouterContract, getLiquidationContract } from '@/lib/web3';
+import { getAssetsByUser } from '@/services/userAssetService';
+import { getAssetByAddress } from '@/services/assetService';
 
 export default function Liquidation() {
     const [account, setAccount] = useState(null);
     const [loading, setLoading] = useState(false);
     const [liquidatableUsers, setLiquidatableUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [selectedAsset, setSelectedAsset] = useState([]);
     const [openDialog, setOpenDialog] = useState(false);
     const [repayAsset, setRepayAsset] = useState('');
     const [collateralAsset, setCollateralAsset] = useState('');
@@ -40,6 +44,8 @@ export default function Liquidation() {
     const [transactionLoading, setTransactionLoading] = useState(false);
     const [liquidationThreshold, setLiquidationThreshold] = useState(0n);
     const [liquidationIncentive, setLiquidationIncentive] = useState(0n);
+    const [lastUpdate, setLastUpdate] = useState(null);
+    const [wsConnected, setWsConnected] = useState(false);
 
     useEffect(() => {
         checkWalletAndFetch();
@@ -58,6 +64,42 @@ export default function Liquidation() {
         }
     }, []);
 
+    // WebSocket connection for real-time updates
+    useEffect(() => {
+        const socket = io('http://localhost:4000');
+        
+        socket.on('connect', () => {
+            console.log('✅ WebSocket connected');
+            setWsConnected(true);
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('❌ WebSocket disconnected');
+            setWsConnected(false);
+        });
+        
+        socket.on('liquidatableUsersUpdated', (data) => {
+            console.log('📡 Received liquidatable users update:', data);
+            setLastUpdate(data.timestamp ? new Date(data.timestamp) : new Date());
+            // Fetch detailed user info
+            fetchLiquidatableUsersDetails(data.users);
+        });
+        
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
+
+    // Fallback polling every 60 seconds (in case WebSocket fails)
+    useEffect(() => {
+        if (!account || wsConnected) return;
+        
+        fetchLiquidatableUsers();
+        const interval = setInterval(fetchLiquidatableUsers, 60000); // 60 seconds
+        
+        return () => clearInterval(interval);
+    }, [account, wsConnected]);
+
     const checkWalletAndFetch = async () => {
         if (typeof window !== "undefined" && window.ethereum) {
             try {
@@ -73,12 +115,65 @@ export default function Liquidation() {
         }
     };
 
+    const fetchLiquidatableUsersDetails = async (userAddresses) => {
+        try {
+            if (!userAddresses || userAddresses.length === 0) {
+                setLiquidatableUsers([]);
+                return;
+            }
+            
+            const lendingPool = await getLendingPoolContract();
+            
+            const liquidation = await getLiquidationContract();
+            const liquidationThreshold = await liquidation.liquidationThreshold();
+            
+            const usersWithDetails = await Promise.all(
+                userAddresses.map(async (userAddress) => {
+                    try {
+                        const accountLiquidity = await lendingPool.getAccountLiquidity(userAddress);
+                        const totalCollateralUSD = accountLiquidity[0];
+                        const totalBorrowsUSD = accountLiquidity[1];
+                        
+                        // Health Factor = (totalCollateral * liquidationThreshold) / totalBorrows
+                        const healthFactor = totalBorrowsUSD > 0n 
+                            ? (totalCollateralUSD * liquidationThreshold) / totalBorrowsUSD
+                            : BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+                        
+                        return {
+                            address: userAddress,
+                            totalCollateralUSD,
+                            totalBorrowsUSD,
+                            healthFactor
+                        };
+                    } catch (err) {
+                        console.error(`Error fetching details for ${userAddress}:`, err);
+                        return null;
+                    }
+                })
+            );
+            
+            setLiquidatableUsers(usersWithDetails.filter(u => u !== null));
+        } catch (err) {
+            console.error('Error fetching liquidatable users details:', err);
+        }
+    };
+
+    const fetchLiquidatableUsers = async () => {
+        try {
+            const response = await fetch('http://localhost:4000/api/liquidatable-users/metadata');
+            const data = await response.json();
+            
+            await fetchLiquidatableUsersDetails(data.users);
+            setLastUpdate(data.lastUpdate ? new Date(data.lastUpdate) : null);
+        } catch (err) {
+            console.error('Error fetching liquidatable users:', err);
+        }
+    };
+
     const fetchData = async () => {
         try {
             setLoading(true);
-            const lendingPool = await getLendingPoolContract();
             const liquidation = await getLiquidationContract();
-            const priceRouter = await getPriceRouterContract();
 
             // Get liquidation parameters
             const [threshold, incentive] = await Promise.all([
@@ -88,14 +183,8 @@ export default function Liquidation() {
             setLiquidationThreshold(threshold);
             setLiquidationIncentive(incentive);
 
-            // For demo purposes, we'll scan recent events or known addresses
-            // In production, you'd want a backend service to index and track positions
-            // Here we'll just show how to check if a specific user is liquidatable
-            
-            // This is a placeholder - in reality you'd need an indexer
-            const testUsers = []; // You would populate this from events or a backend service
-            
-            setLiquidatableUsers(testUsers);
+            // Fetch liquidatable users from backend
+            await fetchLiquidatableUsers();
 
         } catch (err) {
             console.error('Error fetching data:', err);
@@ -155,8 +244,25 @@ export default function Liquidation() {
         }
     };
 
-    const handleOpenDialog = (user) => {
+    const handleOpenDialog = async (user) => {
         setSelectedUser(user);
+        const assets = await getAssetsByUser(user.address);
+        const selectedAsset = await Promise.all(
+            assets.map(async (asset) => {
+                try {
+                    const assetDetails = await getAssetByAddress(asset.assetAddress);
+                    return {
+                        ...asset,
+                        symbol: assetDetails.symbol
+                    };
+                } catch (error) {
+                    return null;
+                }
+            })
+         );
+        const filteredAssets = selectedAsset.filter(a => a !== null);
+        setSelectedAsset(filteredAssets);
+        console.log('Selected Asset:', selectedAsset.length);
         setOpenDialog(true);
         setError('');
         setSuccess('');
@@ -192,9 +298,10 @@ export default function Liquidation() {
             // Execute liquidation
             const liquidateTx = await liquidation.liquidate(
                 selectedUser.address,
+                account,
                 repayAsset,
+                collateralAsset,
                 amountInWei,
-                collateralAsset
             );
             await liquidateTx.wait();
 
@@ -213,8 +320,8 @@ export default function Liquidation() {
         }
     };
 
-    const formatAmount = (amount, decimals = 18) => {
-        return parseFloat(ethers.formatUnits(amount, decimals)).toFixed(decimals <= 6 ? decimals : 4);
+    const formatAmount = (amount) => {
+        return parseFloat(ethers.formatUnits(amount, 18)).toFixed(4);
     };
 
     const formatHealthFactor = (hf) => {
@@ -356,9 +463,36 @@ export default function Liquidation() {
             {/* Liquidatable Users */}
             <Card elevation={2}>
                 <CardContent>
-                    <Typography variant="h5" fontWeight="bold" mb={3}>
-                        Liquidatable Positions
-                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                        <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="h5" fontWeight="bold">
+                                    Liquidatable Positions
+                                </Typography>
+                                {wsConnected && (
+                                    <Chip 
+                                        label="Live" 
+                                        color="success" 
+                                        size="small"
+                                        sx={{ fontSize: '0.7rem' }}
+                                    />
+                                )}
+                            </Box>
+                            {lastUpdate && (
+                                <Typography variant="caption" color="text.secondary">
+                                    Last updated: {new Date(lastUpdate).toLocaleTimeString()}
+                                </Typography>
+                            )}
+                        </Box>
+                        <Button 
+                            variant="outlined" 
+                            onClick={fetchLiquidatableUsers}
+                            disabled={loading}
+                            size="small"
+                        >
+                            {loading ? <CircularProgress size={20} /> : 'Refresh'}
+                        </Button>
+                    </Box>
                     {loading ? (
                         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                             <CircularProgress />
@@ -395,12 +529,12 @@ export default function Liquidation() {
                                             </TableCell>
                                             <TableCell align="right">
                                                 <Typography variant="body2" fontWeight="medium">
-                                                    ${formatAmount(user.totalDeposited)}
+                                                    ${formatAmount(user.totalCollateralUSD)}
                                                 </Typography>
                                             </TableCell>
                                             <TableCell align="right">
                                                 <Typography variant="body2" fontWeight="medium">
-                                                    ${formatAmount(user.totalBorrowed)}
+                                                    ${formatAmount(user.totalBorrowsUSD)}
                                                 </Typography>
                                             </TableCell>
                                             <TableCell align="right">
@@ -458,14 +592,14 @@ export default function Liquidation() {
                                 User's Assets
                             </Typography>
                             <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
-                                {selectedUser.assets.map(asset => (
-                                    <Box key={asset.address} sx={{ mb: 1 }}>
+                                {selectedAsset.length > 0 && selectedAsset.map(asset => (
+                                    <Box key={asset.assetAddress} sx={{ mb: 1 }}>
                                         <Typography variant="body2" fontWeight="medium">
                                             {asset.symbol}
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            Deposited: {formatAmount(asset.deposited, asset.decimals)} | 
-                                            Borrowed: {formatAmount(asset.borrowed, asset.decimals)}
+                                            Deposited: {formatAmount(asset.deposited)} | 
+                                            Borrowed: {formatAmount(asset.borrowed)}
                                         </Typography>
                                     </Box>
                                 ))}

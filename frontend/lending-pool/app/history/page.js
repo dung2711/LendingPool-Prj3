@@ -27,7 +27,8 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import GavelIcon from '@mui/icons-material/Gavel';
-import { getLendingPoolContract, getToken } from '@/lib/web3';
+import { getAllAssets } from '@/services/assetService';
+import { getTransactionsByUserAddress } from '@/services/transactionService';
 
 export default function History() {
     const [account, setAccount] = useState(null);
@@ -39,7 +40,11 @@ export default function History() {
         totalDeposits: 0,
         totalWithdrawals: 0,
         totalBorrows: 0,
-        totalRepays: 0
+        totalRepays: 0,
+        totalDepositsUSD: 0,
+        totalWithdrawalsUSD: 0,
+        totalBorrowsUSD: 0,
+        totalRepaysUSD: 0
     });
 
     useEffect(() => {
@@ -84,141 +89,74 @@ export default function History() {
     const fetchTransactions = async () => {
         try {
             setLoading(true);
-            const lendingPool = await getLendingPoolContract();
             const provider = new ethers.BrowserProvider(window.ethereum);
             const signer = await provider.getSigner();
             const userAddress = await signer.getAddress();
 
-            // Get current block
-            const currentBlock = await provider.getBlockNumber();
-            const fromBlock = Math.max(0, currentBlock - 100000); // Last ~100k blocks
-
-            // Query all event types
-            const [depositEvents, withdrawEvents, borrowEvents, repayEvents, liquidationEvents] = await Promise.all([
-                lendingPool.queryFilter(lendingPool.filters.Deposit(userAddress), fromBlock, currentBlock),
-                lendingPool.queryFilter(lendingPool.filters.Withdraw(userAddress), fromBlock, currentBlock),
-                lendingPool.queryFilter(lendingPool.filters.Borrow(userAddress), fromBlock, currentBlock),
-                lendingPool.queryFilter(lendingPool.filters.Repay(userAddress), fromBlock, currentBlock),
-                lendingPool.queryFilter(lendingPool.filters.CollateralSeized(userAddress), fromBlock, currentBlock)
+            // Fetch transactions from backend API
+            const [txData, assetsData] = await Promise.all([
+                getTransactionsByUserAddress(userAddress),
+                getAllAssets()
             ]);
 
-            // Process all events
+            // Create asset lookup map for quick access
+            const assetMap = {};
+            assetsData.forEach(asset => {
+                assetMap[asset.address.toLowerCase()] = {
+                    symbol: asset.symbol,
+                    decimals: asset.decimals
+                };
+            });
+
+            // Process transactions
             const allTxs = [];
             let totalDeposits = 0;
             let totalWithdrawals = 0;
             let totalBorrows = 0;
             let totalRepays = 0;
+            let totalDepositsUSD = 0;
+            let totalWithdrawalsUSD = 0;
+            let totalBorrowsUSD = 0;
+            let totalRepaysUSD = 0;
 
-            // Process deposits
-            for (const event of depositEvents) {
-                const tokenContract = await getToken(event.args.asset);
-                const [symbol, decimals] = await Promise.all([
-                    tokenContract.symbol(),
-                    tokenContract.decimals()
-                ]);
-                const block = await event.getBlock();
-                const amount = parseFloat(ethers.formatUnits(event.args.amount, decimals));
-                totalDeposits += amount;
+            for (const tx of txData) {
+                const asset = assetMap[tx.assetAddress.toLowerCase()];
+                if (!asset) continue; // Skip if asset not found
 
-                allTxs.push({
-                    type: 'deposit',
-                    symbol,
-                    amount: event.args.amount,
-                    decimals,
-                    amountFormatted: amount,
-                    hash: event.transactionHash,
-                    timestamp: block.timestamp,
-                    blockNumber: event.blockNumber
-                });
-            }
+                const amountFormatted = parseFloat(ethers.formatUnits(tx.amount, asset.decimals));
+                const amountUSDFormatted = tx.amountUSD ? parseFloat(ethers.formatUnits(tx.amountUSD, 18)) : null;
 
-            // Process withdrawals
-            for (const event of withdrawEvents) {
-                const tokenContract = await getToken(event.args.asset);
-                const [symbol, decimals] = await Promise.all([
-                    tokenContract.symbol(),
-                    tokenContract.decimals()
-                ]);
-                const block = await event.getBlock();
-                const amount = parseFloat(ethers.formatUnits(event.args.amount, decimals));
-                totalWithdrawals += amount;
+                // Update summary based on transaction type
+                switch (tx.type) {
+                    case 'deposit':
+                        totalDeposits += amountFormatted;
+                        if (amountUSDFormatted) totalDepositsUSD += amountUSDFormatted;
+                        break;
+                    case 'withdraw':
+                        totalWithdrawals += amountFormatted;
+                        if (amountUSDFormatted) totalWithdrawalsUSD += amountUSDFormatted;
+                        break;
+                    case 'borrow':
+                        totalBorrows += amountFormatted;
+                        if (amountUSDFormatted) totalBorrowsUSD += amountUSDFormatted;
+                        break;
+                    case 'repay':
+                        totalRepays += amountFormatted;
+                        if (amountUSDFormatted) totalRepaysUSD += amountUSDFormatted;
+                        break;
+                }
 
                 allTxs.push({
-                    type: 'withdraw',
-                    symbol,
-                    amount: event.args.amount,
-                    decimals,
-                    amountFormatted: amount,
-                    hash: event.transactionHash,
-                    timestamp: block.timestamp,
-                    blockNumber: event.blockNumber
-                });
-            }
-
-            // Process borrows
-            for (const event of borrowEvents) {
-                const tokenContract = await getToken(event.args.asset);
-                const [symbol, decimals] = await Promise.all([
-                    tokenContract.symbol(),
-                    tokenContract.decimals()
-                ]);
-                const block = await event.getBlock();
-                const amount = parseFloat(ethers.formatUnits(event.args.amount, decimals));
-                totalBorrows += amount;
-
-                allTxs.push({
-                    type: 'borrow',
-                    symbol,
-                    amount: event.args.amount,
-                    decimals,
-                    amountFormatted: amount,
-                    hash: event.transactionHash,
-                    timestamp: block.timestamp,
-                    blockNumber: event.blockNumber
-                });
-            }
-
-            // Process repays
-            for (const event of repayEvents) {
-                const tokenContract = await getToken(event.args.asset);
-                const [symbol, decimals] = await Promise.all([
-                    tokenContract.symbol(),
-                    tokenContract.decimals()
-                ]);
-                const block = await event.getBlock();
-                const amount = parseFloat(ethers.formatUnits(event.args.amount, decimals));
-                totalRepays += amount;
-
-                allTxs.push({
-                    type: 'repay',
-                    symbol,
-                    amount: event.args.amount,
-                    decimals,
-                    amountFormatted: amount,
-                    hash: event.transactionHash,
-                    timestamp: block.timestamp,
-                    blockNumber: event.blockNumber
-                });
-            }
-
-            // Process liquidations
-            for (const event of liquidationEvents) {
-                const tokenContract = await getToken(event.args.collateralAsset);
-                const [symbol, decimals] = await Promise.all([
-                    tokenContract.symbol(),
-                    tokenContract.decimals()
-                ]);
-                const block = await event.getBlock();
-
-                allTxs.push({
-                    type: 'liquidated',
-                    symbol,
-                    amount: event.args.seizeAmount,
-                    decimals,
-                    amountFormatted: parseFloat(ethers.formatUnits(event.args.seizeAmount, decimals)),
-                    hash: event.transactionHash,
-                    timestamp: block.timestamp,
-                    blockNumber: event.blockNumber
+                    type: tx.type,
+                    symbol: asset.symbol,
+                    amount: tx.amount,
+                    decimals: asset.decimals,
+                    amountFormatted,
+                    amountUSD: tx.amountUSD,
+                    amountUSDFormatted,
+                    hash: tx.hash,
+                    timestamp: new Date(tx.timestamp).getTime() / 1000, // Convert to Unix timestamp
+                    blockNumber: tx.blockNumber
                 });
             }
 
@@ -230,7 +168,11 @@ export default function History() {
                 totalDeposits,
                 totalWithdrawals,
                 totalBorrows,
-                totalRepays
+                totalRepays,
+                totalDepositsUSD,
+                totalWithdrawalsUSD,
+                totalBorrowsUSD,
+                totalRepaysUSD
             });
 
         } catch (err) {
@@ -316,7 +258,10 @@ export default function History() {
                                 Total Deposited
                             </Typography>
                             <Typography variant="h6" fontWeight="bold" color="success.main">
-                                {summary.totalDeposits.toFixed(2)}
+                                ${summary.totalDepositsUSD.toFixed(2)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {summary.totalDeposits.toFixed(2)} tokens
                             </Typography>
                         </CardContent>
                     </Card>
@@ -328,7 +273,10 @@ export default function History() {
                                 Total Withdrawn
                             </Typography>
                             <Typography variant="h6" fontWeight="bold" color="warning.main">
-                                {summary.totalWithdrawals.toFixed(2)}
+                                ${summary.totalWithdrawalsUSD.toFixed(2)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {summary.totalWithdrawals.toFixed(2)} tokens
                             </Typography>
                         </CardContent>
                     </Card>
@@ -340,7 +288,10 @@ export default function History() {
                                 Total Borrowed
                             </Typography>
                             <Typography variant="h6" fontWeight="bold" color="info.main">
-                                {summary.totalBorrows.toFixed(2)}
+                                ${summary.totalBorrowsUSD.toFixed(2)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {summary.totalBorrows.toFixed(2)} tokens
                             </Typography>
                         </CardContent>
                     </Card>
@@ -352,7 +303,10 @@ export default function History() {
                                 Total Repaid
                             </Typography>
                             <Typography variant="h6" fontWeight="bold" color="primary.main">
-                                {summary.totalRepays.toFixed(2)}
+                                ${summary.totalRepaysUSD.toFixed(2)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {summary.totalRepays.toFixed(2)} tokens
                             </Typography>
                         </CardContent>
                     </Card>
@@ -407,6 +361,7 @@ export default function History() {
                                         <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>Asset</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>Amount</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>Value (USD)</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>Transaction</TableCell>
                                     </TableRow>
@@ -431,6 +386,17 @@ export default function History() {
                                                 <Typography variant="body2" fontWeight="medium">
                                                     {tx.amountFormatted.toFixed(4)}
                                                 </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                {tx.amountUSDFormatted !== null ? (
+                                                    <Typography variant="body2" fontWeight="medium" color="primary.main">
+                                                        ${tx.amountUSDFormatted.toFixed(2)}
+                                                    </Typography>
+                                                ) : (
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        N/A
+                                                    </Typography>
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 <Typography variant="body2">

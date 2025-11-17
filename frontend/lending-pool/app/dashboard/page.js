@@ -20,7 +20,9 @@ import Chip from '@mui/material/Chip';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import { getLendingPoolContract, getToken, getPriceRouterContract } from '@/lib/web3';
+import { getLendingPoolContract, getPriceRouterContract } from '@/lib/web3';
+import { getAssetByAddress, getAllAssets } from '@/services/assetService';
+import { getAssetsByUser } from '@/services/userAssetService';
 
 export default function Dashboard() {
     const [account, setAccount] = useState(null);
@@ -77,52 +79,60 @@ export default function Dashboard() {
             const signer = await provider.getSigner();
             const userAddress = await signer.getAddress();
 
-            // Get user info
-            // Now getUserInfo returns properly normalized 18-decimal USD values after contract fix
-            const [assets, deposited, borrowed, totalDeposited, totalBorrowed, healthFactor] = 
-                await lendingPool.getUserInfo(userAddress);
+            // Fetch user balances and asset metadata from backend
+            const [userAssets, allAssets] = await Promise.all([
+                getAssetsByUser(userAddress),
+                getAllAssets()
+            ]);
 
-            // Get collateral factor from the contract
+            // Create asset lookup map
+            const assetMap = {};
+            allAssets.forEach(asset => {
+                assetMap[asset.address.toLowerCase()] = {
+                    symbol: asset.symbol,
+                    decimals: asset.decimals,
+                    address: asset.address
+                };
+            });
+
+            // Get collateral factor from blockchain
             const collateralFactorValue = await lendingPool.collateralFactor();
-
-            setTotalSuppliedUSD(totalDeposited);
-            setTotalBorrowedUSD(totalBorrowed);
-            setHealthFactor(healthFactor);
             setCollateralFactor(collateralFactorValue);
 
-            // Fetch detailed market data for user's positions
-            const marketData = await Promise.all(
-                assets.map(async (assetAddress, index) => {
+            // Fetch prices and rates from blockchain for user's assets
+            const marketData = userAssets.length === 0 ? [] : await Promise.all(
+                userAssets.map(async (userAsset) => {
                     try {
-                        const tokenContract = await getToken(assetAddress);
-                        const [symbol, decimals, marketInfo] = await Promise.all([
-                            tokenContract.symbol(),
-                            tokenContract.decimals(),
-                            lendingPool.getMarketInfo(assetAddress)
+                        const asset = assetMap[userAsset.assetAddress.toLowerCase()];
+                        if (!asset) return null;
+
+                        const [assetPrice, marketInfo] = await Promise.all([
+                            priceRouter.getPrice(userAsset.assetAddress),
+                            lendingPool.getMarketInfo(userAsset.assetAddress)
                         ]);
-                        const assetPrice = await priceRouter.getPrice(assetAddress);
-                        
-                        const depositedAmount = deposited[index]; // token decimals
-                        const borrowedAmount = borrowed[index];   // token decimals
+
+                        // Convert backend string amounts to BigInt
+                        const depositedAmount = BigInt(userAsset.deposited); // Already in token decimals
+                        const borrowedAmount = BigInt(userAsset.borrowed);   // Already in token decimals
                         
                         // assetPrice is 18 decimals, amounts are in token decimals
                         // Normalize to 18 decimal USD
-                        const depositedUSD = assetPrice * depositedAmount / (10n ** BigInt(decimals));
-                        const borrowedUSD = assetPrice * borrowedAmount / (10n ** BigInt(decimals));
+                        const depositedUSD = assetPrice * depositedAmount / (10n ** BigInt(asset.decimals));
+                        const borrowedUSD = assetPrice * borrowedAmount / (10n ** BigInt(asset.decimals));
 
                         return {
-                            address: assetAddress,
-                            symbol,
-                            decimals,
-                            deposited: depositedAmount * (10n ** (18n - BigInt(decimals))), // normalize to 18 decimals
-                            borrowed: borrowedAmount * (10n ** (18n - BigInt(decimals))), // normalize to 18 decimals
+                            address: userAsset.assetAddress,
+                            symbol: asset.symbol,
+                            decimals: asset.decimals,
+                            deposited: depositedAmount * (10n ** (18n - BigInt(asset.decimals))), // normalize to 18 decimals for display
+                            borrowed: borrowedAmount * (10n ** (18n - BigInt(asset.decimals))), // normalize to 18 decimals for display
                             depositedUSD,
                             borrowedUSD,
                             depositRate: marketInfo.depositRate,
                             borrowRate: marketInfo.borrowRate
                         };
                     } catch (err) {
-                        console.error(`Error fetching data for ${assetAddress}:`, err);
+                        console.error(`Error fetching data for ${userAsset.assetAddress}:`, err);
                         return null;
                     }
                 })
@@ -131,15 +141,33 @@ export default function Dashboard() {
             const validMarkets = marketData.filter(m => m !== null);
             setMarkets(validMarkets);
 
-            // Calculate net APY using the corrected totalDeposited from getUserInfo
-            if (totalDeposited > 0n) {
+            // Calculate totals
+            let totalSupplied = 0n;
+            let totalBorrowed = 0n;
+            
+            validMarkets.forEach(market => {
+                totalSupplied += market.depositedUSD;
+                totalBorrowed += market.borrowedUSD;
+            });
+
+            setTotalSuppliedUSD(totalSupplied);
+            setTotalBorrowedUSD(totalBorrowed);
+
+            // Calculate health factor
+            if (totalBorrowed === 0n) {
+                setHealthFactor(BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'));
+            } else {
+                const hf = (totalSupplied * collateralFactorValue) / totalBorrowed;
+                setHealthFactor(hf);
+            }
+
+            // Calculate net APY
+            if (totalSupplied > 0n) {
                 let totalSupplyInterestUSD = 0n;
                 let totalBorrowInterestUSD = 0n;
 
                 validMarkets.forEach(market => {
                     if (market.depositedUSD > 0n) {
-                        // depositRate is annual rate (18 decimals)
-                        // depositedUSD is in 18 decimal USD
                         totalSupplyInterestUSD += (market.depositedUSD * market.depositRate) / (10n ** 18n);
                     }
                     if (market.borrowedUSD > 0n) {
@@ -148,10 +176,10 @@ export default function Dashboard() {
                 });
 
                 const netInterestUSD = totalSupplyInterestUSD - totalBorrowInterestUSD;
-                // Both netInterestUSD and totalDeposited are in 18 decimal USD
-                // (18 decimals * 100) / 18 decimals = dimensionless percentage
-                const netAPYValue = Number(netInterestUSD * 100n / totalDeposited);
+                const netAPYValue = Number(netInterestUSD * 100n / totalSupplied);
                 setNetAPY(netAPYValue);
+            } else {
+                setNetAPY(0);
             }
 
         } catch (err) {

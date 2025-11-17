@@ -21,13 +21,10 @@ import Chip from '@mui/material/Chip';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import { getLendingPoolContract, getToken, getPriceRouterContract } from '@/lib/web3';
+import { getLendingPoolContract, getToken } from '@/lib/web3';
 import { getAllAssets } from '@/services/assetService';
-import { getMarketConfig } from '@/services/marketConfigService';
 
 export default function Home() {
-  const SCALE = 10n ** 18n;
-
   const [markets, setMarkets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -71,59 +68,29 @@ export default function Home() {
   const fetchMarkets = async () => {
     try {
       setLoading(true);
-
+      const lendingPool = await getLendingPoolContract();
+      
       // Get all supported markets
-      const allMarkets = await getAllAssets();
-      const priceRouter = await getPriceRouterContract();
+      const allMarkets = await lendingPool.getAllMarkets();
       
       // Fetch market info for each market
       const marketData = await Promise.all(
-        allMarkets.map(async (market) => {
+        allMarkets.map(async (marketAddress) => {
           try {
-            if(!market.isSupported) {
-              return null;
-            }
-            const marketConfig = await getMarketConfig(market.address);
-            const deposits = BigInt(ethers.parseUnits(market.totalDeposits, 18 - market.decimals));
-            const borrows = BigInt(ethers.parseUnits(market.totalBorrows, 18 - market.decimals));
-            
-            // Get asset price from PriceRouter (18 decimals)
-            let price = 0n;
-            let depositsUSD = 0n;
-            let borrowsUSD = 0n;
-            try {
-              price = await priceRouter.getPrice(market.address);
-              // Calculate USD values: (amount * price) / 10^decimals
-              // Both are in 18 decimals, so result is in 18 decimals
-              depositsUSD = (deposits * price) / SCALE;
-              borrowsUSD = (borrows * price) / SCALE;
-            } catch (err) {
-              console.warn(`Could not fetch price for ${market.symbol}:`, err.message);
-            }
-            
-            let utilizationRate;
-            if(deposits == 0n){
-              utilizationRate = 0n;
-            } else {
-              utilizationRate = borrows * SCALE / deposits;
-            }
-            const borrowRate = getBorrowRate(utilizationRate, marketConfig);
-            const depositRate = getDepositRate(utilizationRate, marketConfig);
-            
+            const info = await lendingPool.getMarketInfo(marketAddress);
+            const tokenContract = await getToken(marketAddress);
+            const symbol = await tokenContract.symbol();
             return {
-              symbol: market.symbol,
-              address: market.address,
-              totalDeposits: deposits,
-              totalBorrows: borrows,
-              depositsUSD,
-              borrowsUSD,
-              price,
-              depositRate: depositRate,
-              borrowRate: borrowRate,
-              utilizationRate: utilizationRate
+              symbol: symbol,
+              address: marketAddress,
+              totalDeposits: info.totalDeposits,
+              totalBorrows: info.totalBorrows,
+              depositRate: info.depositRate,
+              borrowRate: info.borrowRate,
+              utilizationRate: info.utilizationRate,
             };
           } catch (err) {
-            console.error(`Error fetching market info for ${market.address}:`, err);
+            console.error(`Error fetching market info for ${marketAddress}:`, err);
             return null;
           }
         })
@@ -139,36 +106,6 @@ export default function Home() {
       setLoading(false);
     }
   };
-
-  const getBorrowRate = (utilizationRate, marketConfig) => {
-    const { baseRate, slope1, slope2, optimalUtilization } = marketConfig;
-    
-    // Convert all values to BigInt
-    const baseRateBN = BigInt(baseRate);
-    const slope1BN = BigInt(slope1);
-    const slope2BN = BigInt(slope2);
-    const optimalUtilizationBN = BigInt(optimalUtilization);
-    const utilizationRateBN = BigInt(utilizationRate);
-
-    if (utilizationRateBN <= optimalUtilizationBN) {
-      return baseRateBN + (utilizationRateBN * slope1BN) / SCALE;
-    } else {
-      const normalRate = baseRateBN + (slope1BN * optimalUtilizationBN) / SCALE;
-      const excessRate = ((utilizationRateBN - optimalUtilizationBN) * slope2BN) / SCALE;
-      return normalRate + excessRate;
-    }
-  }
-
-  const getDepositRate = (utilizationRate, marketConfig) => {
-    const borrowRate = getBorrowRate(utilizationRate, marketConfig);
-    const { reserveFactor } = marketConfig;
-    
-    // Convert all values to BigInt
-    const reserveFactorBN = BigInt(reserveFactor);
-    const utilizationRateBN = BigInt(utilizationRate);
-
-    return (borrowRate * utilizationRateBN * (SCALE - reserveFactorBN)) / (SCALE * SCALE);
-  }
 
   const formatRate = (rate) => {
     // Convert from 18 decimals to percentage
@@ -305,21 +242,11 @@ export default function Home() {
                       <Typography variant="body2" fontWeight="medium" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                         {formatAmount(market.totalDeposits)}
                       </Typography>
-                      {market.price > 0n && (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                          ${formatAmount(market.depositsUSD)}
-                        </Typography>
-                      )}
                     </TableCell>
                     <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                       <Typography variant="body2" fontWeight="medium" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                         {formatAmount(market.totalBorrows)}
                       </Typography>
-                      {market.price > 0n && (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                          ${formatAmount(market.borrowsUSD)}
-                        </Typography>
-                      )}
                     </TableCell>
                     <TableCell align="right">
                       <Chip 
@@ -375,14 +302,9 @@ export default function Home() {
                   Total Value Locked
                 </Typography>
                 <Typography variant="h4" fontWeight="bold">
-                  ${formatAmount(
-                    markets.reduce((sum, m) => sum + BigInt(m.depositsUSD?.toString() || '0'), BigInt(0)).toString()
-                  )}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
                   {formatAmount(
                     markets.reduce((sum, m) => sum + BigInt(m.totalDeposits.toString()), BigInt(0)).toString()
-                  )} tokens
+                  )}
                 </Typography>
               </CardContent>
             </Card>
@@ -394,14 +316,9 @@ export default function Home() {
                   Total Borrowed
                 </Typography>
                 <Typography variant="h4" fontWeight="bold">
-                  ${formatAmount(
-                    markets.reduce((sum, m) => sum + BigInt(m.borrowsUSD?.toString() || '0'), BigInt(0)).toString()
-                  )}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
                   {formatAmount(
                     markets.reduce((sum, m) => sum + BigInt(m.totalBorrows.toString()), BigInt(0)).toString()
-                  )} tokens
+                  )}
                 </Typography>
               </CardContent>
             </Card>

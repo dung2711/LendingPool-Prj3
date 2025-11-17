@@ -79,7 +79,6 @@ export default function AdminPage() {
         if (accounts.length > 0) {
           setAccount(accounts[0]);
           const adminStatus = await lendingPool.isAdmin(accounts[0]);
-          console.log(adminStatus);
           setIsAdmin(adminStatus);
         }
       }
@@ -159,18 +158,19 @@ export default function AdminPage() {
       setLoading(true);
       const lendingPool = await getLendingPoolContract();
       const value = ethers.parseUnits(collateralFactor, 18);
-      const tx = await lendingPool.setCollateralParams(value);
-      await tx.wait();
+      const firsttx = await lendingPool.setCollateralParams(value);
+      await firsttx.wait();
       const liquidation = await getLiquidationContract();
       const lt = ethers.parseUnits(liquidationThreshold, 18);
       const cf = ethers.parseUnits(closeFactor, 18);
       const li = ethers.parseUnits(liquidationIncentive, 18);
-      tx = await liquidation.setLiquidateParams(lt, cf, li);
-      await tx.wait();
+      const secondtx = await liquidation.setLiquidateParams(lt, cf, li);
+      await secondtx.wait();
       showSuccess('Protocol params updated successfully!');
       loadCurrentValues();
     } catch (err) {
       showError(`Error: ${err.message}`);
+      console.log(err);
     } finally {
       setLoading(false);
     }

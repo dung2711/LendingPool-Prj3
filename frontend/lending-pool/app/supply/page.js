@@ -106,7 +106,7 @@ export default function Supply() {
                             balance: balance * (10n ** (18n - BigInt(decimals))), // normalize to 18 decimals
                             balanceInUSD,
                             depositRate: marketInfo.depositRate,
-                            userDeposit,
+                            userDeposit: userDeposit * (10n ** (18n - BigInt(decimals))), // normalize to 18 decimals
                             userDepositInUSD
                         };
                     } catch (err) {
