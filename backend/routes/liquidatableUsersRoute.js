@@ -1,6 +1,7 @@
 import { getAllLiquidatableUsers } from "../controllers/liquidatableUsersController.js";
 import express from 'express';
 import eventListener from '../services/blockchain/eventListener.js';
+import { calculateLiquidatableUsers } from "../services/blockchain/eventHandlers.js";
 
 const route = express.Router();
 
@@ -15,6 +16,7 @@ route.get("/", async (req, res) => {
 
 route.get("/metadata", async (req, res) => {
     try {
+        await calculateLiquidatableUsers();
         const liquidatableUsers = await getAllLiquidatableUsers();
         const lastUpdate = eventListener.getLastLiquidatableUpdate();
         res.status(200).json({

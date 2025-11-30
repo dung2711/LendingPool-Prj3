@@ -130,9 +130,7 @@ export default function Liquidation() {
             const usersWithDetails = await Promise.all(
                 userAddresses.map(async (userAddress) => {
                     try {
-                        const accountLiquidity = await lendingPool.getAccountLiquidity(userAddress);
-                        const totalCollateralUSD = accountLiquidity[0];
-                        const totalBorrowsUSD = accountLiquidity[1];
+                        const [totalCollateralUSD, totalBorrowsUSD] = await lendingPool.getAccountLiquidity(userAddress);
                         
                         // Health Factor = (totalCollateral * liquidationThreshold) / totalBorrows
                         const healthFactor = totalBorrowsUSD > 0n 
@@ -206,7 +204,7 @@ export default function Liquidation() {
             const threshold = await liquidation.liquidationThreshold();
             
             // User is liquidatable if health factor < liquidation threshold
-            const isLiquidatable = totalBorrowed > 0n && healthFactor < threshold;
+            const isLiquidatable = liquidation.isAccountLiquidatable(healthFactor, threshold);
 
             if (isLiquidatable) {
                 // Fetch asset details
@@ -421,7 +419,7 @@ export default function Liquidation() {
                             Liquidation Bonus
                         </Typography>
                         <Typography variant="h5" fontWeight="bold" color="success.main">
-                            {formatAmount(liquidationIncentive)}%
+                            {formatAmount(liquidationIncentive)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                             Extra incentive for liquidators
