@@ -37,7 +37,7 @@ export default function Dashboard() {
 
     useEffect(() => {
         checkWalletAndFetch();
-        
+
         if (window.ethereum) {
             const handleAccountsChanged = (accounts) => {
                 setAccount(accounts[0] || null);
@@ -114,7 +114,7 @@ export default function Dashboard() {
                         // Convert backend string amounts to BigInt
                         const depositedAmount = BigInt(userAsset.deposited); // Already in token decimals
                         const borrowedAmount = BigInt(userAsset.borrowed);   // Already in token decimals
-                        
+
                         // assetPrice is 18 decimals, amounts are in token decimals
                         // Normalize to 18 decimal USD
                         const depositedUSD = assetPrice * depositedAmount / (10n ** BigInt(asset.decimals));
@@ -144,7 +144,7 @@ export default function Dashboard() {
             // Calculate totals
             let totalSupplied = 0n;
             let totalBorrowed = 0n;
-            
+
             validMarkets.forEach(market => {
                 totalSupplied += market.depositedUSD;
                 totalBorrowed += market.borrowedUSD;
@@ -328,7 +328,7 @@ export default function Dashboard() {
                                     <Typography variant="h4" fontWeight="bold" color={`${getHealthFactorColor(healthFactor)}.main`}>
                                         {formatHealthFactor(healthFactor)}
                                     </Typography>
-                                    <Chip 
+                                    <Chip
                                         label={getHealthFactorStatus(healthFactor)}
                                         color={getHealthFactorColor(healthFactor)}
                                         size="small"
@@ -348,11 +348,11 @@ export default function Dashboard() {
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
                                     <Box sx={{ flex: 1 }}>
-                                        <LinearProgress 
-                                            variant="determinate" 
+                                        <LinearProgress
+                                            variant="determinate"
                                             value={Math.min(calculateBorrowLimit(), 100)}
-                                            sx={{ 
-                                                height: 10, 
+                                            sx={{
+                                                height: 10,
                                                 borderRadius: 5,
                                                 backgroundColor: 'grey.200',
                                                 '& .MuiLinearProgress-bar': {

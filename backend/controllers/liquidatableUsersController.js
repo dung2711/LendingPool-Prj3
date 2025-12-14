@@ -35,8 +35,8 @@ export const removeLiquidatableUser = async (userAddress) => {
     }
 
     try {
-        const deleted = await Liquidatable_Users.destroy({ 
-            where: { userAddress } 
+        const deleted = await Liquidatable_Users.destroy({
+            where: { userAddress }
         });
         return deleted > 0;
     } catch (error) {

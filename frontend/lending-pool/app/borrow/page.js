@@ -40,7 +40,7 @@ export default function Borrow() {
 
     useEffect(() => {
         checkWalletAndFetch();
-        
+
         if (window.ethereum) {
             const handleAccountsChanged = (accounts) => {
                 setAccount(accounts[0] || null);
@@ -98,11 +98,11 @@ export default function Borrow() {
                             lendingPool.getUserCurrentBorrow(userAddress, marketAddress)
                         ]);
                         const assetPrice = await priceRouter.getPrice(marketAddress);
-                        
+
                         // Calculate available liquidity for borrowing (normalize to 18 decimals)
                         const liquidity = (marketInfo.totalDeposits - marketInfo.totalBorrows);
                         const userBorrowInUSD = assetPrice * userBorrow / (10n ** BigInt(decimals));
-                        
+
                         return {
                             address: marketAddress,
                             symbol,
@@ -131,10 +131,10 @@ export default function Borrow() {
             // Get account liquidity and calculate max borrow
             const [totalDepositedUSD, totalBorrowedUSD] = await lendingPool.getAccountLiquidity(userAddress);
             const collateralFactor = await lendingPool.collateralFactor();
-            
+
             setTotalCollateralUSD(totalDepositedUSD);
             setTotalBorrowedUSD(totalBorrowedUSD);
-            
+
             // Max borrow = (collateral * collateralFactor) - totalBorrowed
             const maxBorrow = (totalDepositedUSD * collateralFactor / (10n ** 18n)) - totalBorrowedUSD;
             setMaxBorrowUSD(maxBorrow > 0n ? maxBorrow : 0n);
@@ -145,12 +145,12 @@ export default function Borrow() {
                 const maxBorrowInToken = maxBorrow > 0n && market.price > 0n
                     ? (maxBorrow * (10n ** 18n)) / market.price
                     : 0n;
-                
+
                 // The actual available to borrow is the minimum of:
                 // 1. Max borrowable based on collateral
                 // 2. Available liquidity in the pool
-                const availableToBorrow = maxBorrowInToken < market.liquidity 
-                    ? maxBorrowInToken 
+                const availableToBorrow = maxBorrowInToken < market.liquidity
+                    ? maxBorrowInToken
                     : market.liquidity;
 
                 return {
@@ -202,8 +202,8 @@ export default function Borrow() {
     };
 
     // Filter markets based on showZeroLiquidity checkbox
-    const filteredMarkets = showZeroLiquidity 
-        ? markets 
+    const filteredMarkets = showZeroLiquidity
+        ? markets
         : markets.filter(m => m.liquidity > 0n);
 
     if (!account) {
@@ -384,15 +384,15 @@ export default function Borrow() {
                                                 <TableCell align="right">
                                                     <Tooltip
                                                         title={
-                                                            maxBorrowUSD === 0n 
-                                                                ? "No collateral available" 
+                                                            maxBorrowUSD === 0n
+                                                                ? "No collateral available"
                                                                 : "Limited by your collateral and pool liquidity"
                                                         }
                                                         arrow
                                                         placement="top"
                                                     >
-                                                        <Typography 
-                                                            variant="body2" 
+                                                        <Typography
+                                                            variant="body2"
                                                             fontWeight="bold"
                                                             color={market.availableToBorrow > 0n ? "success.main" : "text.disabled"}
                                                             sx={{ display: 'inline-block' }}
@@ -402,8 +402,8 @@ export default function Borrow() {
                                                     </Tooltip>
                                                 </TableCell>
                                                 <TableCell align="right">
-                                                    <Typography 
-                                                        variant="body2" 
+                                                    <Typography
+                                                        variant="body2"
                                                         color="text.secondary"
                                                     >
                                                         {formatAmount(market.liquidity)}

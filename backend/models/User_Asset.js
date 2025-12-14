@@ -13,12 +13,12 @@ const User_Asset = sequelize.define('User_Asset', {
         primaryKey: true
     },
     deposited: {
-        type: DataTypes.DECIMAL(78,0),
+        type: DataTypes.DECIMAL(78, 0),
         allowNull: false,
         defaultValue: '0'
     },
     borrowed: {
-        type: DataTypes.DECIMAL(78,0),
+        type: DataTypes.DECIMAL(78, 0),
         allowNull: false,
         defaultValue: '0'
     }

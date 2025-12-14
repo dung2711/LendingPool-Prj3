@@ -36,8 +36,8 @@ route.put("/:address", async (req, res) => {
     try {
         const address = req.params.address;
         const { totalSupply, totalBorrow, depositIndex, borrowIndex, lastUpdateTimestamp, depositRate, borrowRate } = req.body;
-        const asset = await updateAssetBalances(address, totalSupply, totalBorrow, depositIndex, 
-                                                borrowIndex, lastUpdateTimestamp, depositRate, borrowRate);
+        const asset = await updateAssetBalances(address, totalSupply, totalBorrow, depositIndex,
+            borrowIndex, lastUpdateTimestamp, depositRate, borrowRate);
         res.status(200).json(asset);
     } catch (error) {
         res.status(400).json({ error: error.message });

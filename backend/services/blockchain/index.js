@@ -7,16 +7,16 @@ import { validateConfig } from './config.js';
 export const initializeBlockchainServices = async () => {
     try {
         console.log('\n🚀 Initializing blockchain services...\n');
-        
+
         // Validate configuration
         validateConfig();
-        
+
         // Initialize and start event listener
         await eventListener.initialize();
         await eventListener.start();
-        
+
         console.log('\n✅ Blockchain services initialized successfully\n');
-        
+
         return true;
     } catch (error) {
         console.error('\n❌ Failed to initialize blockchain services:', error);
@@ -30,9 +30,9 @@ export const initializeBlockchainServices = async () => {
 export const stopBlockchainServices = async () => {
     try {
         console.log('\n🛑 Stopping blockchain services...\n');
-        
+
         await eventListener.stop();
-        
+
         console.log('\n✅ Blockchain services stopped\n');
     } catch (error) {
         console.error('\n❌ Failed to stop blockchain services:', error);

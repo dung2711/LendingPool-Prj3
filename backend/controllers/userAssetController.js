@@ -13,7 +13,7 @@ export const getAssetsByUser = async (userAddress) => {
     }
     if (!ethers.isAddress(userAddress) || userAddress === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum address');
-    }  
+    }
     try {
         return await User_Asset.findAll({ where: { userAddress } });
     } catch (error) {
@@ -33,7 +33,7 @@ export const getUserAssetsByAsset = async (assetAddress) => {
     }
     if (!ethers.isAddress(assetAddress) || assetAddress === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum address');
-    }  
+    }
     try {
         return await User_Asset.findAll({ where: { assetAddress } });
     } catch (error) {
@@ -57,10 +57,10 @@ export const getUserAsset = async (userAddress, assetAddress) => {
     }
     if (!ethers.isAddress(assetAddress) || assetAddress === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum asset address');
-    }  
+    }
     try {
-        return await User_Asset.findOne({ 
-            where: { userAddress, assetAddress } 
+        return await User_Asset.findOne({
+            where: { userAddress, assetAddress }
         });
     } catch (error) {
         throw new Error(`Failed to fetch user asset: ${error.message}`);
@@ -88,13 +88,13 @@ export const getAllAssetsUsers = async () => {
  * @throws {Error} If input is invalid or association already exists
  */
 export const createUserAsset = async (data) => {
-    const { 
-        userAddress, 
-        assetAddress, 
-        deposited = '0', 
+    const {
+        userAddress,
+        assetAddress,
+        deposited = '0',
         borrowed = '0'
     } = data;
-    
+
     if (!userAddress || !assetAddress) {
         throw new Error('Both user and asset addresses are required');
     }
@@ -103,17 +103,17 @@ export const createUserAsset = async (data) => {
     }
     if (!ethers.isAddress(assetAddress) || assetAddress === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum asset address');
-    }  
-    
+    }
+
     try {
         // Check if association already exists
-        const existing = await User_Asset.findOne({ 
-            where: { userAddress, assetAddress } 
+        const existing = await User_Asset.findOne({
+            where: { userAddress, assetAddress }
         });
         if (existing) {
             throw new Error('User-asset association already exists');
         }
-        
+
         return await User_Asset.create({
             userAddress,
             assetAddress,
@@ -128,7 +128,7 @@ export const createUserAsset = async (data) => {
             throw new Error('User-asset association already exists');
         }
         throw new Error(`Failed to create user asset: ${error.message}`);
-    }   
+    }
 };
 
 /**
@@ -157,19 +157,19 @@ export const updateUserAsset = async (userAddress, assetAddress, updates) => {
     if (!updates || Object.keys(updates).length === 0) {
         throw new Error('No update fields provided');
     }
-    
+
     try {
-        const userAsset = await User_Asset.findOne({ 
-            where: { userAddress, assetAddress } 
+        const userAsset = await User_Asset.findOne({
+            where: { userAddress, assetAddress }
         });
         if (!userAsset) {
             throw new Error('User-asset association not found');
         }
-        
+
         // Update only provided fields
         if (updates.deposited !== undefined) userAsset.deposited = updates.deposited;
         if (updates.borrowed !== undefined) userAsset.borrowed = updates.borrowed;
-        
+
         await userAsset.save();
         return userAsset;
     } catch (error) {
@@ -177,7 +177,7 @@ export const updateUserAsset = async (userAddress, assetAddress, updates) => {
             throw error;
         }
         throw new Error(`Failed to update user asset: ${error.message}`);
-    }   
+    }
 };
 
 /**
@@ -187,13 +187,13 @@ export const updateUserAsset = async (userAddress, assetAddress, updates) => {
  * @throws {Error} If input is invalid
  */
 export const getOrCreateUserAsset = async (data) => {
-    const { 
-        userAddress, 
-        assetAddress, 
-        deposited = '0', 
+    const {
+        userAddress,
+        assetAddress,
+        deposited = '0',
         borrowed = '0',
     } = data;
-    
+
     if (!userAddress || !assetAddress) {
         throw new Error('Both user and asset addresses are required');
     }
@@ -203,14 +203,14 @@ export const getOrCreateUserAsset = async (data) => {
     if (!ethers.isAddress(assetAddress) || assetAddress === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum asset address');
     }
-    
+
     try {
         const [userAsset, created] = await User_Asset.findOrCreate({
             where: { userAddress, assetAddress },
-            defaults: { 
-                userAddress, 
-                assetAddress, 
-                deposited, 
+            defaults: {
+                userAddress,
+                assetAddress,
+                deposited,
                 borrowed
             }
         });
@@ -237,10 +237,10 @@ export const deleteUserAsset = async (userAddress, assetAddress) => {
     if (!ethers.isAddress(assetAddress) || assetAddress === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum asset address');
     }
-    
+
     try {
-        const deleted = await User_Asset.destroy({ 
-            where: { userAddress, assetAddress } 
+        const deleted = await User_Asset.destroy({
+            where: { userAddress, assetAddress }
         });
         return deleted > 0;
     } catch (error) {

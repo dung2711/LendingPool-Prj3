@@ -70,7 +70,7 @@ export default function AdminPage() {
   }, []);
 
   const checkAdminStatus = async () => {
-    try {  
+    try {
       setPageLoading(true);
       if (window.ethereum) {
         const provider = new ethers.BrowserProvider(window.ethereum);
@@ -212,7 +212,7 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const priceRouter = await getPriceRouterContract();
-      
+
       if (priceSource === 'chainlink') {
         const tx = await priceRouter.setChainlinkFeed(priceAsset, priceFeed);
         await tx.wait();
@@ -220,16 +220,16 @@ export default function AdminPage() {
       } else {
         const myOracle = await getMyOracleContract();
         const price = ethers.parseEther(oraclePrice);
-        
+
         const tx1 = await priceRouter.setMyOracleFeed(priceAsset);
         await tx1.wait();
-        
+
         const tx2 = await myOracle.setPrice(priceAsset, price);
         await tx2.wait();
-        
+
         showSuccess('MyOracle price set successfully!');
       }
-      
+
       setPriceAsset('');
       setPriceFeed('');
       setOraclePrice('');
@@ -259,463 +259,463 @@ export default function AdminPage() {
 
   return (
     <>
-    {pageLoading ?  (
+      {pageLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                      <CircularProgress />
+          <CircularProgress />
         </Box>
-        ) : (!isAdmin && account) ? (
+      ) : (!isAdmin && account) ? (
         <Box sx={{ p: 3 }}>
           <Alert severity="error">
             <Typography variant="h6">Access Denied</Typography>
             <Typography>You are not authorized to access the admin panel.</Typography>
           </Alert>
         </Box>
-        ) : (
+      ) : (
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
-        <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-          <AdminPanelSettingsIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-          <Box>
-            <Typography variant="h4" fontWeight="bold">
-              Admin Panel
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Configure protocol parameters
-            </Typography>
+          <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <AdminPanelSettingsIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+            <Box>
+              <Typography variant="h4" fontWeight="bold">
+                Admin Panel
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Configure protocol parameters
+              </Typography>
+            </Box>
           </Box>
-        </Box>
 
-        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-        <Paper sx={{ mb: 3 }}>
-          <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} variant="scrollable" scrollButtons="auto">
-            <Tab label="Protocol Parameters" />
-            <Tab label="Market Management" />
-            <Tab label="Price Management" />
-            <Tab label="Admin Management" />
-            <Tab label="Interest Rate Model" />
-          </Tabs>
-        </Paper>
+          <Paper sx={{ mb: 3 }}>
+            <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} variant="scrollable" scrollButtons="auto">
+              <Tab label="Protocol Parameters" />
+              <Tab label="Market Management" />
+              <Tab label="Price Management" />
+              <Tab label="Admin Management" />
+              <Tab label="Interest Rate Model" />
+            </Tabs>
+          </Paper>
 
-        {/* Protocol Parameters Tab */}
-        {tabValue === 0 && (
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Card>
-                <CardHeader title="Protocol Parameters" />
-                <Divider />
-                <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
-                    Configure collateral factor and liquidation parameters for the entire protocol
-                  </Typography>
-                  
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} sm={6} md={3}>
-                      <TextField
-                        fullWidth
-                        label="Collateral Factor (0-1)"
-                        value={collateralFactor}
-                        onChange={(e) => setCollateralFactor(e.target.value)}
-                        type="number"
-                        inputProps={{ step: "0.01" }}
-                        helperText="Max borrowing power from collateral"
-                      />
+          {/* Protocol Parameters Tab */}
+          {tabValue === 0 && (
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader title="Protocol Parameters" />
+                  <Divider />
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
+                      Configure collateral factor and liquidation parameters for the entire protocol
+                    </Typography>
+
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <TextField
+                          fullWidth
+                          label="Collateral Factor (0-1)"
+                          value={collateralFactor}
+                          onChange={(e) => setCollateralFactor(e.target.value)}
+                          type="number"
+                          inputProps={{ step: "0.01" }}
+                          helperText="Max borrowing power from collateral"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <TextField
+                          fullWidth
+                          label="Liquidation Threshold (0-1)"
+                          value={liquidationThreshold}
+                          onChange={(e) => setLiquidationThreshold(e.target.value)}
+                          type="number"
+                          inputProps={{ step: "0.01" }}
+                          helperText="Health factor threshold for liquidation"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <TextField
+                          fullWidth
+                          label="Close Factor (0-1)"
+                          value={closeFactor}
+                          onChange={(e) => setCloseFactor(e.target.value)}
+                          type="number"
+                          inputProps={{ step: "0.01" }}
+                          helperText="Max % of debt that can be repaid"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <TextField
+                          fullWidth
+                          label="Liquidation Incentive (0-1)"
+                          value={liquidationIncentive}
+                          onChange={(e) => setLiquidationIncentive(e.target.value)}
+                          type="number"
+                          inputProps={{ step: "0.01" }}
+                          helperText="Bonus reward for liquidators"
+                        />
+                      </Grid>
                     </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                      <TextField
-                        fullWidth
-                        label="Liquidation Threshold (0-1)"
-                        value={liquidationThreshold}
-                        onChange={(e) => setLiquidationThreshold(e.target.value)}
-                        type="number"
-                        inputProps={{ step: "0.01" }}
-                        helperText="Health factor threshold for liquidation"
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                      <TextField
-                        fullWidth
-                        label="Close Factor (0-1)"
-                        value={closeFactor}
-                        onChange={(e) => setCloseFactor(e.target.value)}
-                        type="number"
-                        inputProps={{ step: "0.01" }}
-                        helperText="Max % of debt that can be repaid"
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                      <TextField
-                        fullWidth
-                        label="Liquidation Incentive (0-1)"
-                        value={liquidationIncentive}
-                        onChange={(e) => setLiquidationIncentive(e.target.value)}
-                        type="number"
-                        inputProps={{ step: "0.01" }}
-                        helperText="Bonus reward for liquidators"
-                      />
-                    </Grid>
-                  </Grid>
 
-                  <Alert severity="info" sx={{ mt: 3, mb: 2 }}>
-                    This will update both collateral parameters in LendingPool and liquidation parameters in Liquidation contract
-                  </Alert>
+                    <Alert severity="info" sx={{ mt: 3, mb: 2 }}>
+                      This will update both collateral parameters in LendingPool and liquidation parameters in Liquidation contract
+                    </Alert>
 
-                  <Button
-                    variant="contained"
-                    onClick={handleSetProtocolParams}
-                    disabled={loading}
-                    startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-                    fullWidth
-                    size="large"
-                  >
-                    Update All Protocol Parameters
-                  </Button>
-                </CardContent>
-              </Card>
+                    <Button
+                      variant="contained"
+                      onClick={handleSetProtocolParams}
+                      disabled={loading}
+                      startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                      fullWidth
+                      size="large"
+                    >
+                      Update All Protocol Parameters
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
-        )}
+          )}
 
-        {/* Market Management Tab */}
-        {tabValue === 1 && (
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Card>
-                <CardHeader 
-                  title="Add New Market" 
-                />
-                <Divider />
-                <CardContent>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={5}>
-                      <TextField
-                        fullWidth
-                        label="Asset Address"
-                        value={newMarketAsset}
-                        onChange={(e) => setNewMarketAsset(e.target.value)}
-                        placeholder="0x..."
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={5}>
-                      <TextField
-                        fullWidth
-                        label="Interest Rate Model Address"
-                        value={newMarketIRM}
-                        onChange={(e) => setNewMarketIRM(e.target.value)}
-                        placeholder="0x..."
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={2}>
-                      <Button
-                        variant="contained"
-                        onClick={handleAddMarket}
-                        disabled={loading || !newMarketAsset || !newMarketIRM}
-                        startIcon={loading ? null : <AddIcon />}
-                        fullWidth
-                        sx={{ height: '56px' }}
-                      >
-                        {loading ? <CircularProgress size={20} /> : "Add Market"}
-                      </Button>
-                    </Grid>
-                  </Grid>
-                  <Alert severity="warning" sx={{ mt: 2 }}>
-                    After adding a market, remember to set its price in the Price Management tab
-                  </Alert>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Card>
-                <CardHeader 
-                  title="Supported Markets" 
-                  action={
-                    <Chip label={`${markets.length} Markets`} color="primary" />
-                  }
-                />
-                <Divider />
-                <CardContent>
-                  {markets.length === 0 ? (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <Typography color="text.secondary">
-                        No markets supported yet. Add your first market above.
-                      </Typography>
-                    </Box>
-                  ) : (
-                    <List>
-                      {markets.map((market, index) => (
-                        <ListItem
-                          key={index}
-                          secondaryAction={
-                            <IconButton 
-                              edge="end" 
-                              onClick={() => handleUnsupportMarket(market)} 
-                              color="error"
-                              disabled={loading}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          }
-                          sx={{ 
-                            bgcolor: 'background.paper', 
-                            mb: 1, 
-                            borderRadius: 1,
-                            border: '1px solid',
-                            borderColor: 'divider'
-                          }}
+          {/* Market Management Tab */}
+          {tabValue === 1 && (
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader
+                    title="Add New Market"
+                  />
+                  <Divider />
+                  <CardContent>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={5}>
+                        <TextField
+                          fullWidth
+                          label="Asset Address"
+                          value={newMarketAsset}
+                          onChange={(e) => setNewMarketAsset(e.target.value)}
+                          placeholder="0x..."
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={5}>
+                        <TextField
+                          fullWidth
+                          label="Interest Rate Model Address"
+                          value={newMarketIRM}
+                          onChange={(e) => setNewMarketIRM(e.target.value)}
+                          placeholder="0x..."
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={2}>
+                        <Button
+                          variant="contained"
+                          onClick={handleAddMarket}
+                          disabled={loading || !newMarketAsset || !newMarketIRM}
+                          startIcon={loading ? null : <AddIcon />}
+                          fullWidth
+                          sx={{ height: '56px' }}
                         >
-                          <ListItemText
-                            primary={market}
-                            primaryTypographyProps={{ 
-                              fontFamily: 'monospace', 
-                              fontSize: '0.9rem',
-                              fontWeight: 'medium'
+                          {loading ? <CircularProgress size={20} /> : "Add Market"}
+                        </Button>
+                      </Grid>
+                    </Grid>
+                    <Alert severity="warning" sx={{ mt: 2 }}>
+                      After adding a market, remember to set its price in the Price Management tab
+                    </Alert>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader
+                    title="Supported Markets"
+                    action={
+                      <Chip label={`${markets.length} Markets`} color="primary" />
+                    }
+                  />
+                  <Divider />
+                  <CardContent>
+                    {markets.length === 0 ? (
+                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <Typography color="text.secondary">
+                          No markets supported yet. Add your first market above.
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <List>
+                        {markets.map((market, index) => (
+                          <ListItem
+                            key={index}
+                            secondaryAction={
+                              <IconButton
+                                edge="end"
+                                onClick={() => handleUnsupportMarket(market)}
+                                color="error"
+                                disabled={loading}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            }
+                            sx={{
+                              bgcolor: 'background.paper',
+                              mb: 1,
+                              borderRadius: 1,
+                              border: '1px solid',
+                              borderColor: 'divider'
                             }}
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
-                  )}
-                </CardContent>
-              </Card>
+                          >
+                            <ListItemText
+                              primary={market}
+                              primaryTypographyProps={{
+                                fontFamily: 'monospace',
+                                fontSize: '0.9rem',
+                                fontWeight: 'medium'
+                              }}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
-        )}
+          )}
 
-        {/* Price Management Tab */}
-        {tabValue === 2 && (
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Card>
-                <CardHeader title="Set Asset Price" />
-                <Divider />
-                <CardContent>
-                  <TextField
-                    fullWidth
-                    label="Asset Address"
-                    value={priceAsset}
-                    onChange={(e) => setPriceAsset(e.target.value)}
-                    placeholder="0x..."
-                    sx={{ mb: 3 }}
-                  />
+          {/* Price Management Tab */}
+          {tabValue === 2 && (
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader title="Set Asset Price" />
+                  <Divider />
+                  <CardContent>
+                    <TextField
+                      fullWidth
+                      label="Asset Address"
+                      value={priceAsset}
+                      onChange={(e) => setPriceAsset(e.target.value)}
+                      placeholder="0x..."
+                      sx={{ mb: 3 }}
+                    />
 
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Price Source
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Button
-                        variant={priceSource === 'chainlink' ? "contained" : "outlined"}
-                        onClick={() => {
-                          setPriceSource('chainlink');
-                          setOraclePrice('');
-                        }}
-                        fullWidth
-                      >
-                        Chainlink Feed
-                      </Button>
-                      <Button
-                        variant={priceSource === 'myoracle' ? "contained" : "outlined"}
-                        onClick={() => {
-                          setPriceSource('myoracle');
-                          setPriceFeed('');
-                        }}
-                        fullWidth
-                      >
-                        Manual Price (MyOracle)
-                      </Button>
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Price Source
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Button
+                          variant={priceSource === 'chainlink' ? "contained" : "outlined"}
+                          onClick={() => {
+                            setPriceSource('chainlink');
+                            setOraclePrice('');
+                          }}
+                          fullWidth
+                        >
+                          Chainlink Feed
+                        </Button>
+                        <Button
+                          variant={priceSource === 'myoracle' ? "contained" : "outlined"}
+                          onClick={() => {
+                            setPriceSource('myoracle');
+                            setPriceFeed('');
+                          }}
+                          fullWidth
+                        >
+                          Manual Price (MyOracle)
+                        </Button>
+                      </Box>
                     </Box>
-                  </Box>
 
-                  {priceSource === 'chainlink' ? (
-                    <>
-                      <TextField
-                        fullWidth
-                        label="Chainlink Price Feed Address"
-                        value={priceFeed}
-                        onChange={(e) => setPriceFeed(e.target.value)}
-                        placeholder="0x..."
-                        sx={{ mb: 2 }}
-                        helperText="Address of Chainlink price feed contract (e.g., ETH/USD feed)"
-                      />
-                      <Button
-                        variant="contained"
-                        onClick={handleSetPrice}
-                        disabled={loading || !priceAsset || !priceFeed}
-                        startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-                        fullWidth
-                        size="large"
-                      >
-                        Set Chainlink Feed
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <TextField
-                        fullWidth
-                        label="Price (in USD)"
-                        value={oraclePrice}
-                        onChange={(e) => setOraclePrice(e.target.value)}
-                        type="number"
-                        inputProps={{ step: "0.000001" }}
-                        placeholder="e.g., 2000.50"
-                        sx={{ mb: 2 }}
-                        helperText="Price in USD (will be stored with 18 decimals)"
-                      />
-                      <Button
-                        variant="contained"
-                        onClick={handleSetPrice}
-                        disabled={loading || !priceAsset || !oraclePrice}
-                        startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-                        fullWidth
-                        size="large"
-                      >
-                        Set Manual Price
-                      </Button>
-                    </>
-                  )}
+                    {priceSource === 'chainlink' ? (
+                      <>
+                        <TextField
+                          fullWidth
+                          label="Chainlink Price Feed Address"
+                          value={priceFeed}
+                          onChange={(e) => setPriceFeed(e.target.value)}
+                          placeholder="0x..."
+                          sx={{ mb: 2 }}
+                          helperText="Address of Chainlink price feed contract (e.g., ETH/USD feed)"
+                        />
+                        <Button
+                          variant="contained"
+                          onClick={handleSetPrice}
+                          disabled={loading || !priceAsset || !priceFeed}
+                          startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                          fullWidth
+                          size="large"
+                        >
+                          Set Chainlink Feed
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <TextField
+                          fullWidth
+                          label="Price (in USD)"
+                          value={oraclePrice}
+                          onChange={(e) => setOraclePrice(e.target.value)}
+                          type="number"
+                          inputProps={{ step: "0.000001" }}
+                          placeholder="e.g., 2000.50"
+                          sx={{ mb: 2 }}
+                          helperText="Price in USD (will be stored with 18 decimals)"
+                        />
+                        <Button
+                          variant="contained"
+                          onClick={handleSetPrice}
+                          disabled={loading || !priceAsset || !oraclePrice}
+                          startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                          fullWidth
+                          size="large"
+                        >
+                          Set Manual Price
+                        </Button>
+                      </>
+                    )}
 
-                  <Alert severity="info" sx={{ mt: 3 }}>
-                    {priceSource === 'chainlink' 
-                      ? 'Chainlink feeds provide decentralized, real-time price updates automatically'
-                      : 'Manual prices require admin to update them manually. Use for testing or assets without Chainlink feeds.'}
-                  </Alert>
-                </CardContent>
-              </Card>
+                    <Alert severity="info" sx={{ mt: 3 }}>
+                      {priceSource === 'chainlink'
+                        ? 'Chainlink feeds provide decentralized, real-time price updates automatically'
+                        : 'Manual prices require admin to update them manually. Use for testing or assets without Chainlink feeds.'}
+                    </Alert>
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
-        )}
+          )}
 
-        {/* Admin Management Tab */}
-        {tabValue === 3 && (
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Card>
-                <CardHeader title="Admin Management" />
-                <Divider />
-                <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
-                    Add or remove admin privileges for addresses
-                  </Typography>
-
-                  <TextField
-                    fullWidth
-                    label="Admin Address"
-                    value={adminAddress}
-                    onChange={(e) => setAdminAddress(e.target.value)}
-                    placeholder="0x..."
-                    sx={{ mb: 3 }}
-                  />
-
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Action
+          {/* Admin Management Tab */}
+          {tabValue === 3 && (
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader title="Admin Management" />
+                  <Divider />
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
+                      Add or remove admin privileges for addresses
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Button
-                        variant={adminStatus ? "contained" : "outlined"}
-                        onClick={() => setAdminStatus(true)}
-                        fullWidth
-                        color="success"
-                      >
-                        Grant Admin Access
-                      </Button>
-                      <Button
-                        variant={!adminStatus ? "contained" : "outlined"}
-                        onClick={() => setAdminStatus(false)}
-                        fullWidth
-                        color="error"
-                      >
-                        Revoke Admin Access
-                      </Button>
+
+                    <TextField
+                      fullWidth
+                      label="Admin Address"
+                      value={adminAddress}
+                      onChange={(e) => setAdminAddress(e.target.value)}
+                      placeholder="0x..."
+                      sx={{ mb: 3 }}
+                    />
+
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Action
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Button
+                          variant={adminStatus ? "contained" : "outlined"}
+                          onClick={() => setAdminStatus(true)}
+                          fullWidth
+                          color="success"
+                        >
+                          Grant Admin Access
+                        </Button>
+                        <Button
+                          variant={!adminStatus ? "contained" : "outlined"}
+                          onClick={() => setAdminStatus(false)}
+                          fullWidth
+                          color="error"
+                        >
+                          Revoke Admin Access
+                        </Button>
+                      </Box>
                     </Box>
-                  </Box>
 
-                  <Button
-                    variant="contained"
-                    onClick={handleSetAdmin}
-                    disabled={loading || !adminAddress}
-                    startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-                    fullWidth
-                    size="large"
-                  >
-                    {adminStatus ? 'Add Admin' : 'Remove Admin'}
-                  </Button>
+                    <Button
+                      variant="contained"
+                      onClick={handleSetAdmin}
+                      disabled={loading || !adminAddress}
+                      startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                      fullWidth
+                      size="large"
+                    >
+                      {adminStatus ? 'Add Admin' : 'Remove Admin'}
+                    </Button>
 
-                  <Alert severity="warning" sx={{ mt: 3 }}>
-                    Be careful when managing admin privileges. Only trusted addresses should have admin access.
-                  </Alert>
-                </CardContent>
-              </Card>
+                    <Alert severity="warning" sx={{ mt: 3 }}>
+                      Be careful when managing admin privileges. Only trusted addresses should have admin access.
+                    </Alert>
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
-        )}
+          )}
 
-        {/* Interest Rate Model Tab */}
-        {tabValue === 4 && (
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Card>
-                <CardHeader title="Interest Rate Model Parameters" />
-                <Divider />
-                <CardContent>
-                  <Alert severity="info" sx={{ mb: 3 }}>
-                    These parameters are read-only. The Interest Rate Model contract doesn't support updates after deployment.
-                  </Alert>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} sm={6} md={4}>
-                      <TextField
-                        fullWidth
-                        label="Base Rate"
-                        value={baseRate}
-                        disabled
-                        helperText="Base interest rate per year"
-                      />
+          {/* Interest Rate Model Tab */}
+          {tabValue === 4 && (
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader title="Interest Rate Model Parameters" />
+                  <Divider />
+                  <CardContent>
+                    <Alert severity="info" sx={{ mb: 3 }}>
+                      These parameters are read-only. The Interest Rate Model contract doesn't support updates after deployment.
+                    </Alert>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} sm={6} md={4}>
+                        <TextField
+                          fullWidth
+                          label="Base Rate"
+                          value={baseRate}
+                          disabled
+                          helperText="Base interest rate per year"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={4}>
+                        <TextField
+                          fullWidth
+                          label="Rate Slope 1"
+                          value={rateSlope1}
+                          disabled
+                          helperText="Rate increase before optimal utilization"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={4}>
+                        <TextField
+                          fullWidth
+                          label="Rate Slope 2"
+                          value={rateSlope2}
+                          disabled
+                          helperText="Rate increase after optimal utilization"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Optimal Utilization"
+                          value={optimalUtilization}
+                          disabled
+                          helperText="Target utilization rate (e.g., 0.8 = 80%)"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Reserve Factor"
+                          value={reserveFactor}
+                          disabled
+                          helperText="Portion of interest reserved for protocol"
+                        />
+                      </Grid>
                     </Grid>
-                    <Grid item xs={12} sm={6} md={4}>
-                      <TextField
-                        fullWidth
-                        label="Rate Slope 1"
-                        value={rateSlope1}
-                        disabled
-                        helperText="Rate increase before optimal utilization"
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={4}>
-                      <TextField
-                        fullWidth
-                        label="Rate Slope 2"
-                        value={rateSlope2}
-                        disabled
-                        helperText="Rate increase after optimal utilization"
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Optimal Utilization"
-                        value={optimalUtilization}
-                        disabled
-                        helperText="Target utilization rate (e.g., 0.8 = 80%)"
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Reserve Factor"
-                        value={reserveFactor}
-                        disabled
-                        helperText="Portion of interest reserved for protocol"
-                      />
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
-        )}
+          )}
         </Box>
-    )}
+      )}
     </>
   );
 }

@@ -78,7 +78,7 @@ export default function Navbar() {
                 {navItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.path;
-                    
+
                     return (
                         <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
                             <ListItemButton
@@ -95,13 +95,13 @@ export default function Navbar() {
                                     },
                                 }}
                             >
-                                <ListItemIcon sx={{ 
+                                <ListItemIcon sx={{
                                     color: isActive ? 'white' : 'primary.main',
                                     minWidth: 40
                                 }}>
                                     <Icon />
                                 </ListItemIcon>
-                                <ListItemText 
+                                <ListItemText
                                     primary={item.title}
                                     primaryTypographyProps={{
                                         fontWeight: isActive ? 'bold' : 'medium',
@@ -131,9 +131,9 @@ export default function Navbar() {
                 aria-label="toggle drawer"
                 edge="start"
                 onClick={isMobile ? handleDrawerToggle : handleDesktopToggle}
-                sx={{ 
-                    position: 'fixed', 
-                    top: 16, 
+                sx={{
+                    position: 'fixed',
+                    top: 16,
                     left: isMobile ? 16 : (desktopOpen ? 16 : 16),
                     zIndex: theme.zIndex.drawer + 2,
                     backgroundColor: 'background.paper',

@@ -1,4 +1,4 @@
-import {React} from "react";
+import { React } from "react";
 import { useState, useEffect } from "react";
 import { getLendingPoolContract, getToken } from "@/lib/web3";
 import { ethers } from "ethers";
@@ -27,19 +27,19 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
     useEffect(() => {
         const fetchMaxBorrowable = async () => {
             if (!selectedAsset) return;
-            
+
             try {
                 const lendingPool = await getLendingPoolContract();
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const signer = await provider.getSigner();
                 const userAddress = await signer.getAddress();
-                
+
                 const [totalDepositedUSD, totalBorrowedUSD] = await lendingPool.getAccountLiquidity(userAddress);
                 const collateralFactor = await lendingPool.collateralFactor();
-                
+
                 // Calculate max borrowable in USD
                 const maxBorrowUSD = (totalDepositedUSD * collateralFactor / (10n ** 18n)) - totalBorrowedUSD;
-                
+
                 // Convert to asset amount
                 const assetPrice = selectedAsset.price || 0n;
                 if (assetPrice > 0n) {
@@ -50,7 +50,7 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
                 console.error('Error fetching max borrowable:', err);
             }
         };
-        
+
         fetchMaxBorrowable();
     }, [selectedAsset]);
 
@@ -67,12 +67,12 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
                 const tokenContract = await getToken(selectedAsset.address);
                 const decimals = await tokenContract.decimals();
                 const amountInWei = ethers.parseUnits(borrowAmount, decimals);
-                
+
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const signer = await provider.getSigner();
                 const userAddress = await signer.getAddress();
 
-                const [totalDepositedUSD, totalBorrowedUSD, newBorrowUSD, newHealthFactor] = 
+                const [totalDepositedUSD, totalBorrowedUSD, newBorrowUSD, newHealthFactor] =
                     await lendingPool.preViewBorrow(
                         userAddress,
                         selectedAsset.address,
@@ -124,7 +124,7 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
             // Handle WETH: unwrap to ETH if user wants
             const WETH_ADDRESS = process.env.NEXT_PUBLIC_WETH_ADDRESS?.toLowerCase();
             const isWETH = selectedAsset.address.toLowerCase() === WETH_ADDRESS;
-            
+
             if (isWETH) {
                 // Optionally unwrap WETH to ETH after borrowing
                 // User receives WETH and can manually unwrap if they want ETH
@@ -134,7 +134,7 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
 
             setSuccess(`Successfully borrowed ${borrowAmount} ${selectedAsset.symbol}`);
             setBorrowAmount('');
-            
+
             // Refresh data
             setTimeout(() => {
                 fetchData();
@@ -158,7 +158,7 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
             </DialogTitle>
             <DialogContent>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-                
+
                 {/* Max Borrowable & Liquidity Info */}
                 <Box sx={{ mb: 3 }}>
                     <Box sx={{ p: 2, bgcolor: 'primary.50', borderRadius: 1, mb: 2 }}>
@@ -178,7 +178,7 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
                         </Typography>
                     </Box>
                 </Box>
-                
+
                 {/* Amount Input */}
                 <TextField
                     fullWidth
@@ -189,7 +189,7 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
                     inputProps={{ step: "0.000001", min: "0" }}
                     sx={{ mb: 2 }}
                 />
-                
+
                 {/* APY Display */}
                 <Box sx={{ mb: 2, p: 2, bgcolor: 'error.50', borderRadius: 1 }}>
                     <Typography variant="caption" color="text.secondary">
@@ -206,7 +206,7 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
                         <CircularProgress size={24} />
                     </Box>
                 )}
-                
+
                 {preview && !previewLoading && (
                     <Box sx={{ mt: 2 }}>
                         <Divider sx={{ mb: 2 }}>
@@ -214,7 +214,7 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
                                 Transaction Overview
                             </Typography>
                         </Divider>
-                        
+
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                             <Box sx={{ textAlign: 'center', flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary">
@@ -224,9 +224,9 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
                                     ${formatAmount(preview.currentTotal)}
                                 </Typography>
                             </Box>
-                            
+
                             <ArrowForwardIcon sx={{ mx: 2, color: 'error.main' }} />
-                            
+
                             <Box sx={{ textAlign: 'center', flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary">
                                     New Borrows
@@ -236,7 +236,7 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
                                 </Typography>
                             </Box>
                         </Box>
-                        
+
                         <Box sx={{ mt: 2, p: 1.5, bgcolor: 'error.50', borderRadius: 1, textAlign: 'center' }}>
                             <Typography variant="caption" color="text.secondary">
                                 Increase
@@ -247,23 +247,23 @@ export default function BorrowDialog({ handleCloseDialog, selectedAsset, setSucc
                         </Box>
 
                         {/* Health Factor */}
-                        <Box sx={{ mt: 2, p: 2, bgcolor: preview.healthFactor < (1.5 * 10**18) ? 'error.50' : 'info.50', borderRadius: 1 }}>
+                        <Box sx={{ mt: 2, p: 2, bgcolor: preview.healthFactor < (1.5 * 10 ** 18) ? 'error.50' : 'info.50', borderRadius: 1 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                {preview.healthFactor < (1.5 * 10**18) && <WarningAmberIcon color="error" fontSize="small" />}
+                                {preview.healthFactor < (1.5 * 10 ** 18) && <WarningAmberIcon color="error" fontSize="small" />}
                                 <Typography variant="caption" color="text.secondary">
                                     Health Factor After Borrow
                                 </Typography>
                             </Box>
-                            <Typography 
-                                variant="h6" 
+                            <Typography
+                                variant="h6"
                                 fontWeight="bold"
-                                color={preview.healthFactor < (1.5 * 10**18) ? 'error.main' : 'info.main'}
+                                color={preview.healthFactor < (1.5 * 10 ** 18) ? 'error.main' : 'info.main'}
                             >
-                                {preview.healthFactor === BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') 
-                                    ? '∞' 
+                                {preview.healthFactor === BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+                                    ? '∞'
                                     : formatAmount(preview.healthFactor)}
                             </Typography>
-                            {preview.healthFactor < (1.5 * 10**18) && preview.healthFactor !== BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') && (
+                            {preview.healthFactor < (1.5 * 10 ** 18) && preview.healthFactor !== BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') && (
                                 <Typography variant="caption" color="error.main" sx={{ mt: 1, display: 'block' }}>
                                     ⚠️ Low health factor! Risk of liquidation
                                 </Typography>

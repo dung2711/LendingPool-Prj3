@@ -16,11 +16,11 @@ route.get("/:address", async (req, res) => {
 route.post("/", async (req, res) => {
     try {
         const { hash, userAddress, assetAddress, type, amount, timestamp } = req.body;
-        const transaction = await createTransaction({hash, userAddress, assetAddress, type, amount, timestamp});
+        const transaction = await createTransaction({ hash, userAddress, assetAddress, type, amount, timestamp });
         res.status(201).json(transaction);
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
-}); 
+});
 
 export default route;

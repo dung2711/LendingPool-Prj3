@@ -9,7 +9,7 @@ export default buildModule("LendingPoolProtocol", (m) => {
 
     const myOracle = m.contract("MyOracle");
 
-    const priceRouter = m.contract("PriceRouter",[
+    const priceRouter = m.contract("PriceRouter", [
         myOracle
     ]);
 
@@ -53,5 +53,5 @@ export default buildModule("LendingPoolProtocol", (m) => {
     m.call(lendingPool, "setLiquidation", [liquidation]);
     m.call(lendingPool, "supportMarket", [myToken, interestRateModel]);
 
-    return {myToken, myOracle, priceRouter, interestRateModel, liquidation, lendingPool};
+    return { myToken, myOracle, priceRouter, interestRateModel, liquidation, lendingPool };
 });

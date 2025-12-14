@@ -38,7 +38,7 @@ export default function Supply() {
 
     useEffect(() => {
         checkWalletAndFetch();
-        
+
         if (window.ethereum) {
             const handleAccountsChanged = (accounts) => {
                 setAccount(accounts[0] || null);
@@ -123,7 +123,7 @@ export default function Supply() {
             const deposits = validMarkets.filter(m => m.userDeposit > 0n);
             setUserDeposits(deposits);
 
-            const [totalUSD, ] = await lendingPool.getAccountLiquidity(userAddress);
+            const [totalUSD,] = await lendingPool.getAccountLiquidity(userAddress);
             setTotalDepositedUSD(totalUSD);
 
         } catch (err) {
@@ -167,8 +167,8 @@ export default function Supply() {
     };
 
     // Filter markets based on showZeroBalance checkbox
-    const filteredMarkets = showZeroBalance 
-        ? markets 
+    const filteredMarkets = showZeroBalance
+        ? markets
         : markets.filter(m => m.balance > 0n);
 
     if (!account) {
@@ -206,7 +206,7 @@ export default function Supply() {
                                 Your Deposits
                             </Typography>
                             {!loading && userDeposits.length > 0 && (
-                                <Box sx={{ 
+                                <Box sx={{
                                     px: 2,
                                     borderRadius: 2,
                                     border: '1px solid',
@@ -325,7 +325,7 @@ export default function Supply() {
                                                     </Typography>
                                                 </TableCell>
                                                 <TableCell align="right">
-                                                    <Tooltip 
+                                                    <Tooltip
                                                         title={
                                                             <Box sx={{ textAlign: 'center' }}>
                                                                 <Typography variant="body2">
@@ -338,11 +338,11 @@ export default function Supply() {
                                                         }
                                                         arrow
                                                         placement="top"
-                                                        
+
                                                     >
-                                                        <Typography 
-                                                            variant="body2" 
-                                                            fontWeight="medium" 
+                                                        <Typography
+                                                            variant="body2"
+                                                            fontWeight="medium"
                                                             sx={{ display: 'inline-block' }}
                                                         >
                                                             {formatAmount(market.balance)}
@@ -392,7 +392,7 @@ export default function Supply() {
                 formatAmount={formatAmount}
             />
             }
-            
+
         </Box>
     );
 }

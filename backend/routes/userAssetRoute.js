@@ -19,10 +19,12 @@ route.post("/", async (req, res) => {
             borrowed,
             depositIndexSnapShot,
             borrowIndexSnapShot } = req.body;
-        const userAsset = await createUserAsset({ userAddress, assetAddress, deposited,
+        const userAsset = await createUserAsset({
+            userAddress, assetAddress, deposited,
             borrowed,
             depositIndexSnapShot,
-            borrowIndexSnapShot });
+            borrowIndexSnapShot
+        });
         res.status(201).json(userAsset);
     } catch (error) {
         res.status(400).json({ error: error.message });
@@ -35,10 +37,12 @@ route.put("/", async (req, res) => {
             borrowed,
             depositIndexSnapShot,
             borrowIndexSnapShot } = req.body;
-        const userAsset = await updateUserAsset(userAddress, assetAddress, { deposited,
+        const userAsset = await updateUserAsset(userAddress, assetAddress, {
+            deposited,
             borrowed,
             depositIndexSnapShot,
-            borrowIndexSnapShot });
+            borrowIndexSnapShot
+        });
         res.status(200).json(userAsset);
     } catch (error) {
         res.status(400).json({ error: error.message });

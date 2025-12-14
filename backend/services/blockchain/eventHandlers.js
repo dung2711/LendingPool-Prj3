@@ -1,20 +1,20 @@
 import { ethers } from 'ethers';
-import { 
+import {
     getOrCreateUser,
 } from '../../controllers/userController.js';
 import { getOrCreateTransaction, createTransaction } from '../../controllers/transactionController.js';
-import { 
+import {
     getOrCreateUserAsset,
     updateUserAsset,
     getUserAsset,
     getAssetsByUser,
     getAllAssetsUsers
 } from '../../controllers/userAssetController.js';
-import { 
-    updateAssetBalances, 
-    getOrCreateAsset, 
+import {
+    updateAssetBalances,
+    getOrCreateAsset,
     getAssetByAddress,
-    updateAssetSupportStatus 
+    updateAssetSupportStatus
 } from '../../controllers/assetController.js';
 import { getAllLiquidatableUsers, createLiquidatableUser, removeLiquidatableUser, removeAllRows } from "../../controllers/liquidatableUsersController.js"
 import { getMarketConfigByAddress, createMarketConfig, updateMarketConfig } from '../../controllers/marketConfigController.js';
@@ -33,12 +33,12 @@ export const handleDeposit = async (event, blockTimestamp) => {
     try {
         const { user, asset, amount } = event.args;
         const { transactionHash, blockNumber } = event.log;
-        
+
         console.log(`Deposit Event: User ${user} deposited ${ethers.formatUnits(amount, 18)} of asset ${asset}`);
-        
+
         // Create or get user
         await getOrCreateUser(user);
-        
+
         // Get asset price in USD (18 decimals)
         let amountUSD = null;
         try {
@@ -52,7 +52,7 @@ export const handleDeposit = async (event, blockTimestamp) => {
         } catch (error) {
             console.warn(`Could not fetch price for asset ${asset}:`, error.message);
         }
-        
+
         // Create transaction record
         await createTransaction({
             hash: transactionHash,
@@ -64,21 +64,21 @@ export const handleDeposit = async (event, blockTimestamp) => {
             blockNumber: blockNumber,
             timestamp: new Date(blockTimestamp * 1000)
         });
-        
+
         // Get current balance from blockchain with retry
         const userBalance = await lendingPoolContract.userBalances(user, asset);
         const { deposited, borrowed } = userBalance;
-        
+
         // Update or create user-asset association with actual balance
-        const {userAsset, created } = await getOrCreateUserAsset({
+        const { userAsset, created } = await getOrCreateUserAsset({
             userAddress: user,
             assetAddress: asset,
             deposited: deposited.toString(),
             borrowed: borrowed.toString(),
         });
 
-        if(!created){
-            await updateUserAsset(user, asset, {deposited: deposited.toString(), borrowed: borrowed.toString()});
+        if (!created) {
+            await updateUserAsset(user, asset, { deposited: deposited.toString(), borrowed: borrowed.toString() });
         }
 
         // Update asset total deposits
@@ -93,7 +93,7 @@ export const handleDeposit = async (event, blockTimestamp) => {
                 depositedAsset.totalBorrows
             );
         }
-        
+
         console.log(`Deposit processed: TX ${transactionHash}`);
     } catch (error) {
         console.error('Error handling Deposit event:', error);
@@ -109,9 +109,9 @@ export const handleWithdraw = async (event, blockTimestamp) => {
     try {
         const { user, asset, amount } = event.args;
         const { transactionHash, blockNumber } = event.log;
-        
+
         console.log(`Withdraw Event: User ${user} withdrew ${ethers.formatUnits(amount, 18)} of asset ${asset}`);
-        
+
         // Get asset price in USD (18 decimals)
         let amountUSD = null;
         try {
@@ -122,7 +122,7 @@ export const handleWithdraw = async (event, blockTimestamp) => {
         } catch (error) {
             console.warn(`Could not fetch price for asset ${asset}:`, error.message);
         }
-        
+
         // Create transaction record
         await getOrCreateTransaction({
             hash: transactionHash,
@@ -134,17 +134,17 @@ export const handleWithdraw = async (event, blockTimestamp) => {
             blockNumber,
             timestamp: new Date(blockTimestamp * 1000)
         });
-        
+
         // Update user-asset balance from blockchain
         const userAsset = await getUserAsset(user, asset);
         if (userAsset) {
             const userBalance = await lendingPoolContract.userBalances(user, asset);
-            await updateUserAsset(user, asset, { 
+            await updateUserAsset(user, asset, {
                 deposited: userBalance.deposited.toString(),
                 borrowed: userBalance.borrowed.toString()
             });
         }
-        
+
         // Update asset total deposits
         const withdrawnAsset = await getAssetByAddress(asset);
         if (withdrawnAsset) {
@@ -156,7 +156,7 @@ export const handleWithdraw = async (event, blockTimestamp) => {
                 withdrawnAsset.totalBorrows
             );
         }
-        
+
         console.log(`Withdraw processed: TX ${transactionHash}`);
     } catch (error) {
         console.error('Error handling Withdraw event:', error);
@@ -172,12 +172,12 @@ export const handleBorrow = async (event, blockTimestamp) => {
     try {
         const { user, asset, amount } = event.args;
         const { transactionHash, blockNumber } = event.log;
-        
+
         console.log(`Borrow Event: User ${user} borrowed ${ethers.formatUnits(amount, 18)} of asset ${asset}`);
-        
+
         // Create or get user
         await getOrCreateUser(user);
-        
+
         // Get asset price in USD (18 decimals)
         let amountUSD = null;
         try {
@@ -188,7 +188,7 @@ export const handleBorrow = async (event, blockTimestamp) => {
         } catch (error) {
             console.warn(`Could not fetch price for asset ${asset}:`, error.message);
         }
-        
+
         // Create transaction record
         await getOrCreateTransaction({
             hash: transactionHash,
@@ -200,19 +200,19 @@ export const handleBorrow = async (event, blockTimestamp) => {
             blockNumber,
             timestamp: new Date(blockTimestamp * 1000)
         });
-        
+
         // Get current balance from blockchain
         const userBalance = await lendingPoolContract.userBalances(user, asset);
-        
+
         // Update or create user-asset association with actual balance
         const userAsset = await getUserAsset(user, asset);
         if (userAsset) {
-            await updateUserAsset(user, asset, { 
+            await updateUserAsset(user, asset, {
                 borrowed: userBalance.borrowed.toString(),
                 deposited: userBalance.deposited.toString()
             });
         }
-        
+
         // Update asset total borrows
         const borrowedAsset = await getAssetByAddress(asset);
         if (borrowedAsset) {
@@ -224,7 +224,7 @@ export const handleBorrow = async (event, blockTimestamp) => {
                 newTotalBorrows.toString()
             );
         }
-        
+
         console.log(`Borrow processed: TX ${transactionHash}`);
     } catch (error) {
         console.error('Error handling Borrow event:', error);
@@ -240,9 +240,9 @@ export const handleRepay = async (event, blockTimestamp) => {
     try {
         const { user, asset, amount } = event.args;
         const { transactionHash, blockNumber } = event.log;
-        
+
         console.log(`Repay Event: User ${user} repaid ${ethers.formatUnits(amount, 18)} of asset ${asset}`);
-        
+
         // Get asset price in USD (18 decimals)
         let amountUSD = null;
         try {
@@ -253,7 +253,7 @@ export const handleRepay = async (event, blockTimestamp) => {
         } catch (error) {
             console.warn(`Could not fetch price for asset ${asset}:`, error.message);
         }
-        
+
         // Create transaction record
         await getOrCreateTransaction({
             hash: transactionHash,
@@ -265,17 +265,17 @@ export const handleRepay = async (event, blockTimestamp) => {
             blockNumber,
             timestamp: new Date(blockTimestamp * 1000)
         });
-        
+
         // Update user-asset balance from blockchain
         const userAsset = await getUserAsset(user, asset);
         if (userAsset) {
             const userBalance = await lendingPoolContract.userBalances(user, asset);
-            await updateUserAsset(user, asset, { 
+            await updateUserAsset(user, asset, {
                 borrowed: userBalance.borrowed.toString(),
                 deposited: userBalance.deposited.toString()
             });
         }
-        
+
         // Update asset total borrows
         const repaidAsset = await getAssetByAddress(asset);
         if (repaidAsset) {
@@ -287,7 +287,7 @@ export const handleRepay = async (event, blockTimestamp) => {
                 newTotalBorrows.toString()
             );
         }
-        
+
         console.log(`Repay processed: TX ${transactionHash}`);
     } catch (error) {
         console.error('Error handling Repay event:', error);
@@ -303,9 +303,9 @@ export const handleCollateralSeized = async (event, blockTimestamp) => {
     try {
         const { borrower, collateralAsset, seizeAmount } = event.args;
         const { transactionHash, blockNumber } = event.log;
-        
+
         console.log(`Liquidation Event: ${ethers.formatUnits(seizeAmount, 18)} collateral seized from ${borrower}`);
-        
+
         // Get asset price in USD (18 decimals)
         let amountUSD = null;
         try {
@@ -316,7 +316,7 @@ export const handleCollateralSeized = async (event, blockTimestamp) => {
         } catch (error) {
             console.warn(`Could not fetch price for asset ${collateralAsset}:`, error.message);
         }
-        
+
         // Create transaction record
         await getOrCreateTransaction({
             hash: transactionHash,
@@ -328,16 +328,16 @@ export const handleCollateralSeized = async (event, blockTimestamp) => {
             blockNumber: blockNumber,
             timestamp: new Date(blockTimestamp * 1000)
         });
-        
+
         // Update user-asset deposited balance from blockchain
         const userAsset = await getUserAsset(borrower, collateralAsset);
         if (userAsset) {
             const userBalance = await lendingPoolContract.userBalances(borrower, collateralAsset);
-            await updateUserAsset(borrower, collateralAsset, { 
-                deposited: userBalance.deposited.toString() 
+            await updateUserAsset(borrower, collateralAsset, {
+                deposited: userBalance.deposited.toString()
             });
         }
-        
+
         console.log(`Liquidation processed: TX ${transactionHash}`);
     } catch (error) {
         console.error('Error handling CollateralSeized event:', error);
@@ -352,21 +352,21 @@ export const handleCollateralSeized = async (event, blockTimestamp) => {
  */
 export const handleAccrue = async (event, blockTimestamp) => {
     try {
-        const { 
+        const {
             asset,
             newTotalBorrows,
             newTotalDeposits
         } = event.args;
-        
+
         console.log(`Accrue Event: Asset ${asset} - Deposits: ${ethers.formatUnits(newTotalDeposits, 18)}, Borrows: ${ethers.formatUnits(newTotalBorrows, 18)}`);
-        
+
         // Update asset balances in database
         await updateAssetBalances(
             asset,
             newTotalDeposits.toString(),
             newTotalBorrows.toString()
         );
-        
+
         console.log(`Asset ${asset} balances updated`);
     } catch (error) {
         console.error('Error handling Accrue event:', error);
@@ -380,6 +380,7 @@ export const handleAccrue = async (event, blockTimestamp) => {
  */
 export const handleMarketSupported = async (event, blockTimestamp) => {
     try {
+        console.log('MarketSupported Event received');
         const { asset, interestRateModel } = event.args;
 
         const erc20Contract = getERC20Contract(asset);
@@ -393,6 +394,7 @@ export const handleMarketSupported = async (event, blockTimestamp) => {
             symbol,
             decimals
         });
+        console.log(`Asset ${asset} ${created ? 'created' : 'exists'}`);
 
         if (!created) {
             await updateAssetSupportStatus(asset, true);
@@ -418,12 +420,12 @@ export const handleMarketSupported = async (event, blockTimestamp) => {
 export const handleMarketUnsupported = async (event, blockTimestamp) => {
     try {
         const { asset } = event.args;
-        
+
         console.log(`🚫 MarketUnsupported Event: Asset ${asset}`);
-        
+
         const assetExist = await getAssetByAddress(asset);
         if (assetExist) await updateAssetSupportStatus(asset, false);
-        
+
         console.log(`Market unsupported noted for ${asset}`);
     } catch (error) {
         console.error('Error handling MarketUnsupported event:', error);
@@ -436,11 +438,11 @@ export const handleCollateralFactorUpdated = async (event, blockTimestamp) => {
         const {
             newCollateralFactor
         } = event.args;
-        
+
         await updateMarketConfig({
             collateralFactor: newCollateralFactor.toString()
         });
-        
+
         console.log("Collateral Factor updated");
     } catch (error) {
         console.error('Error handling CollateralFactorUpdated event:', error);
@@ -455,8 +457,8 @@ export const handleLiquidationParamsUpdated = async (event, blockTimestamp) => {
             liquidationIncentive,
             liquidationThreshold
         } = event.args;
-        
-        
+
+
         await updateMarketConfig({
             closeFactor: closeFactor.toString(),
             liquidationIncentive: liquidationIncentive.toString(),
@@ -471,26 +473,24 @@ export const handleLiquidationParamsUpdated = async (event, blockTimestamp) => {
 
 export const calculateLiquidatableUsers = async () => {
     try {
-        console.log('Calculating liquidatable users...');
-        
         const allUsers = await getAllAssetsUsers();
         const activeUsers = allUsers.filter(ua => BigInt(ua.borrowed) > 0n);
         const activeAddresses = [...new Set(activeUsers.map(ua => ua.userAddress))];
-        
+
         // Get current liquidatable users from database
         const existingLiquidatable = await getAllLiquidatableUsers();
         const existingAddresses = new Set(existingLiquidatable.map(u => u.userAddress));
-        
+
         const currentLiquidatableAddresses = [];
-        
+
         // Check each active user
         for (const userAddress of activeAddresses) {
             try {
                 const isLiquidatable = await liquidationContract.isAccountLiquidatable(userAddress);
-                
+
                 if (isLiquidatable) {
                     currentLiquidatableAddresses.push(userAddress);
-                    
+
                     // Only add if not already in database
                     if (!existingAddresses.has(userAddress)) {
                         await createLiquidatableUser(userAddress);
@@ -507,7 +507,7 @@ export const calculateLiquidatableUsers = async () => {
                 console.error(`Error checking liquidatability for user ${userAddress}:`, error);
             }
         }
-        
+
         // Remove users that are no longer active (fully repaid/withdrawn)
         const currentActiveSet = new Set(activeAddresses);
         for (const existingUser of existingLiquidatable) {
@@ -516,7 +516,7 @@ export const calculateLiquidatableUsers = async () => {
                 console.log(`🔄 User ${existingUser.userAddress} no longer has borrows (removed)`);
             }
         }
-        
+
         console.log(`Liquidatable users calculation completed: ${currentLiquidatableAddresses.length} users`);
         return currentLiquidatableAddresses;
     } catch (error) {

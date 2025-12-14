@@ -49,7 +49,7 @@ export default function History() {
 
     useEffect(() => {
         checkWalletAndFetch();
-        
+
         if (window.ethereum) {
             const handleAccountsChanged = (accounts) => {
                 setAccount(accounts[0] || null);

@@ -56,7 +56,7 @@ class EventListener extends EventEmitter {
     async initialize() {
         try {
             console.log('Initializing blockchain event listener...');
-            
+
             // Try WebSocket first, fall back to HTTP
             try {
                 this.provider = getProvider(true);
@@ -66,15 +66,15 @@ class EventListener extends EventEmitter {
                 console.log('⚠️  WebSocket failed, using HTTP provider');
                 this.provider = getProvider(false);
             }
-            
+
             this.lendingPoolContract = getLendingPoolContract(this.provider);
             this.liquidationContract = getLiquidationContract(this.provider);
-            
+
             const network = await this.provider.getNetwork();
             console.log(`✅ Connected to network: ${network.name} (chainId: ${network.chainId})`);
             console.log(`✅ LendingPool contract: ${await this.lendingPoolContract.getAddress()}`);
             console.log(`✅ Liquidation contract: ${await this.liquidationContract.getAddress()}`);
-            
+
             return true;
         } catch (error) {
             console.error('❌ Failed to initialize event listener:', error);
@@ -97,24 +97,24 @@ class EventListener extends EventEmitter {
 
         try {
             console.log('Starting event listeners...');
-            
+
             // Set up listeners for each event
             for (const [eventName, handler] of this.lendingPoolEventHandlers) {
                 this.lendingPoolContract.on(eventName, async (...args) => {
                     try {
                         // Last argument is the event object
                         const event = args[args.length - 1];
-                        
+
                         // Get block to extract timestamp
                         const block = await this.provider.getBlock(event.blockNumber);
-                        
+
                         // Call the handler
                         await handler(event, block.timestamp);
                     } catch (error) {
                         console.error(`Error processing ${eventName} event:`, error);
                     }
                 });
-                
+
                 console.log(`Listening to ${eventName}`);
             }
             for (const [eventName, handler] of this.liquidationEventHandlers) {
@@ -122,20 +122,20 @@ class EventListener extends EventEmitter {
                     try {
                         // Last argument is the event object
                         const event = args[args.length - 1];
-                        
+
                         // Get block to extract timestamp
                         const block = await this.provider.getBlock(event.blockNumber);
-                        
+
                         // Call the handler
                         await handler(event, block.timestamp);
                     } catch (error) {
                         console.error(`Error processing ${eventName} event:`, error);
                     }
                 });
-                
+
                 console.log(`Listening to ${eventName}`);
             }
-            
+
 
             // Throttled liquidatable users calculation
             this.provider.on('block', async (blockNumber) => {
@@ -144,24 +144,22 @@ class EventListener extends EventEmitter {
                     if (blockNumber - this.lastLiquidatableCheck >= this.liquidatableCheckInterval) {
                         this.lastLiquidatableCheck = blockNumber;
                         console.log(`🔍 Checking liquidatable users at block ${blockNumber}...`);
-                        
+
                         const liquidatableUsers = await calculateLiquidatableUsers();
                         this.lastLiquidatableUpdate = new Date();
-                        
+
                         // Emit event for frontend notification (if using WebSocket)
                         this.emit('liquidatableUsersUpdated', {
                             users: liquidatableUsers,
                             blockNumber,
                             timestamp: this.lastLiquidatableUpdate
                         });
-                        
-                        console.log(`✅ Liquidatable users updated: ${liquidatableUsers.length} users found`);
                     }
                 } catch (error) {
                     console.error('Error in liquidatable users check:', error);
                 }
             });
-            
+
             this.isListening = true;
             console.log('✅ All event listeners started');
         } catch (error) {
@@ -181,11 +179,11 @@ class EventListener extends EventEmitter {
 
         try {
             console.log('🛑 Stopping event listeners...');
-            
+
             // Remove all listeners
             this.lendingPoolContract.removeAllListeners();
             this.liquidationContract.removeAllListeners();
-            
+
             this.isListening = false;
             console.log('✅ Event listeners stopped');
         } catch (error) {
@@ -244,30 +242,30 @@ class EventListener extends EventEmitter {
         try {
             console.log(`🔄 Syncing events from block ${fromBlock} to ${toBlock}...`);
             console.log(`   Using JsonRpcProvider for reliable historical queries`);
-            
+
             const currentBlock = await httpProvider.getBlockNumber();
             const endBlock = toBlock === 'latest' ? currentBlock : toBlock;
-            
+
             // Process in batches to avoid RPC limits
             const batchSize = config.sync.batchSize;
             let processedBlocks = 0;
-            
+
             for (let start = fromBlock; start <= endBlock; start += batchSize) {
                 const end = Math.min(start + batchSize - 1, endBlock);
-                
+
                 console.log(`   Processing blocks ${start} to ${end}...`);
-                
+
                 // Query LendingPool events
                 for (const [eventName, handler] of this.lendingPoolEventHandlers) {
                     try {
                         const filter = syncLendingPoolContract.filters[eventName]();
                         const events = await syncLendingPoolContract.queryFilter(filter, start, end);
-                        
+
                         for (const event of events) {
                             const block = await httpProvider.getBlock(event.blockNumber);
                             await handler(event, block.timestamp);
                         }
-                        
+
                         if (events.length > 0) {
                             console.log(`   Found ${events.length} ${eventName} events (LendingPool)`);
                         }
@@ -275,18 +273,18 @@ class EventListener extends EventEmitter {
                         console.error(`   Error syncing LendingPool ${eventName}:`, error.message);
                     }
                 }
-                
+
                 // Query Liquidation events
                 for (const [eventName, handler] of this.liquidationEventHandlers) {
                     try {
                         const filter = syncLiquidationContract.filters[eventName]();
                         const events = await syncLiquidationContract.queryFilter(filter, start, end);
-                        
+
                         for (const event of events) {
                             const block = await httpProvider.getBlock(event.blockNumber);
                             await handler(event, block.timestamp);
                         }
-                        
+
                         if (events.length > 0) {
                             console.log(`   Found ${events.length} ${eventName} events (Liquidation)`);
                         }
@@ -294,12 +292,12 @@ class EventListener extends EventEmitter {
                         console.error(`   Error syncing Liquidation ${eventName}:`, error.message);
                     }
                 }
-                
+
                 processedBlocks = end - fromBlock + 1;
                 const progress = ((processedBlocks / (endBlock - fromBlock + 1)) * 100).toFixed(1);
                 console.log(`   Progress: ${progress}% (${processedBlocks}/${endBlock - fromBlock + 1} blocks)`);
             }
-            
+
             console.log(`✅ Sync completed! Processed ${processedBlocks} blocks`);
         } catch (error) {
             console.error('❌ Failed to sync past events:', error);

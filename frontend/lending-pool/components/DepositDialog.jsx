@@ -1,4 +1,4 @@
-import {React} from "react";
+import { React } from "react";
 import { useState, useEffect } from "react";
 import { getLendingPoolContract, getToken } from "@/lib/web3";
 import { ethers } from "ethers";
@@ -15,7 +15,7 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
-export default function DepositDialog({  handleCloseDialog, selectedAsset, setSuccess, fetchData, formatAmount, formatRate }) {
+export default function DepositDialog({ handleCloseDialog, selectedAsset, setSuccess, fetchData, formatAmount, formatRate }) {
     const [depositAmount, setDepositAmount] = useState('');
     const [error, setError] = useState('');
     const [transactionLoading, setTransactionLoading] = useState(false);
@@ -35,7 +35,7 @@ export default function DepositDialog({  handleCloseDialog, selectedAsset, setSu
                 const tokenContract = await getToken(selectedAsset.address);
                 const decimals = await tokenContract.decimals();
                 const amountInWei = ethers.parseUnits(depositAmount, decimals);
-                
+
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const signer = await provider.getSigner();
                 const userAddress = await signer.getAddress();
@@ -64,77 +64,77 @@ export default function DepositDialog({  handleCloseDialog, selectedAsset, setSu
     }, [depositAmount, selectedAsset]);
 
     const handleDeposit = async () => {
-            if (!depositAmount || !selectedAsset) return;
-    
-            try {
-                setTransactionLoading(true);
-                setError('');
-    
-                const lendingPool = await getLendingPoolContract();
-                const tokenContract = await getToken(selectedAsset.address);
-                const decimals = await tokenContract.decimals();
-                const amountInWei = ethers.parseUnits(depositAmount, decimals);
-    
-                // Check balance
-                const provider = new ethers.BrowserProvider(window.ethereum);
-                const signer = await provider.getSigner();
-                const userAddress = await signer.getAddress();
-                const balance = await tokenContract.balanceOf(userAddress);
-    
-                // Handle WETH: wrap ETH if needed
-                const WETH_ADDRESS = process.env.NEXT_PUBLIC_WETH_ADDRESS?.toLowerCase();
-                const isWETH = selectedAsset.address.toLowerCase() === WETH_ADDRESS;
-                
-                if (isWETH) {
-                    const wethBalance = balance;
-                    const ethBalance = await provider.getBalance(userAddress);
-                    
-                    // If insufficient WETH, try to wrap ETH
-                    if (wethBalance < amountInWei) {
-                        const amountToWrap = amountInWei - wethBalance;
-                        
-                        if (ethBalance < amountToWrap) {
-                            setError('Insufficient ETH and WETH balance');
-                            setTransactionLoading(false);
-                            return;
-                        }
-                        
-                        // Wrap ETH to WETH
-                        const wrapTx = await tokenContract.deposit({ value: amountToWrap });
-                        await wrapTx.wait();
-                    }
-                } else {
-                    if (balance < amountInWei) {
-                        setError('Insufficient balance');
+        if (!depositAmount || !selectedAsset) return;
+
+        try {
+            setTransactionLoading(true);
+            setError('');
+
+            const lendingPool = await getLendingPoolContract();
+            const tokenContract = await getToken(selectedAsset.address);
+            const decimals = await tokenContract.decimals();
+            const amountInWei = ethers.parseUnits(depositAmount, decimals);
+
+            // Check balance
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            const userAddress = await signer.getAddress();
+            const balance = await tokenContract.balanceOf(userAddress);
+
+            // Handle WETH: wrap ETH if needed
+            const WETH_ADDRESS = process.env.NEXT_PUBLIC_WETH_ADDRESS?.toLowerCase();
+            const isWETH = selectedAsset.address.toLowerCase() === WETH_ADDRESS;
+
+            if (isWETH) {
+                const wethBalance = balance;
+                const ethBalance = await provider.getBalance(userAddress);
+
+                // If insufficient WETH, try to wrap ETH
+                if (wethBalance < amountInWei) {
+                    const amountToWrap = amountInWei - wethBalance;
+
+                    if (ethBalance < amountToWrap) {
+                        setError('Insufficient ETH and WETH balance');
                         setTransactionLoading(false);
                         return;
                     }
+
+                    // Wrap ETH to WETH
+                    const wrapTx = await tokenContract.deposit({ value: amountToWrap });
+                    await wrapTx.wait();
                 }
-    
-                // Approve
-                const approveTx = await tokenContract.approve(await lendingPool.getAddress(), amountInWei);
-                await approveTx.wait();
-    
-                // Deposit
-                const depositTx = await lendingPool.deposit(selectedAsset.address, amountInWei);
-                await depositTx.wait();
-    
-                setSuccess(`Successfully deposited ${depositAmount} ${selectedAsset.symbol}`);
-                setDepositAmount('');
-                
-                // Refresh data
-                setTimeout(() => {
-                    fetchData();
-                    handleCloseDialog();
-                }, 2000);
-    
-            } catch (err) {
-                console.error('Error depositing:', err);
-                setError(err.message || 'Transaction failed');
-            } finally {
-                setTransactionLoading(false);
+            } else {
+                if (balance < amountInWei) {
+                    setError('Insufficient balance');
+                    setTransactionLoading(false);
+                    return;
+                }
             }
-        };
+
+            // Approve
+            const approveTx = await tokenContract.approve(await lendingPool.getAddress(), amountInWei);
+            await approveTx.wait();
+
+            // Deposit
+            const depositTx = await lendingPool.deposit(selectedAsset.address, amountInWei);
+            await depositTx.wait();
+
+            setSuccess(`Successfully deposited ${depositAmount} ${selectedAsset.symbol}`);
+            setDepositAmount('');
+
+            // Refresh data
+            setTimeout(() => {
+                fetchData();
+                handleCloseDialog();
+            }, 2000);
+
+        } catch (err) {
+            console.error('Error depositing:', err);
+            setError(err.message || 'Transaction failed');
+        } finally {
+            setTransactionLoading(false);
+        }
+    };
 
 
     return (
@@ -146,7 +146,7 @@ export default function DepositDialog({  handleCloseDialog, selectedAsset, setSu
             </DialogTitle>
             <DialogContent>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-                
+
                 {/* Wallet Balance */}
                 <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                     <Typography variant="caption" color="text.secondary">
@@ -156,7 +156,7 @@ export default function DepositDialog({  handleCloseDialog, selectedAsset, setSu
                         {selectedAsset && formatAmount(selectedAsset.balance)} {selectedAsset?.symbol}
                     </Typography>
                 </Box>
-                
+
                 {/* Amount Input */}
                 <TextField
                     fullWidth
@@ -167,7 +167,7 @@ export default function DepositDialog({  handleCloseDialog, selectedAsset, setSu
                     inputProps={{ step: "0.000001", min: "0" }}
                     sx={{ mb: 2 }}
                 />
-                
+
                 {/* APY Display */}
                 <Box sx={{ mb: 2, p: 2, bgcolor: 'success.50', borderRadius: 1 }}>
                     <Typography variant="caption" color="text.secondary">
@@ -184,7 +184,7 @@ export default function DepositDialog({  handleCloseDialog, selectedAsset, setSu
                         <CircularProgress size={24} />
                     </Box>
                 )}
-                
+
                 {preview && !previewLoading && (
                     <Box sx={{ mt: 2 }}>
                         <Divider sx={{ mb: 2 }}>
@@ -192,7 +192,7 @@ export default function DepositDialog({  handleCloseDialog, selectedAsset, setSu
                                 Transaction Overview
                             </Typography>
                         </Divider>
-                        
+
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                             <Box sx={{ textAlign: 'center', flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary">
@@ -202,9 +202,9 @@ export default function DepositDialog({  handleCloseDialog, selectedAsset, setSu
                                     ${formatAmount(preview.currentTotal)}
                                 </Typography>
                             </Box>
-                            
+
                             <ArrowForwardIcon sx={{ mx: 2, color: 'success.main' }} />
-                            
+
                             <Box sx={{ textAlign: 'center', flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary">
                                     New Deposits
@@ -214,7 +214,7 @@ export default function DepositDialog({  handleCloseDialog, selectedAsset, setSu
                                 </Typography>
                             </Box>
                         </Box>
-                        
+
                         <Box sx={{ mt: 2, p: 1.5, bgcolor: 'success.50', borderRadius: 1, textAlign: 'center' }}>
                             <Typography variant="caption" color="text.secondary">
                                 Increase

@@ -59,13 +59,13 @@ export default function Home() {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const accounts = await provider.send("eth_accounts", []);
         setAccount(accounts[0] || null);
-        if(accounts.length > 0) {
+        if (accounts.length > 0) {
           fetchMarkets();
         }
       } catch (err) {
         console.error('Error checking wallet:', err);
       }
-    } 
+    }
   };
 
   const fetchMarkets = async () => {
@@ -75,18 +75,18 @@ export default function Home() {
       // Get all supported markets
       const allMarkets = await getAllAssets();
       const priceRouter = await getPriceRouterContract();
-      
+
       // Fetch market info for each market
       const marketData = await Promise.all(
         allMarkets.map(async (market) => {
           try {
-            if(!market.isSupported) {
+            if (!market.isSupported) {
               return null;
             }
             const marketConfig = await getMarketConfig(market.address);
             const deposits = BigInt(ethers.parseUnits(market.totalDeposits, 18 - market.decimals));
             const borrows = BigInt(ethers.parseUnits(market.totalBorrows, 18 - market.decimals));
-            
+
             // Get asset price from PriceRouter (18 decimals)
             let price = 0n;
             let depositsUSD = 0n;
@@ -100,16 +100,16 @@ export default function Home() {
             } catch (err) {
               console.warn(`Could not fetch price for ${market.symbol}:`, err.message);
             }
-            
+
             let utilizationRate;
-            if(deposits == 0n){
+            if (deposits == 0n) {
               utilizationRate = 0n;
             } else {
               utilizationRate = borrows * SCALE / deposits;
             }
             const borrowRate = getBorrowRate(utilizationRate, marketConfig);
             const depositRate = getDepositRate(utilizationRate, marketConfig);
-            
+
             return {
               symbol: market.symbol,
               address: market.address,
@@ -142,7 +142,7 @@ export default function Home() {
 
   const getBorrowRate = (utilizationRate, marketConfig) => {
     const { baseRate, slope1, slope2, optimalUtilization } = marketConfig;
-    
+
     // Convert all values to BigInt
     const baseRateBN = BigInt(baseRate);
     const slope1BN = BigInt(slope1);
@@ -162,7 +162,7 @@ export default function Home() {
   const getDepositRate = (utilizationRate, marketConfig) => {
     const borrowRate = getBorrowRate(utilizationRate, marketConfig);
     const { reserveFactor } = marketConfig;
-    
+
     // Convert all values to BigInt
     const reserveFactorBN = BigInt(reserveFactor);
     const utilizationRateBN = BigInt(utilizationRate);
@@ -200,10 +200,10 @@ export default function Home() {
           Supply assets to earn interest or borrow against your collateral
         </Typography>
         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Button 
-            component={Link} 
-            href="/supply" 
-            variant="contained" 
+          <Button
+            component={Link}
+            href="/supply"
+            variant="contained"
             color="primary"
             size="large"
             startIcon={<AccountBalanceIcon />}
@@ -211,10 +211,10 @@ export default function Home() {
           >
             Supply Assets
           </Button>
-          <Button 
-            component={Link} 
-            href="/borrow" 
-            variant="outlined" 
+          <Button
+            component={Link}
+            href="/borrow"
+            variant="outlined"
             color="primary"
             size="large"
             startIcon={<TrendingUpIcon />}
@@ -252,9 +252,9 @@ export default function Home() {
             <CardContent>
               <Typography variant="h6">Error loading markets</Typography>
               <Typography variant="body2">{error}</Typography>
-              <Button 
-                variant="contained" 
-                onClick={fetchMarkets} 
+              <Button
+                variant="contained"
+                onClick={fetchMarkets}
                 sx={{ mt: 2 }}
               >
                 Retry
@@ -284,9 +284,9 @@ export default function Home() {
               </TableHead>
               <TableBody>
                 {markets.map((market) => (
-                  <TableRow 
+                  <TableRow
                     key={market.address}
-                    sx={{ 
+                    sx={{
                       '&:hover': { bgcolor: 'action.hover' },
                       '&:last-child td, &:last-child th': { border: 0 }
                     }}
@@ -322,16 +322,16 @@ export default function Home() {
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      <Chip 
+                      <Chip
                         label={formatUtilization(market.utilizationRate)}
                         size="small"
                         sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
                         color={
-                          parseFloat(ethers.formatUnits(market.utilizationRate, 18)) > 0.8 
-                            ? 'error' 
-                            : parseFloat(ethers.formatUnits(market.utilizationRate, 18)) > 0.5 
-                            ? 'warning' 
-                            : 'success'
+                          parseFloat(ethers.formatUnits(market.utilizationRate, 18)) > 0.8
+                            ? 'error'
+                            : parseFloat(ethers.formatUnits(market.utilizationRate, 18)) > 0.5
+                              ? 'warning'
+                              : 'success'
                         }
                       />
                     </TableCell>

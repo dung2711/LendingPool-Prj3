@@ -26,12 +26,12 @@ export const createMarketConfig = async (marketAddress) => {
     });
 }
 
-export const updateMarketConfig = async ({ collateralFactor, closeFactor, liquidationIncentive, liquidationThreshold}) => {
+export const updateMarketConfig = async ({ collateralFactor, closeFactor, liquidationIncentive, liquidationThreshold }) => {
     const updates = {};
-    if(closeFactor) updates.closeFactor = closeFactor;
-    if(collateralFactor) updates.collateralFactor = collateralFactor;
-    if(liquidationIncentive) updates.liquidationIncentive = liquidationIncentive;
-    if(liquidationThreshold) updates.liquidationThreshold = liquidationThreshold;
+    if (closeFactor) updates.closeFactor = closeFactor;
+    if (collateralFactor) updates.collateralFactor = collateralFactor;
+    if (liquidationIncentive) updates.liquidationIncentive = liquidationIncentive;
+    if (liquidationThreshold) updates.liquidationThreshold = liquidationThreshold;
     await Market_config.update(updates, {
         where: {}
     });

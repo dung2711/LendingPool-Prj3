@@ -62,7 +62,7 @@ export default function WalletConnect() {
                     setBalance(null);
                 }
             };
-            
+
             const handleChainChanged = () => {
                 window.location.reload();
             };
@@ -129,9 +129,9 @@ export default function WalletConnect() {
                     {account.slice(0, 6)}...{account.slice(-4)}
                 </Button>
             ) : (
-                <Button 
-                    variant="contained" 
-                    color="secondary" 
+                <Button
+                    variant="contained"
+                    color="secondary"
                     onClick={handleOpen}
                     startIcon={<AccountBalanceWalletIcon />}
                     sx={{ fontWeight: 'bold' }}
@@ -140,8 +140,8 @@ export default function WalletConnect() {
                 </Button>
             )}
 
-            <Dialog 
-                open={open} 
+            <Dialog
+                open={open}
                 onClose={handleClose}
                 maxWidth="xs"
                 fullWidth
@@ -162,9 +162,9 @@ export default function WalletConnect() {
                             </Typography>
                             <List sx={{ pt: 0 }}>
                                 <ListItem disablePadding>
-                                    <ListItemButton 
+                                    <ListItemButton
                                         onClick={connectMetaMask}
-                                        sx={{ 
+                                        sx={{
                                             border: '1px solid',
                                             borderColor: 'divider',
                                             borderRadius: 1,
@@ -177,8 +177,8 @@ export default function WalletConnect() {
                                         <ListItemIcon>
                                             <AccountBalanceWalletIcon color="primary" fontSize="large" />
                                         </ListItemIcon>
-                                        <ListItemText 
-                                            primary="MetaMask" 
+                                        <ListItemText
+                                            primary="MetaMask"
                                             secondary="Connect using MetaMask"
                                             primaryTypographyProps={{ fontWeight: 'medium' }}
                                         />
@@ -211,7 +211,7 @@ export default function WalletConnect() {
                                     <Typography variant="body2" color="text.secondary" gutterBottom>
                                         Address
                                     </Typography>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent:'center', gap: 1 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                                         <Typography variant="body1" fontFamily="monospace">
                                             {account.slice(0, 10)}...{account.slice(-8)}
                                         </Typography>
@@ -222,7 +222,7 @@ export default function WalletConnect() {
                                         </Tooltip>
                                     </Box>
                                 </Box>
-                                
+
                                 {balance && (
                                     <Box>
                                         <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -235,9 +235,9 @@ export default function WalletConnect() {
                                 )}
                             </Box>
                         </DialogContent>
-                        <DialogActions sx={{justifyContent:'center'}}>
-                            <Button 
-                                onClick={disconnect} 
+                        <DialogActions sx={{ justifyContent: 'center' }}>
+                            <Button
+                                onClick={disconnect}
                                 color="error"
                                 startIcon={<LogoutIcon />}
                             >

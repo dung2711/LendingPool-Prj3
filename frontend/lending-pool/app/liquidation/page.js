@@ -49,7 +49,7 @@ export default function Liquidation() {
 
     useEffect(() => {
         checkWalletAndFetch();
-        
+
         if (window.ethereum) {
             const handleAccountsChanged = (accounts) => {
                 setAccount(accounts[0] || null);
@@ -67,24 +67,24 @@ export default function Liquidation() {
     // WebSocket connection for real-time updates
     useEffect(() => {
         const socket = io('http://localhost:4000');
-        
+
         socket.on('connect', () => {
             console.log('✅ WebSocket connected');
             setWsConnected(true);
         });
-        
+
         socket.on('disconnect', () => {
             console.log('❌ WebSocket disconnected');
             setWsConnected(false);
         });
-        
+
         socket.on('liquidatableUsersUpdated', (data) => {
             console.log('📡 Received liquidatable users update:', data);
             setLastUpdate(data.timestamp ? new Date(data.timestamp) : new Date());
             // Fetch detailed user info
             fetchLiquidatableUsersDetails(data.users);
         });
-        
+
         return () => {
             socket.disconnect();
         };
@@ -93,10 +93,10 @@ export default function Liquidation() {
     // Fallback polling every 60 seconds (in case WebSocket fails)
     useEffect(() => {
         if (!account || wsConnected) return;
-        
+
         fetchLiquidatableUsers();
         const interval = setInterval(fetchLiquidatableUsers, 60000); // 60 seconds
-        
+
         return () => clearInterval(interval);
     }, [account, wsConnected]);
 
@@ -121,22 +121,22 @@ export default function Liquidation() {
                 setLiquidatableUsers([]);
                 return;
             }
-            
+
             const lendingPool = await getLendingPoolContract();
-            
+
             const liquidation = await getLiquidationContract();
             const liquidationThreshold = await liquidation.liquidationThreshold();
-            
+
             const usersWithDetails = await Promise.all(
                 userAddresses.map(async (userAddress) => {
                     try {
                         const [totalCollateralUSD, totalBorrowsUSD] = await lendingPool.getAccountLiquidity(userAddress);
-                        
+
                         // Health Factor = (totalCollateral * liquidationThreshold) / totalBorrows
-                        const healthFactor = totalBorrowsUSD > 0n 
+                        const healthFactor = totalBorrowsUSD > 0n
                             ? (totalCollateralUSD * liquidationThreshold) / totalBorrowsUSD
                             : BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
-                        
+
                         return {
                             address: userAddress,
                             totalCollateralUSD,
@@ -149,7 +149,7 @@ export default function Liquidation() {
                     }
                 })
             );
-            
+
             setLiquidatableUsers(usersWithDetails.filter(u => u !== null));
         } catch (err) {
             console.error('Error fetching liquidatable users details:', err);
@@ -160,7 +160,7 @@ export default function Liquidation() {
         try {
             const response = await fetch('http://localhost:4000/api/liquidatable-users/metadata');
             const data = await response.json();
-            
+
             await fetchLiquidatableUsersDetails(data.users);
             setLastUpdate(data.lastUpdate ? new Date(data.lastUpdate) : null);
         } catch (err) {
@@ -198,11 +198,11 @@ export default function Liquidation() {
             const liquidation = await getLiquidationContract();
             const priceRouter = await getPriceRouterContract();
 
-            const [assets, deposited, borrowed, totalDeposited, totalBorrowed, healthFactor] = 
+            const [assets, deposited, borrowed, totalDeposited, totalBorrowed, healthFactor] =
                 await lendingPool.getUserInfo(userAddress);
 
             const threshold = await liquidation.liquidationThreshold();
-            
+
             // User is liquidatable if health factor < liquidation threshold
             const isLiquidatable = liquidation.isAccountLiquidatable(healthFactor, threshold);
 
@@ -249,18 +249,22 @@ export default function Liquidation() {
             assets.map(async (asset) => {
                 try {
                     const assetDetails = await getAssetByAddress(asset.assetAddress);
+                    console.log("Asset Details:", assetDetails);
+                    console.log("User Asset:", asset);
                     return {
-                        ...asset,
+                        assetAddress: asset.assetAddress,
+                        deposited: BigInt(asset.deposited) * 10n ** BigInt(18 - assetDetails.decimals), //normalize to 18 decimals
+                        borrowed: BigInt(asset.borrowed) * 10n ** BigInt(18 - assetDetails.decimals), //normalize to 18 decimals
                         symbol: assetDetails.symbol
                     };
                 } catch (error) {
                     return null;
                 }
             })
-         );
+        );
         const filteredAssets = selectedAsset.filter(a => a !== null);
         setSelectedAsset(filteredAssets);
-        console.log('Selected Asset:', selectedAsset.length);
+        console.log('Selected Asset:', selectedAsset);
         setOpenDialog(true);
         setError('');
         setSuccess('');
@@ -304,7 +308,7 @@ export default function Liquidation() {
             await liquidateTx.wait();
 
             setSuccess(`Successfully liquidated position!`);
-            
+
             setTimeout(() => {
                 fetchData();
                 handleCloseDialog();
@@ -349,7 +353,7 @@ export default function Liquidation() {
             setCheckingUser(true);
             setError('');
             const userInfo = await checkUserLiquidatable(checkAddress);
-            
+
             if (userInfo) {
                 setLiquidatableUsers(prev => {
                     const existing = prev.find(u => u.address === userInfo.address);
@@ -468,9 +472,9 @@ export default function Liquidation() {
                                     Liquidatable Positions
                                 </Typography>
                                 {wsConnected && (
-                                    <Chip 
-                                        label="Live" 
-                                        color="success" 
+                                    <Chip
+                                        label="Live"
+                                        color="success"
                                         size="small"
                                         sx={{ fontSize: '0.7rem' }}
                                     />
@@ -482,8 +486,8 @@ export default function Liquidation() {
                                 </Typography>
                             )}
                         </Box>
-                        <Button 
-                            variant="outlined" 
+                        <Button
+                            variant="outlined"
                             onClick={fetchLiquidatableUsers}
                             disabled={loading}
                             size="small"
@@ -570,7 +574,7 @@ export default function Liquidation() {
                 <DialogContent>
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                     {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
-                    
+
                     {selectedUser && (
                         <>
                             <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
@@ -590,17 +594,20 @@ export default function Liquidation() {
                                 User's Assets
                             </Typography>
                             <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
-                                {selectedAsset.length > 0 && selectedAsset.map(asset => (
-                                    <Box key={asset.assetAddress} sx={{ mb: 1 }}>
-                                        <Typography variant="body2" fontWeight="medium">
-                                            {asset.symbol}
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            Deposited: {formatAmount(asset.deposited)} | 
-                                            Borrowed: {formatAmount(asset.borrowed)}
-                                        </Typography>
-                                    </Box>
-                                ))}
+                                {selectedAsset.length > 0 && selectedAsset.map(asset => {
+                                    console.log("Selected Asset:", asset);
+                                    return (
+                                        < Box key={asset.assetAddress} sx={{ mb: 1 }}>
+                                            <Typography variant="body2" fontWeight="medium">
+                                                {asset.symbol}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                Deposited: {formatAmount(asset.deposited)} |
+                                                Borrowed: {formatAmount(asset.borrowed)}
+                                            </Typography>
+                                        </Box>
+                                    )
+                                })}
                             </Box>
 
                             <TextField
@@ -650,6 +657,6 @@ export default function Liquidation() {
                     </Button>
                 </DialogActions>
             </Dialog>
-        </Box>
+        </Box >
     );
 }

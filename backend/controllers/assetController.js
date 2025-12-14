@@ -77,10 +77,11 @@ export const createAsset = async (assetData) => {
             throw new Error('Asset already exists');
         }
         throw new Error(`Failed to create asset: ${error.message}`);
-    }   
+    }
 };
 
 export const updateAssetSupportStatus = async (address, isSupported) => {
+    console.log(`Updating asset ${address} support status to ${isSupported}`);
     if (!address) {
         throw new Error('Address is required');
     }
@@ -97,6 +98,7 @@ export const updateAssetSupportStatus = async (address, isSupported) => {
         }
         asset.isSupported = isSupported;
         await asset.save();
+        console.log("Asset after:", asset);
         return asset;
     } catch (error) {
         if (error.message === 'Asset not found') {
@@ -156,14 +158,14 @@ export const deleteAsset = async (address) => {
  */
 export const getOrCreateAsset = async (assetData) => {
     const { address, name, symbol, decimals } = assetData;
-    
+
     if (!address || !name || !symbol || decimals === undefined) {
         throw new Error('All asset fields are required');
     }
     if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum address');
     }
-    
+
     try {
         const [asset, created] = await Asset.findOrCreate({
             where: { address },

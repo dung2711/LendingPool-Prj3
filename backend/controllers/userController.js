@@ -34,14 +34,14 @@ export const createUser = async (address) => {
     if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum address');
     }
-    
+
     try {
         // Check if user already exists
         const existingUser = await User.findByPk(address);
         if (existingUser) {
             throw new Error('User already exists');
         }
-        
+
         return await User.create({ address });
     } catch (error) {
         // Re-throw custom errors
@@ -69,7 +69,7 @@ export const getOrCreateUser = async (address) => {
     if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum address');
     }
-    
+
     try {
         const [user, created] = await User.findOrCreate({
             where: { address },
@@ -114,7 +114,7 @@ export const deleteUser = async (address) => {
     if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum address');
     }
-    
+
     try {
         const deleted = await User.destroy({ where: { address } });
         return deleted > 0;

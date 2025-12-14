@@ -15,7 +15,7 @@ export const getTransactionsByUser = async (userAddress) => {
         throw new Error('Invalid Ethereum address');
     }
     try {
-        return await Transaction.findAll({ 
+        return await Transaction.findAll({
             where: { userAddress },
             order: [['timestamp', 'DESC']]
         });
@@ -38,7 +38,7 @@ export const getTransactionsByAsset = async (assetAddress) => {
         throw new Error('Invalid Ethereum address');
     }
     try {
-        return await Transaction.findAll({ 
+        return await Transaction.findAll({
             where: { assetAddress },
             order: [['timestamp', 'DESC']]
         });
@@ -81,7 +81,7 @@ export const getAllTransactions = async ({ limit = 100, offset = 0, type = null 
         if (type) {
             where.type = type;
         }
-        
+
         const { count, rows } = await Transaction.findAndCountAll({
             where,
             limit: Math.min(limit, 1000),
@@ -108,7 +108,7 @@ export const getAllTransactions = async ({ limit = 100, offset = 0, type = null 
  */
 export const createTransaction = async (txData) => {
     const { hash, userAddress, assetAddress, type, amount, amountUSD, blockNumber, timestamp } = txData;
-    
+
     if (!hash || !userAddress || !assetAddress || !type || !amount || !amountUSD || !blockNumber || !timestamp) {
         throw new Error('All transaction fields are required (hash, userAddress, assetAddress, type, amount, blockNumber, timestamp)');
     }
@@ -121,19 +121,19 @@ export const createTransaction = async (txData) => {
     if (!ethers.isAddress(assetAddress) || assetAddress === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum asset address');
     }
-    
+
     const validTypes = ['deposit', 'borrow', 'repay', 'withdraw', 'liquidated'];
     if (!validTypes.includes(type)) {
         throw new Error(`Invalid transaction type. Must be one of: ${validTypes.join(', ')}`);
     }
-    
+
     try {
         // Check if transaction already exists
         const existingTx = await Transaction.findByPk(hash);
         if (existingTx) {
             throw new Error('Transaction already exists');
         }
-        
+
         return await Transaction.create({
             hash,
             userAddress,
@@ -163,7 +163,7 @@ export const createTransaction = async (txData) => {
  */
 export const getOrCreateTransaction = async (txData) => {
     const { hash, userAddress, assetAddress, type, amount, amountUSD, blockNumber, timestamp } = txData;
-    
+
     if (!hash || !userAddress || !assetAddress || !type || !amount || !amountUSD || !timestamp) {
         throw new Error('All transaction fields are required');
     }
@@ -176,7 +176,7 @@ export const getOrCreateTransaction = async (txData) => {
     if (!ethers.isAddress(assetAddress) || assetAddress === ethers.ZeroAddress) {
         throw new Error('Invalid Ethereum asset address');
     }
-    
+
     try {
         const [transaction, created] = await Transaction.findOrCreate({
             where: { hash },

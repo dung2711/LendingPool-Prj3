@@ -29,8 +29,8 @@ try {
 
 const ERC20_ABI = [
     "function name() view returns (string)",
-  "function symbol() view returns (string)",
-  "function decimals() view returns (uint8)"
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)"
 ];
 
 /**
@@ -42,7 +42,7 @@ export const getLendingPoolContract = (provider = null) => {
     if (!provider) {
         provider = getProvider();
     }
-    
+
     return new ethers.Contract(
         config.lendingPoolAddress,
         lendingPoolABI,
@@ -54,7 +54,7 @@ export const getLiquidationContract = (provider = null) => {
     if (!provider) {
         provider = getProvider();
     }
-    
+
     return new ethers.Contract(
         config.liquidationAddress,
         liquidationABI,
@@ -71,7 +71,7 @@ export const getPriceRouterContract = (provider = null) => {
     if (!provider) {
         provider = getProvider();
     }
-    
+
     return new ethers.Contract(
         config.priceRouterAddress,
         priceRouterABI,
@@ -90,7 +90,7 @@ export const getERC20Contract = (tokenAddress, provider = null) => {
     if (!provider) {
         provider = getProvider();
     }
-    
+
     return new ethers.Contract(
         tokenAddress,
         ERC20_ABI,
@@ -124,7 +124,7 @@ export const parseEvent = (contract, eventName, log) => {
             topics: log.topics,
             data: log.data
         });
-        
+
         return {
             name: parsedLog.name,
             args: parsedLog.args,

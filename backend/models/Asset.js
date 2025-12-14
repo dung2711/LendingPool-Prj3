@@ -2,7 +2,7 @@ import sequelize from "../config/database.js";
 import { DataTypes } from "sequelize";
 
 const Asset = sequelize.define('Asset', {
-    address : {
+    address: {
         type: DataTypes.STRING,
         allowNull: false,
         primaryKey: true
@@ -25,12 +25,12 @@ const Asset = sequelize.define('Asset', {
         defaultValue: true
     },
     totalDeposits: {
-        type: DataTypes.DECIMAL(78,0),
+        type: DataTypes.DECIMAL(78, 0),
         allowNull: false,
         defaultValue: '0'
     },
     totalBorrows: {
-        type: DataTypes.DECIMAL(78,0),
+        type: DataTypes.DECIMAL(78, 0),
         allowNull: false,
         defaultValue: '0'
     }

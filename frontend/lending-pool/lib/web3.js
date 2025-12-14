@@ -1,7 +1,7 @@
-import { lendingPoolABI, myOracleABI, liquidationABI, priceRouterABI, myTokenABI, interestRateModelABI } 
+import { lendingPoolABI, myOracleABI, liquidationABI, priceRouterABI, myTokenABI, interestRateModelABI }
     from "../../../contracts/abis.js";
 
-import {ethers} from 'ethers';
+import { ethers } from 'ethers';
 
 const ERC20_ABI = [
     "function approve(address spender, uint256 amount) external returns (bool)",

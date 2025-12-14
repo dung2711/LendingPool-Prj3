@@ -1,4 +1,4 @@
-import {React} from 'react';
+import { React } from 'react';
 import { useState, useEffect } from "react";
 import { getLendingPoolContract, getToken } from "@/lib/web3";
 import { ethers } from "ethers";
@@ -35,12 +35,12 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
                 const tokenContract = await getToken(selectedAsset.address);
                 const decimals = await tokenContract.decimals();
                 const amountInWei = ethers.parseUnits(repayAmount, decimals);
-                
+
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const signer = await provider.getSigner();
                 const userAddress = await signer.getAddress();
 
-                const [totalBorrowedUSD, newBorrowedUSD] = 
+                const [totalBorrowedUSD, newBorrowedUSD] =
                     await lendingPool.preViewRepay(
                         userAddress,
                         selectedAsset.address,
@@ -93,21 +93,21 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
             // Handle WETH: wrap ETH if needed
             const WETH_ADDRESS = process.env.NEXT_PUBLIC_WETH_ADDRESS?.toLowerCase();
             const isWETH = selectedAsset.address.toLowerCase() === WETH_ADDRESS;
-            
+
             if (isWETH) {
                 const wethBalance = balance;
                 const ethBalance = await provider.getBalance(userAddress);
-                
+
                 // If insufficient WETH, try to wrap ETH
                 if (wethBalance < amountInWei) {
                     const amountToWrap = amountInWei - wethBalance;
-                    
+
                     if (ethBalance < amountToWrap) {
                         setError('Insufficient ETH and WETH balance');
                         setTransactionLoading(false);
                         return;
                     }
-                    
+
                     // Wrap ETH to WETH
                     const wrapTx = await tokenContract.deposit({ value: amountToWrap });
                     await wrapTx.wait();
@@ -130,7 +130,7 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
 
             setSuccess(`Successfully repaid ${repayAmount} ${selectedAsset.symbol}`);
             setRepayAmount('');
-            
+
             // Refresh data
             setTimeout(() => {
                 fetchData();
@@ -154,7 +154,7 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
             </DialogTitle>
             <DialogContent>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-                
+
                 {/* Borrowed Amount */}
                 <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                     <Typography variant="caption" color="text.secondary">
@@ -164,7 +164,7 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
                         {selectedAsset && formatAmount(selectedAsset.userBorrow, selectedAsset.decimals)} {selectedAsset?.symbol}
                     </Typography>
                 </Box>
-                
+
                 {/* Amount Input */}
                 <TextField
                     fullWidth
@@ -182,7 +182,7 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
                         <CircularProgress size={24} />
                     </Box>
                 )}
-                
+
                 {preview && !previewLoading && (
                     <Box sx={{ mt: 2 }}>
                         <Divider sx={{ mb: 2 }}>
@@ -190,7 +190,7 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
                                 Transaction Overview
                             </Typography>
                         </Divider>
-                        
+
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                             <Box sx={{ textAlign: 'center', flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary">
@@ -200,9 +200,9 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
                                     ${formatAmount(preview.currentTotal)}
                                 </Typography>
                             </Box>
-                            
+
                             <ArrowForwardIcon sx={{ mx: 2, color: 'success.main' }} />
-                            
+
                             <Box sx={{ textAlign: 'center', flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary">
                                     New Borrows
@@ -212,7 +212,7 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
                                 </Typography>
                             </Box>
                         </Box>
-                        
+
                         <Box sx={{ mt: 2, p: 1.5, bgcolor: 'success.50', borderRadius: 1, textAlign: 'center' }}>
                             <Typography variant="caption" color="text.secondary">
                                 Decrease
