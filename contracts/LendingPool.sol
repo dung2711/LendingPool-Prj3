@@ -386,8 +386,7 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
         Balance storage b = userBalances[msg.sender][asset];
         // Update userBalances and totalBorrows
         uint currentBorrow = _currentUserBorrow(msg.sender, asset);
-        require(currentBorrow >= amount, "Repay amount exceeds borrowed");
-
+        require(currentBorrow > 0, "No borrow left");
         uint payAmount = amount;
         if (payAmount > currentBorrow) {
             payAmount = currentBorrow;
@@ -407,7 +406,7 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
 
     function withdraw(
         address asset,
-        uint amount
+        uint amount // in asset decimals
     )
         external
         nonReentrant
@@ -420,21 +419,33 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
         Balance storage b = userBalances[msg.sender][asset];
         // Check user's deposit balance
         uint currentDeposit = _currentUserDeposit(msg.sender, asset);
-        require(currentDeposit >= amount, "Withdraw amount exceeds deposited");
         // Check if user has sufficient collateral after withdrawal
-        (uint totalDepositedUSD, uint totalBorrowedUSD) = this
-            .getAccountLiquidity(msg.sender);
+        (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(
+            msg.sender
+        );
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
-            SCALE;
-        require(
-            ((totalDepositedUSD - amountUSD) * collateralFactor) / SCALE >
-                totalBorrowedUSD,
-            "Insufficient collateral"
-        );
+        uint requiredCollateralUSD = (totalBorrowedUSD * SCALE) /
+            collateralFactor;
+        uint maxAmountUSDWithdrawable;
+        if (totalDepositedUSD > requiredCollateralUSD) {
+            maxAmountUSDWithdrawable =
+                totalDepositedUSD -
+                requiredCollateralUSD;
+        } else {
+            maxAmountUSDWithdrawable = 0;
+        }
+        uint maxAmountTokenWithdrawable = (maxAmountUSDWithdrawable *
+            (10 ** decimals)) / assetPrice; // in token decimals
+        uint actualAmount = amount;
+        if (actualAmount > maxAmountTokenWithdrawable) {
+            actualAmount = maxAmountTokenWithdrawable;
+        }
+        if (actualAmount > currentDeposit) {
+            actualAmount = currentDeposit;
+        }
         // Update userBalances and totalDeposits
-        uint newDeposit = currentDeposit - amount;
+        uint newDeposit = currentDeposit - actualAmount;
         if (newDeposit == 0) {
             b.deposited = 0;
             b.depositIndexSnapShot = 0;
@@ -442,9 +453,9 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
             b.deposited = newDeposit;
             b.depositIndexSnapShot = m.depositIndex;
         }
-        m.totalDeposits -= amount;
-        IERC20(asset).safeTransfer(msg.sender, amount);
-        emit Withdraw(msg.sender, asset, amount);
+        m.totalDeposits -= actualAmount;
+        IERC20(asset).safeTransfer(msg.sender, actualAmount);
+        emit Withdraw(msg.sender, asset, actualAmount);
     }
 
     /// Liquidation hooks (only callable by Liquidation contract)
@@ -511,7 +522,6 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
             b.borrowed = newBorrow;
             b.borrowIndexSnapShot = m.borrowIndex;
         }
-        b.borrowIndexSnapShot = m.borrowIndex;
         m.totalBorrows -= repayAmount;
 
         emit RepayFromLiquidation(borrower, repayAsset, repayAmount);
@@ -690,5 +700,42 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
         uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
             SCALE;
         newDepositedUSD = totalDepositedUSD + amountUSD;
+    }
+    function getMaxRepayAmount(
+        address borrower,
+        address repayAsset
+    ) external view returns (uint) {
+        uint currentBorrow = _currentUserBorrow(borrower, repayAsset);
+        return currentBorrow;
+    }
+    function getMaxWithdrawAmount(
+        address user,
+        address asset
+    ) external view returns (uint) {
+        (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(
+            user
+        );
+        uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
+        uint decimals = IERC20Metadata(asset).decimals();
+        // Guarded collateral math to avoid underflow:
+        // requiredCollateralUSD = totalBorrowedUSD * SCALE / collateralFactor
+        // maxUSD = max(totalDepositedUSD - requiredCollateralUSD, 0)
+        uint requiredCollateralUSD = (totalBorrowedUSD * SCALE) /
+            collateralFactor;
+        uint maxAmountUSDWithdrawable = 0;
+        if (totalDepositedUSD > requiredCollateralUSD) {
+            maxAmountUSDWithdrawable =
+                totalDepositedUSD -
+                requiredCollateralUSD;
+        }
+        // Convert USD cap to token amount (token decimals)
+        uint maxAmountTokenWithdrawable = (maxAmountUSDWithdrawable *
+            (10 ** decimals)) / assetPrice; // in token decimals
+        uint currentDeposit = _currentUserDeposit(user, asset);
+        if (maxAmountTokenWithdrawable > currentDeposit) {
+            return currentDeposit;
+        } else {
+            return maxAmountTokenWithdrawable;
+        }
     }
 }
