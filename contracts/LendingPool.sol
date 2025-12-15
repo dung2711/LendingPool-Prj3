@@ -293,6 +293,31 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
         return (totalDepositedUSD, totalBorrowedUSD);
     }
 
+    /// Internal helper for withdraw function
+    function _maxWithdrawable(
+        address user,
+        address asset
+    ) internal view returns (uint) {
+        (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(
+            user
+        );
+        uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
+        uint decimals = IERC20Metadata(asset).decimals();
+        uint requiredCollateralUSD = (totalBorrowedUSD * SCALE) /
+            collateralFactor;
+        uint maxAmountUSDWithdrawable;
+        if (totalDepositedUSD > requiredCollateralUSD) {
+            maxAmountUSDWithdrawable =
+                totalDepositedUSD -
+                requiredCollateralUSD;
+        } else {
+            maxAmountUSDWithdrawable = 0;
+        }
+        uint maxAmountTokenWithdrawable = (maxAmountUSDWithdrawable *
+            (10 ** decimals)) / assetPrice; // in token decimals
+        return maxAmountTokenWithdrawable;
+    }
+
     /// View helpers
     function getUserCurrentDeposit(
         address user,
@@ -420,23 +445,7 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
         // Check user's deposit balance
         uint currentDeposit = _currentUserDeposit(msg.sender, asset);
         // Check if user has sufficient collateral after withdrawal
-        (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(
-            msg.sender
-        );
-        uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
-        uint decimals = IERC20Metadata(asset).decimals();
-        uint requiredCollateralUSD = (totalBorrowedUSD * SCALE) /
-            collateralFactor;
-        uint maxAmountUSDWithdrawable;
-        if (totalDepositedUSD > requiredCollateralUSD) {
-            maxAmountUSDWithdrawable =
-                totalDepositedUSD -
-                requiredCollateralUSD;
-        } else {
-            maxAmountUSDWithdrawable = 0;
-        }
-        uint maxAmountTokenWithdrawable = (maxAmountUSDWithdrawable *
-            (10 ** decimals)) / assetPrice; // in token decimals
+        uint maxAmountTokenWithdrawable = _maxWithdrawable(msg.sender, asset);
         uint actualAmount = amount;
         if (actualAmount > maxAmountTokenWithdrawable) {
             actualAmount = maxAmountTokenWithdrawable;
