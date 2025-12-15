@@ -2,9 +2,17 @@
 // Learn more about it at https://hardhat.org/ignition
 
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
-import { ethers } from "ethers";
+import hardhat from "hardhat";
+const { ethers } = hardhat;
 
 export default buildModule("LendingPoolProtocol", (m) => {
+    const SAFE_ADDRESS = process.env.SAFE_ADDRESS;
+    if (!SAFE_ADDRESS) {
+        throw new Error("SAFE_ADDRESS environment variable not set");
+    }
+    if (!ethers.isAddress(SAFE_ADDRESS)) {
+        throw new Error("SAFE_ADDRESS is not a valid address");
+    }
     const myToken = m.contract("MyToken");
 
     const myOracle = m.contract("MyOracle");
@@ -32,7 +40,8 @@ export default buildModule("LendingPoolProtocol", (m) => {
     const lendingPool = m.contract("LendingPool", [
         ethers.ZeroAddress,
         priceRouter,
-        collateralFactor
+        collateralFactor,
+        SAFE_ADDRESS
     ]);
 
     const liquidationThreshold = m.getParameter("_liquidationThreshold", ethers.parseUnits("0.9", 18));
