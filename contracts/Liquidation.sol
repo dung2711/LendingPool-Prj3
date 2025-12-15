@@ -12,10 +12,10 @@ import {
 import {
     ReentrancyGuard
 } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IPriceRouter, ILendingPool} from "./interfaces/Interfaces.sol";
 
-contract Liquidation is ReentrancyGuard {
+contract Liquidation is ReentrancyGuard, AccessControl {
     using SafeERC20 for IERC20;
 
     // Liquidation contract code goes here
@@ -42,8 +42,6 @@ contract Liquidation is ReentrancyGuard {
     address public priceRouter;
     address public lendingPool;
 
-    mapping(address => bool) public isAdmin;
-
     constructor(
         address _priceRouter,
         address _lendingPool,
@@ -56,24 +54,30 @@ contract Liquidation is ReentrancyGuard {
         liquidationThreshold = _liquidationThreshold;
         closeFactor = _closeFactor;
         liquidationIncentive = _liquidationIncentive;
-        isAdmin[msg.sender] = true;
-    }
-
-    modifier onlyAdmin() {
-        require(isAdmin[msg.sender], "Not an admin");
-        _;
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     /// Config functions
-    function setAdmin(address admin, bool status) external onlyAdmin {
-        isAdmin[admin] = status;
+    function setAdmin(
+        address admin,
+        bool status
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (status) {
+            _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        } else {
+            _revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        }
     }
 
-    function setPriceRouter(address _priceRouter) external onlyAdmin {
+    function setPriceRouter(
+        address _priceRouter
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         priceRouter = _priceRouter;
     }
 
-    function setLendingPool(address _lendingPool) external onlyAdmin {
+    function setLendingPool(
+        address _lendingPool
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         lendingPool = _lendingPool;
     }
 
@@ -81,7 +85,7 @@ contract Liquidation is ReentrancyGuard {
         uint _liquidationThreshold,
         uint _closeFactor,
         uint _liquidationIncentive
-    ) external onlyAdmin {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         liquidationThreshold = _liquidationThreshold;
         closeFactor = _closeFactor;
         liquidationIncentive = _liquidationIncentive;

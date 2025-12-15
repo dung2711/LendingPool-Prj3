@@ -244,8 +244,17 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const lendingPool = await getLendingPoolContract();
+      const liquidation = await getLiquidationContract();
+      const priceRouter = await getPriceRouterContract();
+      const myOracle = await getMyOracleContract();
       const tx = await lendingPool.setAdmin(adminAddress, adminStatus);
       await tx.wait();
+      const tx2 = await liquidation.setAdmin(adminAddress, adminStatus);
+      await tx2.wait();
+      const tx3 = await priceRouter.setAdmin(adminAddress, adminStatus);
+      await tx3.wait();
+      const tx4 = await myOracle.setAdmin(adminAddress, adminStatus);
+      await tx4.wait();
       showSuccess(`Admin ${adminStatus ? 'added' : 'removed'} successfully!`);
       setAdminAddress('');
     } catch (err) {

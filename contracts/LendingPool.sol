@@ -1,17 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {
+    IERC20Metadata
+} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    ReentrancyGuard
+} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {
+    IPriceRouter,
+    IInterestRateModel,
+    ILiquidation
+} from "./interfaces/Interfaces.sol";
 
-import {IPriceRouter, IInterestRateModel, ILiquidation} from "./interfaces/Interfaces.sol";
-
-contract LendingPool is Ownable, ReentrancyGuard {
+contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     uint public constant SECONDS_PER_YEAR = 60 * 60 * 24 * 365;
     uint public constant SCALE = 1e18;
 
@@ -24,10 +35,25 @@ contract LendingPool is Ownable, ReentrancyGuard {
     event Borrow(address indexed user, address indexed asset, uint amount);
     event Repay(address indexed user, address indexed asset, uint amount);
     event Withdraw(address indexed user, address indexed asset, uint amount);
-    event CollateralSeized(address indexed borrower, address indexed collateralAsset, uint seizeAmount);
-    event RepayFromLiquidation(address indexed borrower, address indexed repayAsset, uint repayAmount);
-    event Accrue(address indexed asset, uint interestAccrued, uint depositInterestAccrued, 
-                                uint newTotalBorrows, uint newBorrowIndex, uint newTotalDeposits, uint newDepositIndex);
+    event CollateralSeized(
+        address indexed borrower,
+        address indexed collateralAsset,
+        uint seizeAmount
+    );
+    event RepayFromLiquidation(
+        address indexed borrower,
+        address indexed repayAsset,
+        uint repayAmount
+    );
+    event Accrue(
+        address indexed asset,
+        uint interestAccrued,
+        uint depositInterestAccrued,
+        uint newTotalBorrows,
+        uint newBorrowIndex,
+        uint newTotalDeposits,
+        uint newDepositIndex
+    );
 
     struct Market {
         bool isSupported;
@@ -58,22 +84,18 @@ contract LendingPool is Ownable, ReentrancyGuard {
     address public liquidation;
     address public priceRouter;
 
-    mapping(address => bool) public isAdmin;
-
     constructor(
         address _liquidation,
         address _priceRouter,
-        uint _collateralFactor
-    ) Ownable(msg.sender) {
+        uint _collateralFactor,
+        address _admin
+    ) {
+        require(_admin != address(0), "Invalid admin address");
         liquidation = _liquidation;
         priceRouter = _priceRouter;
         collateralFactor = _collateralFactor;
-        isAdmin[msg.sender] = true;
-    }
-
-    modifier onlyAdmin() {
-        require(isAdmin[msg.sender], "Not an admin");
-        _;
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(PAUSER_ROLE, _admin);
     }
 
     modifier onlyLiquidation() {
@@ -92,30 +114,57 @@ contract LendingPool is Ownable, ReentrancyGuard {
     }
 
     /// Config functions
-    function setAdmin(address admin, bool allowed) external onlyOwner {
-        isAdmin[admin] = allowed;
-        if(allowed){
+    function setAdmin(
+        address admin,
+        bool status
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (status) {
+            _grantRole(DEFAULT_ADMIN_ROLE, admin);
             emit AdminAdded(admin);
         } else {
+            _revokeRole(DEFAULT_ADMIN_ROLE, admin);
             emit AdminRemoved(admin);
         }
     }
 
-    function supportMarket(address asset, address interestRateModel) external onlyAdmin {
-        if(marketExists[asset]){
+    function isAdmin(address admin) external view returns (bool) {
+        return hasRole(DEFAULT_ADMIN_ROLE, admin);
+    }
+
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(PAUSER_ROLE) {
+        _unpause();
+    }
+
+    function grantPauserRole(address pauser) external onlyRole(PAUSER_ROLE) {
+        _grantRole(PAUSER_ROLE, pauser);
+    }
+
+    function revokePauserRole(address pauser) external onlyRole(PAUSER_ROLE) {
+        _revokeRole(PAUSER_ROLE, pauser);
+    }
+
+    function supportMarket(
+        address asset,
+        address interestRateModel
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (marketExists[asset]) {
             markets[asset].isSupported = true;
             markets[asset].interestRateModel = interestRateModel;
             emit MarketSupported(asset, interestRateModel);
             return;
         } else {
             markets[asset] = Market({
-            isSupported: true,
-            totalDeposits: 0,
-            totalBorrows: 0,
-            borrowIndex: SCALE,
-            depositIndex: SCALE,
-            lastUpdateTimestamp: block.timestamp,
-            interestRateModel: interestRateModel
+                isSupported: true,
+                totalDeposits: 0,
+                totalBorrows: 0,
+                borrowIndex: SCALE,
+                depositIndex: SCALE,
+                lastUpdateTimestamp: block.timestamp,
+                interestRateModel: interestRateModel
             });
             allMarkets.push(asset);
             marketExists[asset] = true;
@@ -123,20 +172,28 @@ contract LendingPool is Ownable, ReentrancyGuard {
         }
     }
 
-    function unsupportMarket(address asset) external onlyAdmin {
+    function unsupportMarket(
+        address asset
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         markets[asset].isSupported = false;
         emit MarketUnsupported(asset);
     }
 
-    function setPriceRouter(address _priceRouter) external onlyAdmin {
+    function setPriceRouter(
+        address _priceRouter
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         priceRouter = _priceRouter;
     }
 
-    function setLiquidation(address _liquidation) external onlyAdmin {
+    function setLiquidation(
+        address _liquidation
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         liquidation = _liquidation;
     }
 
-    function setCollateralParams(uint _collateralFactor) external onlyAdmin {
+    function setCollateralParams(
+        uint _collateralFactor
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         collateralFactor = _collateralFactor;
         emit CollateralFactorUpdated(_collateralFactor);
     }
@@ -144,79 +201,124 @@ contract LendingPool is Ownable, ReentrancyGuard {
     /// Interest functions
     function getUtilizationRate(address asset) public view returns (uint) {
         Market memory market = markets[asset];
-        if(market.totalDeposits == 0) return 0;
-        return market.totalBorrows * SCALE / market.totalDeposits; // 18 decimals
+        if (market.totalDeposits == 0) return 0;
+        return (market.totalBorrows * SCALE) / market.totalDeposits; // 18 decimals
     }
 
-    function accrueInterest(address asset) public {
+    function accrueInterest(address asset) public whenNotPaused {
         Market storage m = markets[asset];
-        if(!m.isSupported) return;
+        if (!m.isSupported) return;
 
         uint timeElapsed = block.timestamp - m.lastUpdateTimestamp;
-        if(timeElapsed == 0) return;
+        if (timeElapsed == 0) return;
 
         IInterestRateModel i = IInterestRateModel(m.interestRateModel);
         uint borrowRate = i.getBorrowRate(asset);
         uint depositRate = i.getDepositRate(asset);
 
-        uint interestAccrued = (m.totalBorrows * borrowRate * timeElapsed) / SECONDS_PER_YEAR / SCALE;
+        uint interestAccrued = (m.totalBorrows * borrowRate * timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
         m.totalBorrows += interestAccrued;
-        uint borrowIndexIncrease = (m.borrowIndex * borrowRate * timeElapsed) / SECONDS_PER_YEAR / SCALE;
+        uint borrowIndexIncrease = (m.borrowIndex * borrowRate * timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
         m.borrowIndex += borrowIndexIncrease;
 
-        uint depositInterestAccrued = (m.totalDeposits * depositRate * timeElapsed) / SECONDS_PER_YEAR / SCALE;
+        uint depositInterestAccrued = (m.totalDeposits *
+            depositRate *
+            timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
         m.totalDeposits += depositInterestAccrued;
-        uint depositIndexIncrease = (m.depositIndex * depositRate * timeElapsed) / SECONDS_PER_YEAR / SCALE;
+        uint depositIndexIncrease = (m.depositIndex *
+            depositRate *
+            timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
         m.depositIndex += depositIndexIncrease;
-        
+
         m.lastUpdateTimestamp = block.timestamp;
-        emit Accrue(asset, interestAccrued, depositInterestAccrued, m.totalBorrows, m.borrowIndex, m.totalDeposits, m.depositIndex);
+        emit Accrue(
+            asset,
+            interestAccrued,
+            depositInterestAccrued,
+            m.totalBorrows,
+            m.borrowIndex,
+            m.totalDeposits,
+            m.depositIndex
+        );
     }
 
     /// Utility - compute user's current balances
-    function _currentUserDeposit(address user, address asset) internal view returns (uint) {
+    function _currentUserDeposit(
+        address user,
+        address asset
+    ) internal view returns (uint) {
         Balance memory b = userBalances[user][asset];
         Market memory m = markets[asset];
-        if(b.deposited == 0) return 0;
-        if(b.depositIndexSnapShot == 0) return b.deposited;
-        return b.deposited * m.depositIndex / b.depositIndexSnapShot;
+        if (b.deposited == 0) return 0;
+        if (b.depositIndexSnapShot == 0) return b.deposited;
+        return (b.deposited * m.depositIndex) / b.depositIndexSnapShot;
     }
 
-    function _currentUserBorrow(address user, address asset) internal view returns (uint) {
+    function _currentUserBorrow(
+        address user,
+        address asset
+    ) internal view returns (uint) {
         Balance memory b = userBalances[user][asset];
         Market memory m = markets[asset];
-        if(b.borrowed == 0) return 0;
-        if(b.borrowIndexSnapShot == 0) return b.borrowed;
-        return b.borrowed * m.borrowIndex / b.borrowIndexSnapShot;
+        if (b.borrowed == 0) return 0;
+        if (b.borrowIndexSnapShot == 0) return b.borrowed;
+        return (b.borrowed * m.borrowIndex) / b.borrowIndexSnapShot;
     }
 
-    function getAccountLiquidity(address user) public view returns (uint totalDepositedUSD, uint totalBorrowedUSD) {
+    function getAccountLiquidity(
+        address user
+    ) public view returns (uint totalDepositedUSD, uint totalBorrowedUSD) {
         IPriceRouter pr = IPriceRouter(priceRouter);
         address[] memory assets = userMarkets[user];
-        for(uint i=0; i<assets.length; i++){
+        for (uint i = 0; i < assets.length; i++) {
             address asset = assets[i];
             uint currentDeposit = _currentUserDeposit(user, asset);
             uint currentBorrow = _currentUserBorrow(user, asset);
             uint assetPrice = pr.getPrice(asset);
             uint decimals = IERC20Metadata(asset).decimals();
             // Normalize to 18 decimals: (18 decimals price * token decimals) * 10^(18 - token decimals) / 10^18
-            totalDepositedUSD += assetPrice * currentDeposit / (10 ** decimals);
-            totalBorrowedUSD += assetPrice * currentBorrow / (10 ** decimals);
+            totalDepositedUSD +=
+                (assetPrice * currentDeposit) /
+                (10 ** decimals);
+            totalBorrowedUSD += (assetPrice * currentBorrow) / (10 ** decimals);
         }
         return (totalDepositedUSD, totalBorrowedUSD);
     }
 
     /// View helpers
-    function getUserCurrentDeposit(address user, address asset) external view returns (uint) {
+    function getUserCurrentDeposit(
+        address user,
+        address asset
+    ) external view returns (uint) {
         return _currentUserDeposit(user, asset);
     }
 
-    function getUserCurrentBorrow(address user, address asset) external view returns (uint) {
+    function getUserCurrentBorrow(
+        address user,
+        address asset
+    ) external view returns (uint) {
         return _currentUserBorrow(user, asset);
     }
 
     /// Core Logic: deposit, borrow, repay, withdraw
-    function deposit(address asset, uint amount) external nonReentrant onlySupportedMarket(asset) amountGreaterThanZero(amount) {
+    function deposit(
+        address asset,
+        uint amount
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        onlySupportedMarket(asset)
+        amountGreaterThanZero(amount)
+    {
         accrueInterest(asset);
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
         Market storage m = markets[asset];
@@ -225,24 +327,40 @@ contract LendingPool is Ownable, ReentrancyGuard {
         uint currentBalance = _currentUserDeposit(msg.sender, asset);
         b.deposited = amount + currentBalance;
         b.depositIndexSnapShot = m.depositIndex;
-        m.totalDeposits += amount;  
-        if(!userMarketExists[msg.sender][asset]){
+        m.totalDeposits += amount;
+        if (!userMarketExists[msg.sender][asset]) {
             userMarkets[msg.sender].push(asset);
             userMarketExists[msg.sender][asset] = true;
         }
         emit Deposit(msg.sender, asset, amount);
     }
 
-    function borrow(address asset, uint amount) external nonReentrant onlySupportedMarket(asset) amountGreaterThanZero(amount) {
+    function borrow(
+        address asset,
+        uint amount
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        onlySupportedMarket(asset)
+        amountGreaterThanZero(amount)
+    {
         accrueInterest(asset);
         Market storage m = markets[asset];
         Balance storage b = userBalances[msg.sender][asset];
         // Calculate total collateral and ensure user can borrow
-        (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(msg.sender);
+        (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(
+            msg.sender
+        );
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
-        require(totalDepositedUSD * collateralFactor / SCALE >= (totalBorrowedUSD + amountUSD), "Insufficient collateral");
+        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
+            SCALE;
+        require(
+            (totalDepositedUSD * collateralFactor) / SCALE >=
+                (totalBorrowedUSD + amountUSD),
+            "Insufficient collateral"
+        );
         // Update userBalances and totalBorrows
         uint currentBorrow = _currentUserBorrow(msg.sender, asset);
         b.borrowed = amount + currentBorrow;
@@ -252,7 +370,16 @@ contract LendingPool is Ownable, ReentrancyGuard {
         emit Borrow(msg.sender, asset, amount);
     }
 
-    function repay(address asset, uint amount) external nonReentrant onlySupportedMarket(asset) amountGreaterThanZero(amount) {
+    function repay(
+        address asset,
+        uint amount
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        onlySupportedMarket(asset)
+        amountGreaterThanZero(amount)
+    {
         // Repay logic
         accrueInterest(asset);
         Market storage m = markets[asset];
@@ -262,7 +389,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
         require(currentBorrow >= amount, "Repay amount exceeds borrowed");
 
         uint payAmount = amount;
-        if(payAmount > currentBorrow){
+        if (payAmount > currentBorrow) {
             payAmount = currentBorrow;
         }
         IERC20(asset).safeTransferFrom(msg.sender, address(this), payAmount);
@@ -278,24 +405,34 @@ contract LendingPool is Ownable, ReentrancyGuard {
         emit Repay(msg.sender, asset, payAmount);
     }
 
-    function withdraw(address asset, uint amount) 
-        external 
-        nonReentrant 
-        onlySupportedMarket(asset) 
-        amountGreaterThanZero(amount) 
+    function withdraw(
+        address asset,
+        uint amount
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        onlySupportedMarket(asset)
+        amountGreaterThanZero(amount)
     {
         accrueInterest(asset);
         Market storage m = markets[asset];
         Balance storage b = userBalances[msg.sender][asset];
-        // Check user's deposit balance 
+        // Check user's deposit balance
         uint currentDeposit = _currentUserDeposit(msg.sender, asset);
         require(currentDeposit >= amount, "Withdraw amount exceeds deposited");
         // Check if user has sufficient collateral after withdrawal
-        (uint totalDepositedUSD, uint totalBorrowedUSD) = this.getAccountLiquidity(msg.sender);
+        (uint totalDepositedUSD, uint totalBorrowedUSD) = this
+            .getAccountLiquidity(msg.sender);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
-        require((totalDepositedUSD - amountUSD) * collateralFactor / SCALE > totalBorrowedUSD, "Insufficient collateral");
+        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
+            SCALE;
+        require(
+            ((totalDepositedUSD - amountUSD) * collateralFactor) / SCALE >
+                totalBorrowedUSD,
+            "Insufficient collateral"
+        );
         // Update userBalances and totalDeposits
         uint newDeposit = currentDeposit - amount;
         if (newDeposit == 0) {
@@ -316,11 +453,22 @@ contract LendingPool is Ownable, ReentrancyGuard {
         address collateralAsset,
         uint seizeAmount,
         address recipient
-    ) external onlyLiquidation amountGreaterThanZero(seizeAmount) {
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        onlyLiquidation
+        amountGreaterThanZero(seizeAmount)
+    {
         accrueInterest(collateralAsset);
-        Balance storage borrowerBalance = userBalances[borrower][collateralAsset];
+        Balance storage borrowerBalance = userBalances[borrower][
+            collateralAsset
+        ];
         Market storage m = markets[collateralAsset];
-        uint currentBorrowerDeposit = _currentUserDeposit(borrower, collateralAsset);
+        uint currentBorrowerDeposit = _currentUserDeposit(
+            borrower,
+            collateralAsset
+        );
         require(currentBorrowerDeposit >= seizeAmount, "Not enough collateral");
         // Update borrower balances
         uint newDeposit = currentBorrowerDeposit - seizeAmount;
@@ -336,12 +484,18 @@ contract LendingPool is Ownable, ReentrancyGuard {
         IERC20(collateralAsset).safeTransfer(recipient, seizeAmount);
         emit CollateralSeized(borrower, collateralAsset, seizeAmount);
     }
-    
+
     function repayFromLiquidation(
         address borrower,
         address repayAsset,
         uint repayAmount
-    ) external onlyLiquidation amountGreaterThanZero(repayAmount) {
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        onlyLiquidation
+        amountGreaterThanZero(repayAmount)
+    {
         accrueInterest(repayAsset);
         Market storage m = markets[repayAsset];
         Balance storage b = userBalances[borrower][repayAsset];
@@ -377,129 +531,164 @@ contract LendingPool is Ownable, ReentrancyGuard {
      * @return borrowRate The current borrow interest rate for the asset.
      * @return utilizationRate The current utilization rate of the market.
      */
-    function getMarketInfo(address asset) external view returns (
-        uint totalDeposits,
-        uint totalBorrows,
-        uint depositRate,
-        uint borrowRate,
-        uint utilizationRate
-    ) {
+    function getMarketInfo(
+        address asset
+    )
+        external
+        view
+        returns (
+            uint totalDeposits,
+            uint totalBorrows,
+            uint depositRate,
+            uint borrowRate,
+            uint utilizationRate
+        )
+    {
         Market memory m = markets[asset];
         require(m.isSupported, "Market not supported");
         totalDeposits = m.totalDeposits;
         totalBorrows = m.totalBorrows;
         utilizationRate = getUtilizationRate(asset);
-        borrowRate = IInterestRateModel(m.interestRateModel).getBorrowRate(asset);
-        depositRate = IInterestRateModel(m.interestRateModel).getDepositRate(asset);
+        borrowRate = IInterestRateModel(m.interestRateModel).getBorrowRate(
+            asset
+        );
+        depositRate = IInterestRateModel(m.interestRateModel).getDepositRate(
+            asset
+        );
     }
 
-    function getUserInfo(address user) external view returns (
-        address[] memory assets,
-        uint[] memory deposited,
-        uint[] memory borrowed,
-        uint totalDeposited,
-        uint totalBorrowedUSD,
-        uint healthFactor // 18 decimals
-    ) {
+    function getUserInfo(
+        address user
+    )
+        external
+        view
+        returns (
+            address[] memory assets,
+            uint[] memory deposited,
+            uint[] memory borrowed,
+            uint totalDeposited,
+            uint totalBorrowedUSD,
+            uint healthFactor // 18 decimals
+        )
+    {
         assets = userMarkets[user];
         uint len = assets.length;
         deposited = new uint[](len);
         borrowed = new uint[](len);
-        for(uint i=0; i<len; i++){
+        for (uint i = 0; i < len; i++) {
             address asset = assets[i];
             deposited[i] = _currentUserDeposit(user, asset);
             borrowed[i] = _currentUserBorrow(user, asset);
         }
         (totalDeposited, totalBorrowedUSD) = getAccountLiquidity(user);
-        if(totalBorrowedUSD == 0){
+        if (totalBorrowedUSD == 0) {
             healthFactor = type(uint).max;
         } else {
-            uint liquidationThreshold = ILiquidation(liquidation).liquidationThreshold();
-            healthFactor = (totalDeposited * liquidationThreshold) / totalBorrowedUSD;
+            uint liquidationThreshold = ILiquidation(liquidation)
+                .liquidationThreshold();
+            healthFactor =
+                (totalDeposited * liquidationThreshold) /
+                totalBorrowedUSD;
         }
     }
 
-    function preViewBorrow(address user, address asset, uint amount) 
-        external 
-        view 
+    function preViewBorrow(
+        address user,
+        address asset,
+        uint amount
+    )
+        external
+        view
         returns (
-            uint totalDepositedUSD, 
-            uint totalBorrowedUSD, 
-            uint newBorrowUSD, 
+            uint totalDepositedUSD,
+            uint totalBorrowedUSD,
+            uint newBorrowUSD,
             uint newHealthFactor
-        ) 
-    {   
+        )
+    {
         require(markets[asset].isSupported, "Market not supported");
         require(amount > 0, "Amount must be greater than zero");
         (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
+        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
+            SCALE;
         newBorrowUSD = totalBorrowedUSD + amountUSD;
-        if(newBorrowUSD == 0){
+        if (newBorrowUSD == 0) {
             newHealthFactor = type(uint).max;
         } else {
-            uint liquidationThreshold = ILiquidation(liquidation).liquidationThreshold();
-            newHealthFactor = (totalDepositedUSD * liquidationThreshold) / newBorrowUSD;
+            uint liquidationThreshold = ILiquidation(liquidation)
+                .liquidationThreshold();
+            newHealthFactor =
+                (totalDepositedUSD * liquidationThreshold) /
+                newBorrowUSD;
         }
     }
 
-    function preViewWithdraw(address user, address asset, uint amount) 
-        external 
-        view 
+    function preViewWithdraw(
+        address user,
+        address asset,
+        uint amount
+    )
+        external
+        view
         returns (
-            uint totalDepositedUSD, 
-            uint totalBorrowedUSD, 
-            uint newDepositedUSD, 
+            uint totalDepositedUSD,
+            uint totalBorrowedUSD,
+            uint newDepositedUSD,
             uint newHealthFactor
-        ) 
-    {   
+        )
+    {
         require(markets[asset].isSupported, "Market not supported");
         require(amount > 0, "Amount must be greater than zero");
         (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
-        newDepositedUSD = totalDepositedUSD > amountUSD ? totalDepositedUSD - amountUSD : 0;
-        if(totalBorrowedUSD == 0){
+        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
+            SCALE;
+        newDepositedUSD = totalDepositedUSD > amountUSD
+            ? totalDepositedUSD - amountUSD
+            : 0;
+        if (totalBorrowedUSD == 0) {
             newHealthFactor = type(uint).max;
         } else {
-            uint liquidationThreshold = ILiquidation(liquidation).liquidationThreshold();
-            newHealthFactor = (newDepositedUSD * liquidationThreshold) / totalBorrowedUSD;
+            uint liquidationThreshold = ILiquidation(liquidation)
+                .liquidationThreshold();
+            newHealthFactor =
+                (newDepositedUSD * liquidationThreshold) /
+                totalBorrowedUSD;
         }
     }
 
-    function preViewRepay(address user, address asset, uint amount) 
-        external 
-        view 
-        returns (
-            uint totalBorrowedUSD, 
-            uint newBorrowedUSD
-        ) 
-    {   
+    function preViewRepay(
+        address user,
+        address asset,
+        uint amount
+    ) external view returns (uint totalBorrowedUSD, uint newBorrowedUSD) {
         require(markets[asset].isSupported, "Market not supported");
         require(amount > 0, "Amount must be greater than zero");
-        ( , totalBorrowedUSD) = getAccountLiquidity(user);
+        (, totalBorrowedUSD) = getAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
-        newBorrowedUSD = totalBorrowedUSD > amountUSD ? totalBorrowedUSD - amountUSD : 0;
+        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
+            SCALE;
+        newBorrowedUSD = totalBorrowedUSD > amountUSD
+            ? totalBorrowedUSD - amountUSD
+            : 0;
     }
 
-    function preViewDeposit(address user, address asset, uint amount) 
-        external 
-        view 
-        returns (
-            uint totalDepositedUSD, 
-            uint newDepositedUSD
-        ) 
-    {   
+    function preViewDeposit(
+        address user,
+        address asset,
+        uint amount
+    ) external view returns (uint totalDepositedUSD, uint newDepositedUSD) {
         require(markets[asset].isSupported, "Market not supported");
         require(amount > 0, "Amount must be greater than zero");
         (totalDepositedUSD, ) = getAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = assetPrice * amount * (10 ** (18 - decimals)) / SCALE;
+        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
+            SCALE;
         newDepositedUSD = totalDepositedUSD + amountUSD;
     }
 }
