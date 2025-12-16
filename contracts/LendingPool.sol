@@ -536,6 +536,88 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
         emit RepayFromLiquidation(borrower, repayAsset, repayAmount);
     }
 
+    /// Internal helpes for preview
+    function _previewMarketAfterAccrual(
+        address asset
+    ) internal view returns (Market memory m) {
+        m = markets[asset];
+        require(m.isSupported, "Market not supported");
+
+        uint timeElapsed = block.timestamp - m.lastUpdateTimestamp;
+        require(timeElapsed > 0, "No time elapsed");
+
+        IInterestRateModel i = IInterestRateModel(m.interestRateModel);
+        uint borrowRate = i.getBorrowRate(asset);
+        uint depositRate = i.getDepositRate(asset);
+
+        uint interestAccrued = (m.totalBorrows * borrowRate * timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
+        m.totalBorrows += interestAccrued;
+        uint borrowIndexIncrease = (m.borrowIndex * borrowRate * timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
+        m.borrowIndex += borrowIndexIncrease;
+
+        uint depositInterestAccrued = (m.totalDeposits *
+            depositRate *
+            timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
+        m.totalDeposits += depositInterestAccrued;
+        uint depositIndexIncrease = (m.depositIndex *
+            depositRate *
+            timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
+        m.depositIndex += depositIndexIncrease;
+
+        m.lastUpdateTimestamp = block.timestamp;
+    }
+
+    function _previewUserDeposit(
+        address user,
+        address asset,
+        Market memory m
+    ) internal view returns (uint) {
+        Balance memory b = userBalances[user][asset];
+        if (b.deposited == 0) return 0;
+        if (b.depositIndexSnapShot == 0) return b.deposited;
+        return (b.deposited * m.depositIndex) / b.depositIndexSnapShot;
+    }
+
+    function _previewUserBorrow(
+        address user,
+        address asset,
+        Market memory m
+    ) internal view returns (uint) {
+        Balance memory b = userBalances[user][asset];
+        if (b.borrowed == 0) return 0;
+        if (b.borrowIndexSnapShot == 0) return b.borrowed;
+        return (b.borrowed * m.borrowIndex) / b.borrowIndexSnapShot;
+    }
+
+    function _previewAccountLiquidity(
+        address user
+    ) internal view returns (uint totalDepositedUSD, uint totalBorrowedUSD) {
+        IPriceRouter pr = IPriceRouter(priceRouter);
+        address[] memory assets = userMarkets[user];
+        for (uint i = 0; i < assets.length; i++) {
+            address asset = assets[i];
+            Market memory m = _previewMarketAfterAccrual(asset);
+            uint currentDeposit = _previewUserDeposit(user, asset, m);
+            uint currentBorrow = _previewUserBorrow(user, asset, m);
+            uint assetPrice = pr.getPrice(asset);
+            uint decimals = IERC20Metadata(asset).decimals();
+            // Normalize to 18 decimals: (18 decimals price * token decimals) * 10^(18 - token decimals) / 10^18
+            totalDepositedUSD +=
+                (assetPrice * currentDeposit) /
+                (10 ** decimals);
+            totalBorrowedUSD += (assetPrice * currentBorrow) / (10 ** decimals);
+        }
+        return (totalDepositedUSD, totalBorrowedUSD);
+    }
+
     /// Helpers for frontend
     function getAllMarkets() external view returns (address[] memory) {
         return allMarkets;
@@ -596,10 +678,11 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
         borrowed = new uint[](len);
         for (uint i = 0; i < len; i++) {
             address asset = assets[i];
-            deposited[i] = _currentUserDeposit(user, asset);
-            borrowed[i] = _currentUserBorrow(user, asset);
+            Market memory m = _previewMarketAfterAccrual(asset);
+            deposited[i] = _previewUserDeposit(user, asset, m);
+            borrowed[i] = _previewUserBorrow(user, asset, m);
         }
-        (totalDeposited, totalBorrowedUSD) = getAccountLiquidity(user);
+        (totalDeposited, totalBorrowedUSD) = _previewAccountLiquidity(user);
         if (totalBorrowedUSD == 0) {
             healthFactor = type(uint).max;
         } else {
@@ -627,7 +710,7 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
     {
         require(markets[asset].isSupported, "Market not supported");
         require(amount > 0, "Amount must be greater than zero");
-        (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
+        (totalDepositedUSD, totalBorrowedUSD) = _previewAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
         uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
@@ -660,7 +743,7 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
     {
         require(markets[asset].isSupported, "Market not supported");
         require(amount > 0, "Amount must be greater than zero");
-        (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
+        (totalDepositedUSD, totalBorrowedUSD) = _previewAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
         uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
@@ -686,7 +769,7 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
     ) external view returns (uint totalBorrowedUSD, uint newBorrowedUSD) {
         require(markets[asset].isSupported, "Market not supported");
         require(amount > 0, "Amount must be greater than zero");
-        (, totalBorrowedUSD) = getAccountLiquidity(user);
+        (, totalBorrowedUSD) = _previewAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
         uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
@@ -703,27 +786,36 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
     ) external view returns (uint totalDepositedUSD, uint newDepositedUSD) {
         require(markets[asset].isSupported, "Market not supported");
         require(amount > 0, "Amount must be greater than zero");
-        (totalDepositedUSD, ) = getAccountLiquidity(user);
+        (totalDepositedUSD, ) = _previewAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
         uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
             SCALE;
         newDepositedUSD = totalDepositedUSD + amountUSD;
     }
+
     function getMaxRepayAmount(
         address borrower,
         address repayAsset
     ) external view returns (uint) {
-        uint currentBorrow = _currentUserBorrow(borrower, repayAsset);
+        require(markets[repayAsset].isSupported, "Market not supported");
+        Market memory m = _previewMarketAfterAccrual(repayAsset);
+        uint currentBorrow = _previewUserBorrow(borrower, repayAsset, m);
         return currentBorrow;
     }
+
     function getMaxWithdrawAmount(
         address user,
         address asset
     ) external view returns (uint) {
-        (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(
-            user
-        );
+        require(markets[asset].isSupported, "Market not supported");
+        (
+            uint totalDepositedUSD,
+            uint totalBorrowedUSD
+        ) = _previewAccountLiquidity(user);
+
+        Market memory m = _previewMarketAfterAccrual(asset);
+
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
         // Guarded collateral math to avoid underflow:
@@ -740,7 +832,7 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
         // Convert USD cap to token amount (token decimals)
         uint maxAmountTokenWithdrawable = (maxAmountUSDWithdrawable *
             (10 ** decimals)) / assetPrice; // in token decimals
-        uint currentDeposit = _currentUserDeposit(user, asset);
+        uint currentDeposit = _previewUserDeposit(user, asset, m);
         if (maxAmountTokenWithdrawable > currentDeposit) {
             return currentDeposit;
         } else {
