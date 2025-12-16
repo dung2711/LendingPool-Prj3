@@ -30,7 +30,7 @@ import { getLendingPoolContract, getPriceRouterContract, getLiquidationContract,
 export default function AdminPage() {
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -65,28 +65,69 @@ export default function AdminPage() {
   const [reserveFactor, setReserveFactor] = useState('');
 
   useEffect(() => {
-    checkAdminStatus();
-    loadCurrentValues();
+    checkWalletAndFetch();
+
+    if (window.ethereum) {
+      const handleAccountsChanged = async (account) => {
+        try {
+          setPageLoading(true);
+          setAccount(account[0] || null);
+          if (account.length > 0) {
+            await checkAdminStatus();
+          }
+        } catch (error) {
+          console.error('Error on account change:', error);
+        } finally {
+          setPageLoading(false);
+        }
+      };
+
+      window.ethereum.on("accountsChanged", handleAccountsChanged);
+
+      return () => {
+        window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      };
+    }
+    if (pageLoading) setPageLoading(false);
   }, []);
+
+  const checkWalletAndFetch = async () => {
+    if (typeof window !== "undefined" && window.ethereum) {
+      try {
+        setPageLoading(true);
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const accounts = await provider.send("eth_accounts", []);
+        setAccount(accounts[0] || null);
+        if (accounts.length > 0) {
+          await checkAdminStatus();
+        }
+      } catch (err) {
+        console.error('Error checking wallet:', err);
+      } finally {
+        setPageLoading(false);
+      }
+    }
+  };
 
   const checkAdminStatus = async () => {
     try {
-      setPageLoading(true);
       if (window.ethereum) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const accounts = await provider.send("eth_accounts", []);
-        const lendingPool = await getLendingPoolContract();
         if (accounts.length > 0) {
+          const lendingPool = await getLendingPoolContract();
           setAccount(accounts[0]);
           const adminStatus = await lendingPool.isAdmin(accounts[0]);
           setIsAdmin(adminStatus);
+          if (adminStatus) {
+            await loadCurrentValues();
+          }
         }
       }
     } catch (err) {
       console.error('Error checking admin status:', err);
-    } finally {
-      setPageLoading(false);
     }
+
   };
 
   const loadCurrentValues = async () => {
@@ -272,7 +313,7 @@ export default function AdminPage() {
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress />
         </Box>
-      ) : (!isAdmin && account) ? (
+      ) : (!isAdmin || !account) ? (
         <Box sx={{ p: 3 }}>
           <Alert severity="error">
             <Typography variant="h6">Access Denied</Typography>
