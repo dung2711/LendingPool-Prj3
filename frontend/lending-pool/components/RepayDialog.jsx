@@ -17,10 +17,13 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
 export default function RepayDialog({ handleCloseDialog, selectedAsset, setSuccess, fetchData, formatAmount, formatRate }) {
     const [repayAmount, setRepayAmount] = useState('');
+    const [maxRepayChosen, setMaxRepayChosen] = useState(false);
     const [error, setError] = useState('');
     const [transactionLoading, setTransactionLoading] = useState(false);
     const [preview, setPreview] = useState(null);
     const [previewLoading, setPreviewLoading] = useState(false);
+
+    const MAX_UINT256 = ethers.MaxUint256;
 
     useEffect(() => {
         const fetchPreview = async () => {
@@ -77,13 +80,6 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
             const amountInWei = ethers.parseUnits(repayAmount, decimals);
             const userBorrow = selectedAsset.userBorrow;
 
-            // Check borrow
-            if (userBorrow < amountInWei) {
-                setError('Repay amount exceeds borrowed amount');
-                setTransactionLoading(false);
-                return;
-            }
-
             // Check balance
             const provider = new ethers.BrowserProvider(window.ethereum);
             const signer = await provider.getSigner();
@@ -120,12 +116,19 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
                 }
             }
 
+            let actualSentRepay = amountInWei;
+
+            if (maxRepayChosen) {
+                console.log("Max repay chosen, setting to MAX_UINT256");
+                actualSentRepay = MAX_UINT256;
+            }
+
             // Approve
-            const approveTx = await tokenContract.approve(await lendingPool.getAddress(), amountInWei);
+            const approveTx = await tokenContract.approve(await lendingPool.getAddress(), actualSentRepay);
             await approveTx.wait();
 
             // Repay
-            const repayTx = await lendingPool.repay(selectedAsset.address, amountInWei);
+            const repayTx = await lendingPool.repay(selectedAsset.address, actualSentRepay);
             await repayTx.wait();
 
             setSuccess(`Successfully repaid ${repayAmount} ${selectedAsset.symbol}`);
@@ -144,6 +147,30 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
             setTransactionLoading(false);
         }
     };
+
+    const viewMaxRepayAmount = async () => {
+        try {
+            setPreviewLoading(true);
+            const lendingPool = await getLendingPoolContract();
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            const userAddress = await signer.getAddress();
+
+            const maxRepayAmount = await lendingPool.getMaxRepayAmount(userAddress, selectedAsset.address);
+            const decimals = selectedAsset.decimals;
+            const formattedAmount = ethers.formatUnits(maxRepayAmount, decimals);
+
+            const ceiledAmount = Math.ceil(parseFloat(formattedAmount) * 1e6) / 1e6; // ceil to 6 decimal places
+
+            setRepayAmount(ceiledAmount.toString());
+            setMaxRepayChosen(true);
+
+        } catch (err) {
+            console.error('Error fetching preview:', err);
+        } finally {
+            setPreviewLoading(false);
+        }
+    }
 
     return (
         <Dialog open={true} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
@@ -166,15 +193,27 @@ export default function RepayDialog({ handleCloseDialog, selectedAsset, setSucce
                 </Box>
 
                 {/* Amount Input */}
-                <TextField
-                    fullWidth
-                    label="Amount to Repay"
-                    type="number"
-                    value={repayAmount}
-                    onChange={(e) => setRepayAmount(e.target.value)}
-                    inputProps={{ step: "0.000001", min: "0" }}
-                    sx={{ mb: 2 }}
-                />
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 2 }}>
+                    <TextField
+                        fullWidth
+                        label="Amount to Repay"
+                        type="number"
+                        value={repayAmount}
+                        onChange={(e) => {
+                            setRepayAmount(e.target.value);
+                            setMaxRepayChosen(false);
+                        }}
+                        inputProps={{ step: "0.000001", min: "0" }}
+                    />
+                    <Button
+                        variant="outlined"
+                        onClick={viewMaxRepayAmount}
+                        disabled={previewLoading || transactionLoading}
+                        sx={{ minWidth: '70px', height: '56px' }}
+                    >
+                        MAX
+                    </Button>
+                </Box>
 
                 {/* Preview Section */}
                 {previewLoading && (

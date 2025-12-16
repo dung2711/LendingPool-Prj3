@@ -18,10 +18,13 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 export default function WithDrawDialog({ handleCloseDialog, selectedAsset, setSuccess, fetchData, formatAmount, formatRate }) {
     const [withdrawAmount, setWithdrawAmount] = useState('');
+    const [maxWithdrawChosen, setMaxWithdrawChosen] = useState(false);
     const [error, setError] = useState('');
     const [transactionLoading, setTransactionLoading] = useState(false);
     const [preview, setPreview] = useState(null);
     const [previewLoading, setPreviewLoading] = useState(false);
+
+    const MAX_UINT256 = ethers.MaxUint256;
 
     useEffect(() => {
         const fetchPreview = async () => {
@@ -80,15 +83,15 @@ export default function WithDrawDialog({ handleCloseDialog, selectedAsset, setSu
             const amountInWei = ethers.parseUnits(withdrawAmount, decimals);
             const userDeposit = selectedAsset.userDeposit;
 
-            // Check deposit
-            if (userDeposit < amountInWei) {
-                setError('Insufficient deposited amount');
-                setTransactionLoading(false);
-                return;
+            let actualWithdrawSent = amountInWei;
+
+            if (maxWithdrawChosen) {
+                console.log('Max withdraw chosen, setting to MAX_UINT256');
+                actualWithdrawSent = MAX_UINT256;
             }
 
             // Withdraw
-            const withdrawTx = await lendingPool.withdraw(selectedAsset.address, amountInWei);
+            const withdrawTx = await lendingPool.withdraw(selectedAsset.address, actualWithdrawSent);
             await withdrawTx.wait();
 
             // Handle WETH: unwrap to ETH if needed
@@ -118,6 +121,29 @@ export default function WithDrawDialog({ handleCloseDialog, selectedAsset, setSu
         }
     }
 
+    const viewMaxWithdrawAmount = async () => {
+        try {
+            setPreviewLoading(true);
+            const lendingPool = await getLendingPoolContract();
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            const userAddress = await signer.getAddress();
+
+            const maxWithdrawAmount = await lendingPool.getMaxWithdrawAmount(userAddress, selectedAsset.address);
+            const decimals = selectedAsset.decimals;
+            const formattedAmount = ethers.formatUnits(maxWithdrawAmount, decimals);
+
+            const ceiledAmount = Math.ceil(parseFloat(formattedAmount) * 1e6) / 1e6; // ceil to 6 decimal places
+
+            setWithdrawAmount(ceiledAmount.toString());
+            setMaxWithdrawChosen(true);
+        } catch (err) {
+            console.error('Error fetching preview:', err);
+        } finally {
+            setPreviewLoading(false);
+        }
+    }
+
     return (
         <Dialog open={true} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
             <DialogTitle sx={{ pb: 1 }}>
@@ -139,15 +165,27 @@ export default function WithDrawDialog({ handleCloseDialog, selectedAsset, setSu
                 </Box>
 
                 {/* Amount Input */}
-                <TextField
-                    fullWidth
-                    label="Amount to Withdraw"
-                    type="number"
-                    value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                    inputProps={{ step: "0.000001", min: "0" }}
-                    sx={{ mb: 2 }}
-                />
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 2 }}>
+                    <TextField
+                        fullWidth
+                        label="Amount to Withdraw"
+                        type="number"
+                        value={withdrawAmount}
+                        onChange={(e) => {
+                            setWithdrawAmount(e.target.value);
+                            setMaxWithdrawChosen(false);
+                        }}
+                        inputProps={{ step: "0.000001", min: "0" }}
+                    />
+                    <Button
+                        variant="outlined"
+                        onClick={viewMaxWithdrawAmount}
+                        disabled={previewLoading || transactionLoading}
+                        sx={{ minWidth: '70px', height: '56px' }}
+                    >
+                        MAX
+                    </Button>
+                </Box>
 
                 {/* Preview Section */}
                 {previewLoading && (
