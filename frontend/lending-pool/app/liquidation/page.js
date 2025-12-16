@@ -31,6 +31,7 @@ import { getAssetByAddress } from '@/services/assetService';
 
 export default function Liquidation() {
     const [account, setAccount] = useState(null);
+    const [pageLoading, setPageLoading] = useState(true);
     const [loading, setLoading] = useState(false);
     const [liquidatableUsers, setLiquidatableUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -62,6 +63,8 @@ export default function Liquidation() {
                 window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
             };
         }
+
+        if (pageLoading) setPageLoading(false);
     }, []);
 
     // WebSocket connection for real-time updates
@@ -103,6 +106,7 @@ export default function Liquidation() {
     const checkWalletAndFetch = async () => {
         if (typeof window !== "undefined" && window.ethereum) {
             try {
+                setPageLoading(true);
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const accounts = await provider.send("eth_accounts", []);
                 setAccount(accounts[0] || null);
@@ -111,6 +115,8 @@ export default function Liquidation() {
                 }
             } catch (err) {
                 console.error('Error checking wallet:', err);
+            } finally {
+                setPageLoading(false);
             }
         }
     };
@@ -372,7 +378,13 @@ export default function Liquidation() {
         }
     };
 
-    if (!account) {
+    if (pageLoading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                <CircularProgress size={60} />
+            </Box>
+        )
+    } else if (!account) {
         return (
             <Box sx={{ p: 3 }}>
                 <Card sx={{ bgcolor: 'warning.light', color: 'warning.contrastText' }}>

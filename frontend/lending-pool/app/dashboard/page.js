@@ -26,6 +26,7 @@ import { getAssetsByUser } from '@/services/userAssetService';
 
 export default function Dashboard() {
     const [account, setAccount] = useState(null);
+    const [pageLoading, setPageLoading] = useState(true);
     const [loading, setLoading] = useState(false);
     const [userInfo, setUserInfo] = useState(null);
     const [markets, setMarkets] = useState([]);
@@ -53,11 +54,13 @@ export default function Dashboard() {
                 window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
             };
         }
+        if (pageLoading) setPageLoading(false);
     }, []);
 
     const checkWalletAndFetch = async () => {
         if (typeof window !== "undefined" && window.ethereum) {
             try {
+                setPageLoading(true);
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const accounts = await provider.send("eth_accounts", []);
                 setAccount(accounts[0] || null);
@@ -66,6 +69,8 @@ export default function Dashboard() {
                 }
             } catch (err) {
                 console.error('Error checking wallet:', err);
+            } finally {
+                setPageLoading(false);
             }
         }
     };
@@ -235,7 +240,13 @@ export default function Dashboard() {
         return Number((totalBorrowedUSD * 100n) / maxBorrowableUSD);
     };
 
-    if (!account) {
+    if (pageLoading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                <CircularProgress size={60} />
+            </Box>
+        )
+    } else if (!account) {
         return (
             <Box sx={{ p: 3 }}>
                 <Card sx={{ bgcolor: 'warning.light', color: 'warning.contrastText' }}>

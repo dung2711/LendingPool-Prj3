@@ -25,6 +25,7 @@ import RepayDialog from '@/components/RepayDialog';
 
 export default function Borrow() {
     const [account, setAccount] = useState(null);
+    const [pageLoading, setPageLoading] = useState(true);
     const [loading, setLoading] = useState(false);
     const [markets, setMarkets] = useState([]);
     const [userBorrows, setUserBorrows] = useState([]);
@@ -56,11 +57,13 @@ export default function Borrow() {
                 window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
             };
         }
+        if (pageLoading) setPageLoading(false);
     }, []);
 
     const checkWalletAndFetch = async () => {
         if (typeof window !== "undefined" && window.ethereum) {
             try {
+                setPageLoading(true);
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const accounts = await provider.send("eth_accounts", []);
                 setAccount(accounts[0] || null);
@@ -69,6 +72,8 @@ export default function Borrow() {
                 }
             } catch (err) {
                 console.error('Error checking wallet:', err);
+            } finally {
+                setPageLoading(false);
             }
         }
     };
@@ -206,7 +211,13 @@ export default function Borrow() {
         ? markets
         : markets.filter(m => m.liquidity > 0n);
 
-    if (!account) {
+    if (pageLoading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                <CircularProgress size={60} />
+            </Box>
+        )
+    } else if (!account) {
         return (
             <Box sx={{ p: 3 }}>
                 <Card sx={{ bgcolor: 'warning.light', color: 'warning.contrastText' }}>

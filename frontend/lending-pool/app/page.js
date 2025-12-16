@@ -29,6 +29,7 @@ export default function Home() {
   const SCALE = 10n ** 18n;
 
   const [markets, setMarkets] = useState([]);
+  const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [account, setAccount] = useState(null);
@@ -51,11 +52,13 @@ export default function Home() {
         window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
       };
     }
+    if (pageLoading) setPageLoading(false);
   }, []);
 
   const checkWalletAndFetch = async () => {
     if (typeof window !== "undefined" && window.ethereum) {
       try {
+        setPageLoading(true);
         const provider = new ethers.BrowserProvider(window.ethereum);
         const accounts = await provider.send("eth_accounts", []);
         setAccount(accounts[0] || null);
@@ -64,6 +67,8 @@ export default function Home() {
         }
       } catch (err) {
         console.error('Error checking wallet:', err);
+      } finally {
+        setPageLoading(false);
       }
     }
   };
@@ -231,7 +236,11 @@ export default function Home() {
           Supported Markets
         </Typography>
 
-        {!account ? (
+        {pageLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+            <CircularProgress />
+          </Box>
+        ) : !account ? (
           <Card sx={{ bgcolor: 'warning.light', color: 'warning.contrastText' }}>
             <CardContent sx={{ textAlign: 'center', py: 4 }}>
               <AccountBalanceWalletIcon sx={{ fontSize: 60, mb: 2 }} />

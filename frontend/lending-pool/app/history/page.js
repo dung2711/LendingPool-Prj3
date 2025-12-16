@@ -32,6 +32,7 @@ import { getTransactionsByUserAddress } from '@/services/transactionService';
 
 export default function History() {
     const [account, setAccount] = useState(null);
+    const [pageLoading, setPageLoading] = useState(true);
     const [loading, setLoading] = useState(false);
     const [transactions, setTransactions] = useState([]);
     const [filteredTransactions, setFilteredTransactions] = useState([]);
@@ -65,6 +66,7 @@ export default function History() {
                 window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
             };
         }
+        if (pageLoading) setPageLoading(false);
     }, []);
 
     useEffect(() => {
@@ -74,6 +76,7 @@ export default function History() {
     const checkWalletAndFetch = async () => {
         if (typeof window !== "undefined" && window.ethereum) {
             try {
+                setPageLoading(true);
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const accounts = await provider.send("eth_accounts", []);
                 setAccount(accounts[0] || null);
@@ -82,6 +85,8 @@ export default function History() {
                 }
             } catch (err) {
                 console.error('Error checking wallet:', err);
+            } finally {
+                setPageLoading(false);
             }
         }
     };
@@ -225,7 +230,13 @@ export default function History() {
         window.open(`https://sepolia.etherscan.io/tx/${hash}`, '_blank');
     };
 
-    if (!account) {
+    if (pageLoading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                <CircularProgress size={60} />
+            </Box>
+        )
+    } else if (!account) {
         return (
             <Box sx={{ p: 3 }}>
                 <Card sx={{ bgcolor: 'warning.light', color: 'warning.contrastText' }}>
