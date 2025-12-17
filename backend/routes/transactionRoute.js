@@ -6,7 +6,8 @@ const route = express.Router();
 route.get("/:address", async (req, res) => {
     try {
         const address = req.params.address;
-        const transactions = await getTransactionsByUser(address);
+        const { cursorTS, cursorId, type } = req.query;
+        const transactions = await getTransactionsByUser(address, cursorTS, cursorId, type);
         res.status(200).json(transactions);
     } catch (error) {
         res.status(400).json({ error: error.message });

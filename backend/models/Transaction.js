@@ -2,10 +2,15 @@ import sequelize from "../config/database.js";
 import { DataTypes } from "sequelize";
 
 const Transaction = sequelize.define('Transaction', {
+    id: {
+        type: DataTypes.BIGINT,
+        autoIncrement: true,
+        primaryKey: true
+    },
     hash: {
         type: DataTypes.STRING,
         allowNull: false,
-        primaryKey: true
+        unique: true
     },
     userAddress: {
         type: DataTypes.STRING,
@@ -40,8 +45,8 @@ const Transaction = sequelize.define('Transaction', {
 }, {
     timestamps: false,
     indexes: [
-        { fields: ['userAddress'] },
-        { fields: ['assetAddress'] }
+        { fields: ['userAddress', 'id'] },
+        { fields: ['userAddress', 'timestamp'] }
     ]
 });
 

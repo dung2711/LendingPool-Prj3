@@ -1,5 +1,6 @@
 import { Transaction } from "../models/index.js";
 import { ethers } from "ethers";
+import { Op } from "sequelize";
 
 /**
  * Get all transactions for a specific user
@@ -7,7 +8,7 @@ import { ethers } from "ethers";
  * @returns {Promise<Transaction[]>} Array of transaction instances
  * @throws {Error} If address is invalid
  */
-export const getTransactionsByUser = async (userAddress) => {
+export const getTransactionsByUser = async (userAddress, cursorTS, cursorId, type) => {
     if (!userAddress) {
         throw new Error('User address is required');
     }
@@ -15,10 +16,44 @@ export const getTransactionsByUser = async (userAddress) => {
         throw new Error('Invalid Ethereum address');
     }
     try {
-        return await Transaction.findAll({
-            where: { userAddress },
-            order: [['timestamp', 'DESC']]
+        let where = {
+            userAddress,
+            type: type || {
+                [Op.ne]: null
+            }
+        };
+        if (cursorTS && cursorId) {
+            where[Op.or] = [
+                {
+                    timestamp: { [Op.lt]: cursorTS }
+                },
+                {
+                    timestamp: cursorTS,
+                    id: { [Op.lt]: cursorId }
+                }
+            ];
+        }
+        const LIMIT = 2;
+        const rows = await Transaction.findAll({
+            where,
+            order: [['timestamp', 'DESC'], ['id', 'DESC']],
+            limit: LIMIT + 1
         });
+        const hasNextPage = rows.length > LIMIT;
+        const items = hasNextPage ? rows.slice(0, LIMIT) : rows;
+        let nextCursor = null;
+        if (hasNextPage) {
+            const lastItem = items[items.length - 1];
+            nextCursor = {
+                cursorTS: lastItem.timestamp,
+                cursorId: lastItem.id
+            };
+        }
+        return {
+            transactions: items,
+            nextCursor,
+            hasNextPage
+        }
     } catch (error) {
         throw new Error(`Failed to fetch transactions: ${error.message}`);
     }
@@ -129,7 +164,7 @@ export const createTransaction = async (txData) => {
 
     try {
         // Check if transaction already exists
-        const existingTx = await Transaction.findByPk(hash);
+        const existingTx = await Transaction.findOne({ where: { hash } });
         if (existingTx) {
             throw new Error('Transaction already exists');
         }
