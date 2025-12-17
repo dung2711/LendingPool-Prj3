@@ -27,6 +27,7 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import GavelIcon from '@mui/icons-material/Gavel';
+import Button from '@mui/material/Button';
 import { getAllAssets } from '@/services/assetService';
 import { getTransactionsByUserAddress } from '@/services/transactionService';
 
@@ -35,18 +36,10 @@ export default function History() {
     const [pageLoading, setPageLoading] = useState(true);
     const [loading, setLoading] = useState(false);
     const [transactions, setTransactions] = useState([]);
-    const [filteredTransactions, setFilteredTransactions] = useState([]);
     const [filterType, setFilterType] = useState('all');
-    const [summary, setSummary] = useState({
-        totalDeposits: 0,
-        totalWithdrawals: 0,
-        totalBorrows: 0,
-        totalRepays: 0,
-        totalDepositsUSD: 0,
-        totalWithdrawalsUSD: 0,
-        totalBorrowsUSD: 0,
-        totalRepaysUSD: 0
-    });
+    const [cursorTS, setCursorTS] = useState(null);
+    const [cursorId, setCursorId] = useState(null);
+    const [hasNextPage, setHasNextPage] = useState(false);
 
     useEffect(() => {
         checkWalletAndFetch();
@@ -55,10 +48,9 @@ export default function History() {
             const handleAccountsChanged = (accounts) => {
                 setAccount(accounts[0] || null);
                 if (accounts.length > 0) {
-                    fetchTransactions();
+                    fetchTransactions(null, null, 'all');
                 } else {
                     setTransactions([]);
-                    setFilteredTransactions([]);
                 }
             };
             window.ethereum.on('accountsChanged', handleAccountsChanged);
@@ -70,8 +62,11 @@ export default function History() {
     }, []);
 
     useEffect(() => {
-        applyFilter();
-    }, [transactions, filterType]);
+        if (account) {
+            // Reset pagination and fetch with new filter
+            fetchTransactions(null, null, filterType);
+        }
+    }, [filterType]);
 
     const checkWalletAndFetch = async () => {
         if (typeof window !== "undefined" && window.ethereum) {
@@ -81,7 +76,7 @@ export default function History() {
                 const accounts = await provider.send("eth_accounts", []);
                 setAccount(accounts[0] || null);
                 if (accounts.length > 0) {
-                    fetchTransactions();
+                    fetchTransactions(null, null, 'all');
                 }
             } catch (err) {
                 console.error('Error checking wallet:', err);
@@ -91,7 +86,7 @@ export default function History() {
         }
     };
 
-    const fetchTransactions = async () => {
+    const fetchTransactions = async (cursorTimestamp = null, cursorTransactionId = null, type = 'all') => {
         try {
             setLoading(true);
             const provider = new ethers.BrowserProvider(window.ethereum);
@@ -99,10 +94,15 @@ export default function History() {
             const userAddress = await signer.getAddress();
 
             // Fetch transactions from backend API
+            const filterTypeParam = type === 'all' ? null : type;
             const [txData, assetsData] = await Promise.all([
-                getTransactionsByUserAddress(userAddress),
+                getTransactionsByUserAddress(userAddress, cursorTimestamp, cursorTransactionId, filterTypeParam),
                 getAllAssets()
             ]);
+
+            setHasNextPage(txData.hasNextPage);
+            setCursorTS(txData.nextCursor ? txData.nextCursor.cursorTS : null);
+            setCursorId(txData.nextCursor ? txData.nextCursor.cursorId : null);
 
             // Create asset lookup map for quick access
             const assetMap = {};
@@ -115,41 +115,13 @@ export default function History() {
 
             // Process transactions
             const allTxs = [];
-            let totalDeposits = 0;
-            let totalWithdrawals = 0;
-            let totalBorrows = 0;
-            let totalRepays = 0;
-            let totalDepositsUSD = 0;
-            let totalWithdrawalsUSD = 0;
-            let totalBorrowsUSD = 0;
-            let totalRepaysUSD = 0;
 
-            for (const tx of txData) {
+            for (const tx of txData.transactions) {
                 const asset = assetMap[tx.assetAddress.toLowerCase()];
                 if (!asset) continue; // Skip if asset not found
 
                 const amountFormatted = parseFloat(ethers.formatUnits(tx.amount, asset.decimals));
                 const amountUSDFormatted = tx.amountUSD ? parseFloat(ethers.formatUnits(tx.amountUSD, 18)) : null;
-
-                // Update summary based on transaction type
-                switch (tx.type) {
-                    case 'deposit':
-                        totalDeposits += amountFormatted;
-                        if (amountUSDFormatted) totalDepositsUSD += amountUSDFormatted;
-                        break;
-                    case 'withdraw':
-                        totalWithdrawals += amountFormatted;
-                        if (amountUSDFormatted) totalWithdrawalsUSD += amountUSDFormatted;
-                        break;
-                    case 'borrow':
-                        totalBorrows += amountFormatted;
-                        if (amountUSDFormatted) totalBorrowsUSD += amountUSDFormatted;
-                        break;
-                    case 'repay':
-                        totalRepays += amountFormatted;
-                        if (amountUSDFormatted) totalRepaysUSD += amountUSDFormatted;
-                        break;
-                }
 
                 allTxs.push({
                     type: tx.type,
@@ -165,21 +137,13 @@ export default function History() {
                 });
             }
 
-            // Sort by timestamp (newest first)
-            allTxs.sort((a, b) => b.timestamp - a.timestamp);
-
-            setTransactions(allTxs);
-            setSummary({
-                totalDeposits,
-                totalWithdrawals,
-                totalBorrows,
-                totalRepays,
-                totalDepositsUSD,
-                totalWithdrawalsUSD,
-                totalBorrowsUSD,
-                totalRepaysUSD
-            });
-
+            // If this is initial load or filter change, replace transactions
+            // Otherwise append for pagination
+            if (cursorTimestamp === null && cursorTransactionId === null) {
+                setTransactions(allTxs);
+            } else {
+                setTransactions(prev => [...prev, ...allTxs]);
+            }
         } catch (err) {
             console.error('Error fetching transactions:', err);
         } finally {
@@ -187,13 +151,10 @@ export default function History() {
         }
     };
 
-    const applyFilter = () => {
-        if (filterType === 'all') {
-            setFilteredTransactions(transactions);
-        } else {
-            setFilteredTransactions(transactions.filter(tx => tx.type === filterType));
-        }
-    };
+    const loadingMore = async () => {
+        if (!hasNextPage || loading) return;
+        await fetchTransactions(cursorTS, cursorId, filterType);
+    }
 
     const formatDate = (timestamp) => {
         return new Date(timestamp * 1000).toLocaleString();
@@ -260,70 +221,6 @@ export default function History() {
                 Transaction History
             </Typography>
 
-            {/* Summary Cards */}
-            <Grid container spacing={2} mb={4}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={2}>
-                        <CardContent>
-                            <Typography variant="caption" color="text.secondary">
-                                Total Deposited
-                            </Typography>
-                            <Typography variant="h6" fontWeight="bold" color="success.main">
-                                ${summary.totalDepositsUSD.toFixed(2)}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                {summary.totalDeposits.toFixed(2)} tokens
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={2}>
-                        <CardContent>
-                            <Typography variant="caption" color="text.secondary">
-                                Total Withdrawn
-                            </Typography>
-                            <Typography variant="h6" fontWeight="bold" color="warning.main">
-                                ${summary.totalWithdrawalsUSD.toFixed(2)}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                {summary.totalWithdrawals.toFixed(2)} tokens
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={2}>
-                        <CardContent>
-                            <Typography variant="caption" color="text.secondary">
-                                Total Borrowed
-                            </Typography>
-                            <Typography variant="h6" fontWeight="bold" color="info.main">
-                                ${summary.totalBorrowsUSD.toFixed(2)}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                {summary.totalBorrows.toFixed(2)} tokens
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={2}>
-                        <CardContent>
-                            <Typography variant="caption" color="text.secondary">
-                                Total Repaid
-                            </Typography>
-                            <Typography variant="h6" fontWeight="bold" color="primary.main">
-                                ${summary.totalRepaysUSD.toFixed(2)}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                {summary.totalRepays.toFixed(2)} tokens
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-            </Grid>
-
             {/* Filter */}
             <Card elevation={2} sx={{ mb: 3 }}>
                 <CardContent>
@@ -343,7 +240,7 @@ export default function History() {
                         </Select>
                     </FormControl>
                     <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                        {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}
+                        {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
                     </Typography>
                 </CardContent>
             </Card>
@@ -358,7 +255,7 @@ export default function History() {
                         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                             <CircularProgress />
                         </Box>
-                    ) : filteredTransactions.length === 0 ? (
+                    ) : transactions.length === 0 ? (
                         <Box sx={{ textAlign: 'center', py: 4 }}>
                             <Typography color="text.secondary">
                                 No transactions found
@@ -378,7 +275,7 @@ export default function History() {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {filteredTransactions.map((tx, index) => (
+                                    {transactions.map((tx, index) => (
                                         <TableRow key={`${tx.hash}-${index}`} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
                                             <TableCell>
                                                 <Chip
@@ -432,6 +329,20 @@ export default function History() {
                                 </TableBody>
                             </Table>
                         </TableContainer>
+                    )}
+
+                    {/* Load More Button */}
+                    {hasNextPage && transactions.length > 0 && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                            <Button
+                                variant="outlined"
+                                onClick={loadingMore}
+                                disabled={loading}
+                                startIcon={loading ? <CircularProgress size={20} /> : null}
+                            >
+                                {loading ? 'Loading...' : 'Load More'}
+                            </Button>
+                        </Box>
                     )}
                 </CardContent>
             </Card>
