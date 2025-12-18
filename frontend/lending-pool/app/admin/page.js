@@ -25,7 +25,12 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import PauseCircleIcon from '@mui/icons-material/PauseCircle';
+import PlayCircleIcon from '@mui/icons-material/PlayCircle';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import { getLendingPoolContract, getPriceRouterContract, getLiquidationContract, getInterestRateModelContract, getToken, getMyOracleContract } from '@/lib/web3';
+import * as SafeMultisigService from '@/services/SafeMultisigService';
 
 export default function AdminPage() {
   const [tabValue, setTabValue] = useState(0);
@@ -63,6 +68,12 @@ export default function AdminPage() {
   const [rateSlope2, setRateSlope2] = useState('');
   const [optimalUtilization, setOptimalUtilization] = useState('');
   const [reserveFactor, setReserveFactor] = useState('');
+
+  // Safe Multisig states
+  const [pendingTransactions, setPendingTransactions] = useState([]);
+  const [safeInfo, setSafeInfo] = useState(null);
+  const [isSafeOwner, setIsSafeOwner] = useState(false);
+  const [safeLoading, setSafeLoading] = useState(false);
 
   useEffect(() => {
     checkWalletAndFetch();
@@ -305,6 +316,90 @@ export default function AdminPage() {
     }
   };
 
+  // Safe Multisig functions
+  const loadSafeInfo = async () => {
+    try {
+      setSafeLoading(true);
+      const info = await SafeMultisigService.getSafeInfo();
+      setSafeInfo(info);
+      const isOwner = await SafeMultisigService.isOwner();
+      setIsSafeOwner(isOwner);
+      await loadPendingTransactions();
+    } catch (err) {
+      console.error('Error loading Safe info:', err);
+      showError(`Error loading Safe info: ${err.message}`);
+    } finally {
+      setSafeLoading(false);
+    }
+  };
+
+  const loadPendingTransactions = async () => {
+    try {
+      const txs = await SafeMultisigService.getPendingTransactions();
+      setPendingTransactions(txs);
+    } catch (err) {
+      console.error('Error loading pending transactions:', err);
+    }
+  };
+
+  const handleProposePause = async () => {
+    try {
+      setLoading(true);
+      const { safeTxHash } = await SafeMultisigService.proposePause();
+      showSuccess(`Pause proposal created! Transaction hash: ${safeTxHash.substring(0, 10)}...`);
+      await loadPendingTransactions();
+    } catch (err) {
+      showError(`Error proposing pause: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProposeUnpause = async () => {
+    try {
+      setLoading(true);
+      const { safeTxHash } = await SafeMultisigService.proposeUnpause();
+      showSuccess(`Unpause proposal created! Transaction hash: ${safeTxHash.substring(0, 10)}...`);
+      await loadPendingTransactions();
+    } catch (err) {
+      showError(`Error proposing unpause: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignTransaction = async (safeTxHash) => {
+    try {
+      setLoading(true);
+      await SafeMultisigService.signTransaction(safeTxHash);
+      showSuccess('Transaction signed successfully!');
+      await loadPendingTransactions();
+    } catch (err) {
+      showError(`Error signing transaction: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExecuteTransaction = async (safeTxHash) => {
+    try {
+      setLoading(true);
+      const receipt = await SafeMultisigService.executeTransaction(safeTxHash);
+      showSuccess('Transaction executed successfully!');
+      await loadPendingTransactions();
+    } catch (err) {
+      showError(`Error executing transaction: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tabValue === 5 && isAdmin) {
+      loadSafeInfo();
+    }
+  }, [tabValue, isAdmin]);
+
 
 
   return (
@@ -344,6 +439,7 @@ export default function AdminPage() {
               <Tab label="Price Management" />
               <Tab label="Admin Management" />
               <Tab label="Interest Rate Model" />
+              <Tab label="Safe Multisig" />
             </Tabs>
           </Paper>
 
@@ -759,6 +855,242 @@ export default function AdminPage() {
                         />
                       </Grid>
                     </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+
+          {/* Safe Multisig Tab */}
+          {tabValue === 5 && (
+            <Grid container spacing={3}>
+              {/* Safe Info Card */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader
+                    title="Safe Multisig Information"
+                    action={
+                      <Button
+                        size="small"
+                        onClick={loadSafeInfo}
+                        disabled={safeLoading}
+                      >
+                        {safeLoading ? <CircularProgress size={20} /> : 'Refresh'}
+                      </Button>
+                    }
+                  />
+                  <Divider />
+                  <CardContent>
+                    {safeInfo ? (
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} md={6}>
+                          <Typography variant="body2" color="text.secondary">
+                            Safe Address
+                          </Typography>
+                          <Typography variant="body1" fontFamily="monospace" sx={{ mb: 2 }}>
+                            {safeInfo.address}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <Typography variant="body2" color="text.secondary">
+                            Threshold
+                          </Typography>
+                          <Typography variant="h6">
+                            {safeInfo.threshold} of {safeInfo.owners.length}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <Typography variant="body2" color="text.secondary">
+                            Your Status
+                          </Typography>
+                          <Chip
+                            label={isSafeOwner ? "Owner" : "Not Owner"}
+                            color={isSafeOwner ? "success" : "default"}
+                            size="small"
+                            sx={{ mt: 0.5 }}
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            Owners
+                          </Typography>
+                          {safeInfo.owners.map((owner, index) => (
+                            <Chip
+                              key={index}
+                              label={owner}
+                              size="small"
+                              sx={{ mr: 1, mb: 1, fontFamily: 'monospace', fontSize: '0.75rem' }}
+                            />
+                          ))}
+                        </Grid>
+                      </Grid>
+                    ) : (
+                      <Box sx={{ textAlign: 'center', py: 2 }}>
+                        <CircularProgress />
+                      </Box>
+                    )}
+                    {!isSafeOwner && safeInfo && (
+                      <Alert severity="warning" sx={{ mt: 2 }}>
+                        You are not a Safe owner. You can view transactions but cannot propose, sign, or execute them.
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Propose Actions Card */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader title="Propose New Action" />
+                  <Divider />
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
+                      Propose a pause or unpause action. This will create a new transaction that requires {safeInfo?.threshold || '2'} signatures.
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Button
+                          variant="contained"
+                          color="error"
+                          onClick={handleProposePause}
+                          disabled={loading || !isSafeOwner}
+                          startIcon={loading ? <CircularProgress size={20} /> : <PauseCircleIcon />}
+                          fullWidth
+                          size="large"
+                        >
+                          Propose Pause
+                        </Button>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          onClick={handleProposeUnpause}
+                          disabled={loading || !isSafeOwner}
+                          startIcon={loading ? <CircularProgress size={20} /> : <PlayCircleIcon />}
+                          fullWidth
+                          size="large"
+                        >
+                          Propose Unpause
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Pending Transactions Card */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader
+                    title="Pending Transactions"
+                    action={
+                      <Chip
+                        label={`${pendingTransactions.length} Pending`}
+                        color={pendingTransactions.length > 0 ? "warning" : "default"}
+                      />
+                    }
+                  />
+                  <Divider />
+                  <CardContent>
+                    {pendingTransactions.length === 0 ? (
+                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <Typography color="text.secondary">
+                          No pending transactions. Propose an action above to get started.
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <List>
+                        {pendingTransactions.map((tx, index) => {
+                          const requiredSigs = safeInfo?.threshold || 2;
+                          const currentSigs = tx.confirmations?.length || 0;
+                          const canExecute = currentSigs >= requiredSigs;
+                          const hasUserSigned = tx.confirmations?.some(
+                            conf => conf.owner.toLowerCase() === account?.toLowerCase()
+                          );
+
+                          // Decode function name from data
+                          let actionName = 'Unknown';
+                          try {
+                            const iface = new ethers.Interface([
+                              'function pause()',
+                              'function unpause()',
+                            ]);
+                            const decoded = iface.parseTransaction({ data: tx.data });
+                            actionName = decoded.name;
+                          } catch (e) {
+                            // Unable to decode
+                          }
+
+                          return (
+                            <Paper
+                              key={index}
+                              elevation={2}
+                              sx={{
+                                p: 2,
+                                mb: 2,
+                                border: canExecute ? '2px solid' : '1px solid',
+                                borderColor: canExecute ? 'success.main' : 'divider'
+                              }}
+                            >
+                              <Grid container spacing={2} alignItems="center">
+                                <Grid item xs={12} md={6}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                    {actionName === 'pause' ? (
+                                      <PauseCircleIcon color="error" />
+                                    ) : (
+                                      <PlayCircleIcon color="success" />
+                                    )}
+                                    <Typography variant="h6">
+                                      {actionName.charAt(0).toUpperCase() + actionName.slice(1)}
+                                    </Typography>
+                                  </Box>
+                                  <Typography variant="body2" color="text.secondary" fontFamily="monospace" sx={{ mb: 1 }}>
+                                    {tx.safeTxHash.substring(0, 20)}...
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                    <Chip
+                                      icon={hasUserSigned ? <CheckCircleIcon /> : <HourglassEmptyIcon />}
+                                      label={hasUserSigned ? "You Signed" : "Not Signed"}
+                                      color={hasUserSigned ? "success" : "default"}
+                                      size="small"
+                                    />
+                                    <Chip
+                                      label={`${currentSigs}/${requiredSigs} Signatures`}
+                                      color={canExecute ? "success" : "warning"}
+                                      size="small"
+                                    />
+                                  </Box>
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                  <Box sx={{ display: 'flex', gap: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => handleSignTransaction(tx.safeTxHash)}
+                                      disabled={loading || !isSafeOwner || hasUserSigned}
+                                      startIcon={<CheckCircleIcon />}
+                                      fullWidth
+                                    >
+                                      {hasUserSigned ? 'Signed' : 'Sign'}
+                                    </Button>
+                                    <Button
+                                      variant="contained"
+                                      color="primary"
+                                      onClick={() => handleExecuteTransaction(tx.safeTxHash)}
+                                      disabled={loading || !isSafeOwner || !canExecute}
+                                      startIcon={<PlayCircleIcon />}
+                                      fullWidth
+                                    >
+                                      Execute
+                                    </Button>
+                                  </Box>
+                                </Grid>
+                              </Grid>
+                            </Paper>
+                          );
+                        })}
+                      </List>
+                    )}
                   </CardContent>
                 </Card>
               </Grid>
