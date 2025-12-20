@@ -15,6 +15,9 @@ User.hasMany(Transaction, { foreignKey: 'userAddress', sourceKey: 'address' });
 Transaction.belongsTo(Asset, { foreignKey: 'assetAddress', targetKey: 'address' });
 Asset.hasMany(Transaction, { foreignKey: 'assetAddress', sourceKey: 'address' });
 
+Market_config.belongsTo(Asset, { foreignKey: 'marketAddress', targetKey: 'address' });
+Asset.hasOne(Market_config, { foreignKey: 'marketAddress', sourceKey: 'address' });
+
 export {
     User,
     Asset,
