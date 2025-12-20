@@ -125,6 +125,7 @@ npm install
 npm run dev
 ```
 Frontend runs at: http://localhost:3000
+
 Make sure MetaMask is connected to Sepolia Testnet.
 
 ## Testing
@@ -132,6 +133,7 @@ Make sure MetaMask is connected to Sepolia Testnet.
 ### Smart Contract Testing
 
 Unit tests using Mocha & Chai
+
 Each test is isolated with beforeEach
 
 ```bash
@@ -146,14 +148,19 @@ Base URL: http://localhost:4000
 ### Frontend Testing
 
 Manual black-box testing
+
 Tools: Chrome, Edge, MetaMask, Etherscan
+
 Verify blockchain events and UI updates
 
 ## Security
 
 Reentrancy protection via ReentrancyGuard
+
 Role-based access control using AccessControl
+
 Emergency pause mechanism using Pausable
+
 Health factor validation before borrow, withdraw and liquidation
 
 This project is developed for educational purposes and has not been audited.
@@ -161,12 +168,19 @@ This project is developed for educational purposes and has not been audited.
 ## Future Improvements
 
 Multi-chain support
+
 Multiple wallet integrations
+
 DAO governance
+
 Treasury management
+
 Flash loans
+
 Upgradeable smart contracts
+
 Gas optimization
+
 Professional security audits
 
 ## License
@@ -176,4 +190,5 @@ This project is developed for academic and learning purposes.
 ## Author
 
 Dũng Hoàng
+
 GitHub: https://github.com/dung2711
