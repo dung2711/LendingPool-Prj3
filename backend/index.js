@@ -19,18 +19,18 @@ const PORT = process.env.PORT;
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: "",
     methods: ["GET", "POST"]
   }
 });
 
 try {
-    await sequelize.authenticate();
-    console.log('✅ DB connected');
-    await sequelize.sync(); // or { alter: true }
-    console.log('✅ Models synced');
-  } catch (err) {
-    console.error('❌ DB connection error:', err);
+  await sequelize.authenticate();
+  console.log('✅ DB connected');
+  await sequelize.sync(); // or { alter: true }
+  console.log('✅ Models synced');
+} catch (err) {
+  console.error('❌ DB connection error:', err);
 }
 
 // Middleware
@@ -43,15 +43,15 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.get('/health', async (req, res) => {
   try {
     const blockchainStatus = await getBlockchainStatus();
-    res.json({ 
-      status: 'ok', 
+    res.json({
+      status: 'ok',
       timestamp: new Date().toISOString(),
       blockchain: blockchainStatus
     });
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
+    res.status(500).json({
+      status: 'error',
+      message: error.message
     });
   }
 });
@@ -84,7 +84,7 @@ app.use((err, req, res, next) => {
 // WebSocket connection handling
 io.on('connection', (socket) => {
   console.log(`✅ Client connected: ${socket.id}`);
-  
+
   socket.on('disconnect', () => {
     console.log(`❌ Client disconnected: ${socket.id}`);
   });
@@ -94,11 +94,11 @@ io.on('connection', (socket) => {
 httpServer.listen(PORT, async () => {
   console.log(`Server is running on http://localhost:${PORT}`);
   console.log(`WebSocket server is ready`);
-  
+
   // Initialize blockchain event listeners
   try {
     await initializeBlockchainServices();
-    
+
     // Subscribe to liquidatable users updates
     const eventListener = getEventListener();
     eventListener.on('liquidatableUsersUpdated', (data) => {

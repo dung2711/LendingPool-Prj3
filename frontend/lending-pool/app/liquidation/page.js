@@ -69,7 +69,7 @@ export default function Liquidation() {
 
     // WebSocket connection for real-time updates
     useEffect(() => {
-        const socket = io('http://localhost:4000');
+        const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL.replace("/api", ""));
 
         socket.on('connect', () => {
             console.log('✅ WebSocket connected');
