@@ -93,16 +93,10 @@ contract PriceRouter is AccessControl {
             }
             return uint(price); // Normalize to 18 decimals
         } else if (feedInfo.source == Source.MYORACLE) {
-            // Assuming MyOracle has a function getPriceMyOracle(address token) returns (uint)
             uint price = IMyOracle(myOracle).getPriceMyOracle(
                 feedInfo.feedOrToken
             );
-            uint decimal = IERC20Metadata(asset).decimals();
-            if (decimal > 18) {
-                return price / (10 ** (decimal - 18)); // Normalize to 18 decimals
-            } else {
-                return price * (10 ** (18 - decimal)); // Normalize to 18 decimals
-            }
+            return price;
         } else {
             revert("Invalid price source");
         }
