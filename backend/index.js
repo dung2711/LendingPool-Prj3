@@ -19,7 +19,7 @@ const PORT = process.env.PORT;
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "",
+    origin: ["http://localhost:3000", "https://lending-pool-prj3.vercel.app"],
     methods: ["GET", "POST"]
   }
 });
