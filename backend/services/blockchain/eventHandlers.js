@@ -203,14 +203,18 @@ export const handleBorrow = async (event, blockTimestamp) => {
 
         // Get current balance from blockchain
         const userBalance = await lendingPoolContract.userBalances(user, asset);
+        const { deposited, borrowed } = userBalance;
 
         // Update or create user-asset association with actual balance
-        const userAsset = await getUserAsset(user, asset);
-        if (userAsset) {
-            await updateUserAsset(user, asset, {
-                borrowed: userBalance.borrowed.toString(),
-                deposited: userBalance.deposited.toString()
-            });
+        const { userAsset, created } = await getOrCreateUserAsset({
+            userAddress: user,
+            assetAddress: asset,
+            deposited: deposited.toString(),
+            borrowed: borrowed.toString(),
+        });
+
+        if (!created) {
+            await updateUserAsset(user, asset, { deposited: deposited.toString(), borrowed: borrowed.toString() });
         }
 
         // Update asset total borrows
