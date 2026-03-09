@@ -8,40 +8,39 @@ const CHAIN_ID = process.env.NEXT_PUBLIC_CHAIN_ID || "11155111"; // Sepolia by d
 const SAFE_API_KEY = process.env.NEXT_PUBLIC_SAFE_API_KEY;
 
 // Initialize Safe API Kit (for transaction service)
-const getSafeApiKit = () => {
-	return new SafeApiKit({
-		chainId: BigInt(CHAIN_ID),
-		apiKey: SAFE_API_KEY,
-	});
-};
+const getSafeApiKit = () =>
+  new SafeApiKit({
+    chainId: BigInt(CHAIN_ID),
+    apiKey: SAFE_API_KEY,
+  });
 
 // Initialize Protocol Kit (for creating and signing transactions)
 const getProtocolKit = async () => {
-	if (typeof window === "undefined" || !window.ethereum) {
-		throw new Error("MetaMask not available");
-	}
+  if (typeof window === "undefined" || !window.ethereum) {
+    throw new Error("MetaMask not available");
+  }
 
-	const provider = new ethers.BrowserProvider(window.ethereum);
-	const signer = await provider.getSigner();
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
 
-	return await Safe.init({
-		provider: window.ethereum,
-		signer: await signer.getAddress(),
-		safeAddress: SAFE_ADDRESS,
-	});
+  return await Safe.init({
+    provider: window.ethereum,
+    signer: await signer.getAddress(),
+    safeAddress: SAFE_ADDRESS,
+  });
 };
 
 // Encode function call data
 const encodeFunctionData = (functionName, params = []) => {
-	const lendingPoolABI = [
-		"function pause()",
-		"function unpause()",
-		"function setCollateralParams(uint256 _collateralFactor)",
-		// Add other functions as needed
-	];
+  const lendingPoolABI = [
+    "function pause()",
+    "function unpause()",
+    "function setCollateralParams(uint256 _collateralFactor)",
+    // Add other functions as needed
+  ];
 
-	const iface = new ethers.Interface(lendingPoolABI);
-	return iface.encodeFunctionData(functionName, params);
+  const iface = new ethers.Interface(lendingPoolABI);
+  return iface.encodeFunctionData(functionName, params);
 };
 
 /**
@@ -49,45 +48,45 @@ const encodeFunctionData = (functionName, params = []) => {
  * @returns {Object} { safeTxHash, safeTransaction }
  */
 export const proposePause = async () => {
-	try {
-		const protocolKit = await getProtocolKit();
-		const apiKit = getSafeApiKit();
+  try {
+    const protocolKit = await getProtocolKit();
+    const apiKit = getSafeApiKit();
 
-		// Create transaction data
-		const data = encodeFunctionData("pause");
+    // Create transaction data
+    const data = encodeFunctionData("pause");
 
-		// Create Safe transaction
-		const safeTransaction = await protocolKit.createTransaction({
-			transactions: [
-				{
-					to: LENDING_POOL_ADDRESS,
-					value: "0",
-					data: data,
-				},
-			],
-		});
+    // Create Safe transaction
+    const safeTransaction = await protocolKit.createTransaction({
+      transactions: [
+        {
+          to: LENDING_POOL_ADDRESS,
+          value: "0",
+          data: data,
+        },
+      ],
+    });
 
-		// Sign transaction with proposer's signature
-		const safeTxHash = await protocolKit.getTransactionHash(safeTransaction);
-		const signature = await protocolKit.signHash(safeTxHash);
+    // Sign transaction with proposer's signature
+    const safeTxHash = await protocolKit.getTransactionHash(safeTransaction);
+    const signature = await protocolKit.signHash(safeTxHash);
 
-		// Propose transaction to Safe service
-		await apiKit.proposeTransaction({
-			safeAddress: SAFE_ADDRESS,
-			safeTransactionData: safeTransaction.data,
-			safeTxHash: safeTxHash,
-			senderAddress: await protocolKit.getSafeProvider().getSignerAddress(),
-			senderSignature: signature.data,
-		});
+    // Propose transaction to Safe service
+    await apiKit.proposeTransaction({
+      safeAddress: SAFE_ADDRESS,
+      safeTransactionData: safeTransaction.data,
+      safeTxHash: safeTxHash,
+      senderAddress: await protocolKit.getSafeProvider().getSignerAddress(),
+      senderSignature: signature.data,
+    });
 
-		return {
-			safeTxHash,
-			safeTransaction,
-		};
-	} catch (error) {
-		console.error("Error proposing pause:", error);
-		throw error;
-	}
+    return {
+      safeTxHash,
+      safeTransaction,
+    };
+  } catch (error) {
+    console.error("Error proposing pause:", error);
+    throw error;
+  }
 };
 
 /**
@@ -95,43 +94,43 @@ export const proposePause = async () => {
  * @returns {Object} { safeTxHash, safeTransaction }
  */
 export const proposeUnpause = async () => {
-	try {
-		const protocolKit = await getProtocolKit();
-		const apiKit = getSafeApiKit();
+  try {
+    const protocolKit = await getProtocolKit();
+    const apiKit = getSafeApiKit();
 
-		const data = encodeFunctionData("unpause");
+    const data = encodeFunctionData("unpause");
 
-		const safeTransaction = await protocolKit.createTransaction({
-			transactions: [
-				{
-					to: LENDING_POOL_ADDRESS,
-					value: "0",
-					data: data,
-				},
-			],
-		});
+    const safeTransaction = await protocolKit.createTransaction({
+      transactions: [
+        {
+          to: LENDING_POOL_ADDRESS,
+          value: "0",
+          data: data,
+        },
+      ],
+    });
 
-		const safeTxHash = await protocolKit.getTransactionHash(safeTransaction);
-		const signature = await protocolKit.signHash(safeTxHash);
+    const safeTxHash = await protocolKit.getTransactionHash(safeTransaction);
+    const signature = await protocolKit.signHash(safeTxHash);
 
-		await apiKit.proposeTransaction({
-			safeAddress: SAFE_ADDRESS,
-			safeTransactionData: safeTransaction.data,
-			safeTxHash: safeTxHash,
-			senderAddress: await (await getProtocolKit())
-				.getSafeProvider()
-				.getSignerAddress(),
-			senderSignature: signature.data,
-		});
+    await apiKit.proposeTransaction({
+      safeAddress: SAFE_ADDRESS,
+      safeTransactionData: safeTransaction.data,
+      safeTxHash: safeTxHash,
+      senderAddress: await (await getProtocolKit())
+        .getSafeProvider()
+        .getSignerAddress(),
+      senderSignature: signature.data,
+    });
 
-		return {
-			safeTxHash,
-			safeTransaction,
-		};
-	} catch (error) {
-		console.error("Error proposing unpause:", error);
-		throw error;
-	}
+    return {
+      safeTxHash,
+      safeTransaction,
+    };
+  } catch (error) {
+    console.error("Error proposing unpause:", error);
+    throw error;
+  }
 };
 
 /**
@@ -139,14 +138,14 @@ export const proposeUnpause = async () => {
  * @returns {Array} List of pending transactions
  */
 export const getPendingTransactions = async () => {
-	try {
-		const apiKit = getSafeApiKit();
-		const pendingTxs = await apiKit.getPendingTransactions(SAFE_ADDRESS);
-		return pendingTxs.results;
-	} catch (error) {
-		console.error("Error fetching pending transactions:", error);
-		throw error;
-	}
+  try {
+    const apiKit = getSafeApiKit();
+    const pendingTxs = await apiKit.getPendingTransactions(SAFE_ADDRESS);
+    return pendingTxs.results;
+  } catch (error) {
+    console.error("Error fetching pending transactions:", error);
+    throw error;
+  }
 };
 
 /**
@@ -155,24 +154,24 @@ export const getPendingTransactions = async () => {
  * @returns {Object} Updated transaction with new signature
  */
 export const signTransaction = async (safeTxHash) => {
-	try {
-		const protocolKit = await getProtocolKit();
-		const apiKit = getSafeApiKit();
+  try {
+    const protocolKit = await getProtocolKit();
+    const apiKit = getSafeApiKit();
 
-		// Sign the transaction hash
-		const signature = await protocolKit.signHash(safeTxHash);
+    // Sign the transaction hash
+    const signature = await protocolKit.signHash(safeTxHash);
 
-		// Confirm the transaction with the new signature
-		await apiKit.confirmTransaction(safeTxHash, signature.data);
+    // Confirm the transaction with the new signature
+    await apiKit.confirmTransaction(safeTxHash, signature.data);
 
-		// Get updated transaction
-		const transaction = await apiKit.getTransaction(safeTxHash);
+    // Get updated transaction
+    const transaction = await apiKit.getTransaction(safeTxHash);
 
-		return transaction;
-	} catch (error) {
-		console.error("Error signing transaction:", error);
-		throw error;
-	}
+    return transaction;
+  } catch (error) {
+    console.error("Error signing transaction:", error);
+    throw error;
+  }
 };
 
 /**
@@ -181,33 +180,33 @@ export const signTransaction = async (safeTxHash) => {
  * @returns {Object} Transaction receipt
  */
 export const executeTransaction = async (safeTxHash) => {
-	try {
-		const protocolKit = await getProtocolKit();
-		const apiKit = getSafeApiKit();
+  try {
+    const protocolKit = await getProtocolKit();
+    const apiKit = getSafeApiKit();
 
-		// Get the transaction details
-		const safeTransaction = await apiKit.getTransaction(safeTxHash);
+    // Get the transaction details
+    const safeTransaction = await apiKit.getTransaction(safeTxHash);
 
-		// Check if threshold is met
-		if (
-			safeTransaction.confirmations.length <
-			safeTransaction.confirmationsRequired
-		) {
-			throw new Error(
-				`Insufficient signatures. Required: ${safeTransaction.confirmationsRequired}, Got: ${safeTransaction.confirmations.length}`,
-			);
-		}
+    // Check if threshold is met
+    if (
+      safeTransaction.confirmations.length <
+      safeTransaction.confirmationsRequired
+    ) {
+      throw new Error(
+        `Insufficient signatures. Required: ${safeTransaction.confirmationsRequired}, Got: ${safeTransaction.confirmations.length}`,
+      );
+    }
 
-		// Execute the transaction
-		const executeTxResponse =
-			await protocolKit.executeTransaction(safeTransaction);
-		const receipt = await executeTxResponse.transactionResponse?.wait();
+    // Execute the transaction
+    const executeTxResponse =
+      await protocolKit.executeTransaction(safeTransaction);
+    const receipt = await executeTxResponse.transactionResponse?.wait();
 
-		return receipt;
-	} catch (error) {
-		console.error("Error executing transaction:", error);
-		throw error;
-	}
+    return receipt;
+  } catch (error) {
+    console.error("Error executing transaction:", error);
+    throw error;
+  }
 };
 
 /**
@@ -216,13 +215,13 @@ export const executeTransaction = async (safeTxHash) => {
  * @returns {Object} Transaction details
  */
 export const getTransaction = async (safeTxHash) => {
-	try {
-		const apiKit = getSafeApiKit();
-		return await apiKit.getTransaction(safeTxHash);
-	} catch (error) {
-		console.error("Error fetching transaction:", error);
-		throw error;
-	}
+  try {
+    const apiKit = getSafeApiKit();
+    return await apiKit.getTransaction(safeTxHash);
+  } catch (error) {
+    console.error("Error fetching transaction:", error);
+    throw error;
+  }
 };
 
 /**
@@ -230,19 +229,19 @@ export const getTransaction = async (safeTxHash) => {
  * @returns {boolean}
  */
 export const isOwner = async () => {
-	try {
-		const protocolKit = await getProtocolKit();
-		const owners = await protocolKit.getOwners();
-		const signerAddress = await protocolKit
-			.getSafeProvider()
-			.getSignerAddress();
-		return owners
-			.map((o) => o.toLowerCase())
-			.includes(signerAddress.toLowerCase());
-	} catch (error) {
-		console.error("Error checking ownership:", error);
-		return false;
-	}
+  try {
+    const protocolKit = await getProtocolKit();
+    const owners = await protocolKit.getOwners();
+    const signerAddress = await protocolKit
+      .getSafeProvider()
+      .getSignerAddress();
+    return owners
+      .map((o) => o.toLowerCase())
+      .includes(signerAddress.toLowerCase());
+  } catch (error) {
+    console.error("Error checking ownership:", error);
+    return false;
+  }
 };
 
 /**
@@ -250,20 +249,20 @@ export const isOwner = async () => {
  * @returns {Object} Safe information (owners, threshold, nonce)
  */
 export const getSafeInfo = async () => {
-	try {
-		const protocolKit = await getProtocolKit();
-		const owners = await protocolKit.getOwners();
-		const threshold = await protocolKit.getThreshold();
-		const nonce = await protocolKit.getNonce();
+  try {
+    const protocolKit = await getProtocolKit();
+    const owners = await protocolKit.getOwners();
+    const threshold = await protocolKit.getThreshold();
+    const nonce = await protocolKit.getNonce();
 
-		return {
-			address: SAFE_ADDRESS,
-			owners,
-			threshold,
-			nonce,
-		};
-	} catch (error) {
-		console.error("Error fetching Safe info:", error);
-		throw error;
-	}
+    return {
+      address: SAFE_ADDRESS,
+      owners,
+      threshold,
+      nonce,
+    };
+  } catch (error) {
+    console.error("Error fetching Safe info:", error);
+    throw error;
+  }
 };

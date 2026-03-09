@@ -15,7 +15,7 @@ dotenv.config();
 const args = process.argv.slice(2);
 
 if (args.includes("--help") || args.includes("-h")) {
-	console.log(`
+  console.log(`
 📡 Blockchain Event Sync CLI
 
 Usage:
@@ -40,7 +40,7 @@ Environment Variables:
   RPC_URL               RPC endpoint (required)
   SYNC_BATCH_SIZE       Batch size for syncing (default: 1000)
     `);
-	process.exit(0);
+  process.exit(0);
 }
 
 const provider = getProvider(false);
@@ -52,11 +52,11 @@ console.log(`   From Block: ${fromBlock}`);
 console.log(`   To Block: ${toBlock}\n`);
 
 try {
-	await syncHistoricalEvents(fromBlock, toBlock);
-	console.log("\n✅ Synchronization completed successfully!\n");
-	process.exit(0);
+  await syncHistoricalEvents(fromBlock, toBlock);
+  console.log("\n✅ Synchronization completed successfully!\n");
+  process.exit(0);
 } catch (error) {
-	console.error("\n❌ Synchronization failed:", error.message);
-	console.error(error);
-	process.exit(1);
+  console.error("\n❌ Synchronization failed:", error.message);
+  console.error(error);
+  process.exit(1);
 }
