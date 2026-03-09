@@ -1,19 +1,20 @@
+import type { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "solidity-coverage";
 import env from "dotenv";
+
 env.config();
 
-/** @type import('hardhat/config').HardhatUserConfig */
-export default {
+const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.28",
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200
+        runs: 200,
       },
+      viaIR: true,
     },
-    viaIR: true,
   },
   networks: {
     hardhat: {
@@ -24,15 +25,15 @@ export default {
     sepolia: {
       url: process.env.INFURA_URL || "",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      gasPrice: "auto", // 👈 let ethers pick a good gas price
-      timeout: 120000,  // 120 seconds
+      gasPrice: "auto",
+      timeout: 120000,
     },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY || "",
   },
   sourcify: {
-    enabled: true
-  }
-
+    enabled: true,
+  },
 };
+export default config;

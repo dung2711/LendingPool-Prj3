@@ -5,17 +5,17 @@
  * Usage: node scripts/syncEvents.js [fromBlock] [toBlock]
  */
 
-import dotenv from 'dotenv';
-import { syncHistoricalEvents } from '../services/blockchain/index.js';
-import { getProvider } from '../services/blockchain/config.js';
+import dotenv from "dotenv";
+import { getProvider } from "../services/blockchain/config.js";
+import { syncHistoricalEvents } from "../services/blockchain/index.js";
 
 // Load environment variables
 dotenv.config();
 
 const args = process.argv.slice(2);
 
-if (args.includes('--help') || args.includes('-h')) {
-    console.log(`
+if (args.includes("--help") || args.includes("-h")) {
+  console.log(`
 📡 Blockchain Event Sync CLI
 
 Usage:
@@ -40,23 +40,23 @@ Environment Variables:
   RPC_URL               RPC endpoint (required)
   SYNC_BATCH_SIZE       Batch size for syncing (default: 1000)
     `);
-    process.exit(0);
+  process.exit(0);
 }
 
 const provider = getProvider(false);
-const fromBlock = (await provider.getBlockNumber()) - 20000;
-const toBlock = args[1] === 'latest' ? 'latest' : parseInt(args[1]) || 'latest';
+const fromBlock = (await provider.getBlockNumber()) - 10000;
+const toBlock = args[1] === "latest" ? "latest" : parseInt(args[1]) || "latest";
 
 console.log(`\n🔄 Starting event synchronization...`);
 console.log(`   From Block: ${fromBlock}`);
 console.log(`   To Block: ${toBlock}\n`);
 
 try {
-    await syncHistoricalEvents(fromBlock, toBlock);
-    console.log('\n✅ Synchronization completed successfully!\n');
-    process.exit(0);
+  await syncHistoricalEvents(fromBlock, toBlock);
+  console.log("\n✅ Synchronization completed successfully!\n");
+  process.exit(0);
 } catch (error) {
-    console.error('\n❌ Synchronization failed:', error.message);
-    console.error(error);
-    process.exit(1);
+  console.error("\n❌ Synchronization failed:", error.message);
+  console.error(error);
+  process.exit(1);
 }

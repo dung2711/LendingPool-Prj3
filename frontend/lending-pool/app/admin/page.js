@@ -1,73 +1,79 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import Paper from '@mui/material/Paper';
-import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
-import Grid from '@mui/material/Grid';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import CardHeader from '@mui/material/CardHeader';
-import Divider from '@mui/material/Divider';
-import Alert from '@mui/material/Alert';
-import CircularProgress from '@mui/material/CircularProgress';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemText from '@mui/material/ListItemText';
-import IconButton from '@mui/material/IconButton';
-import Chip from '@mui/material/Chip';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import SaveIcon from '@mui/icons-material/Save';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import PauseCircleIcon from '@mui/icons-material/PauseCircle';
-import PlayCircleIcon from '@mui/icons-material/PlayCircle';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import { getLendingPoolContract, getPriceRouterContract, getLiquidationContract, getInterestRateModelContract, getToken, getMyOracleContract } from '@/lib/web3';
-import * as SafeMultisigService from '@/services/SafeMultisigService';
+import AddIcon from "@mui/icons-material/Add";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import DeleteIcon from "@mui/icons-material/Delete";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import PauseCircleIcon from "@mui/icons-material/PauseCircle";
+import PlayCircleIcon from "@mui/icons-material/PlayCircle";
+import SaveIcon from "@mui/icons-material/Save";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardHeader from "@mui/material/CardHeader";
+import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
+import Divider from "@mui/material/Divider";
+import Grid from "@mui/material/Grid";
+import IconButton from "@mui/material/IconButton";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemText from "@mui/material/ListItemText";
+import Paper from "@mui/material/Paper";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { ethers } from "ethers";
+import { useEffect, useState } from "react";
+import {
+  getInterestRateModelContract,
+  getLendingPoolContract,
+  getLiquidationContract,
+  getMyOracleContract,
+  getPriceRouterContract,
+} from "@/lib/web3";
+import * as SafeMultisigService from "@/services/SafeMultisigService";
 
 export default function AdminPage() {
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [account, setAccount] = useState(null);
 
   // Protocol params
-  const [collateralFactor, setCollateralFactor] = useState('');
-  const [liquidationThreshold, setLiquidationThreshold] = useState('');
-  const [closeFactor, setCloseFactor] = useState('');
-  const [liquidationIncentive, setLiquidationIncentive] = useState('');
+  const [collateralFactor, setCollateralFactor] = useState("");
+  const [liquidationThreshold, setLiquidationThreshold] = useState("");
+  const [closeFactor, setCloseFactor] = useState("");
+  const [liquidationIncentive, setLiquidationIncentive] = useState("");
 
   // Market management
-  const [newMarketAsset, setNewMarketAsset] = useState('');
-  const [newMarketIRM, setNewMarketIRM] = useState('');
+  const [newMarketAsset, setNewMarketAsset] = useState("");
+  const [newMarketIRM, setNewMarketIRM] = useState("");
   const [markets, setMarkets] = useState([]);
 
   // Price management
-  const [priceAsset, setPriceAsset] = useState('');
-  const [priceFeed, setPriceFeed] = useState('');
-  const [priceSource, setPriceSource] = useState('chainlink');
-  const [oraclePrice, setOraclePrice] = useState('');
+  const [priceAsset, setPriceAsset] = useState("");
+  const [priceFeed, setPriceFeed] = useState("");
+  const [priceSource, setPriceSource] = useState("chainlink");
+  const [oraclePrice, setOraclePrice] = useState("");
 
   // Admin management
-  const [adminAddress, setAdminAddress] = useState('');
+  const [adminAddress, setAdminAddress] = useState("");
   const [adminStatus, setAdminStatus] = useState(true);
 
   // InterestRateModel read-only states
-  const [baseRate, setBaseRate] = useState('');
-  const [rateSlope1, setRateSlope1] = useState('');
-  const [rateSlope2, setRateSlope2] = useState('');
-  const [optimalUtilization, setOptimalUtilization] = useState('');
-  const [reserveFactor, setReserveFactor] = useState('');
+  const [baseRate, setBaseRate] = useState("");
+  const [rateSlope1, setRateSlope1] = useState("");
+  const [rateSlope2, setRateSlope2] = useState("");
+  const [optimalUtilization, setOptimalUtilization] = useState("");
+  const [reserveFactor, setReserveFactor] = useState("");
 
   // Safe Multisig states
   const [pendingTransactions, setPendingTransactions] = useState([]);
@@ -87,7 +93,7 @@ export default function AdminPage() {
             await checkAdminStatus();
           }
         } catch (error) {
-          console.error('Error on account change:', error);
+          console.error("Error on account change:", error);
         } finally {
           setPageLoading(false);
         }
@@ -96,7 +102,10 @@ export default function AdminPage() {
       window.ethereum.on("accountsChanged", handleAccountsChanged);
 
       return () => {
-        window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+        window.ethereum.removeListener(
+          "accountsChanged",
+          handleAccountsChanged,
+        );
       };
     }
     if (pageLoading) setPageLoading(false);
@@ -113,7 +122,7 @@ export default function AdminPage() {
           await checkAdminStatus();
         }
       } catch (err) {
-        console.error('Error checking wallet:', err);
+        console.error("Error checking wallet:", err);
       } finally {
         setPageLoading(false);
       }
@@ -136,9 +145,8 @@ export default function AdminPage() {
         }
       }
     } catch (err) {
-      console.error('Error checking admin status:', err);
+      console.error("Error checking admin status:", err);
     }
-
   };
 
   const loadCurrentValues = async () => {
@@ -157,9 +165,9 @@ export default function AdminPage() {
         allMarkets.map(async (market) => {
           const marketData = await lendingPool.markets(market);
           return marketData.isSupported ? market : null;
-        })
+        }),
       );
-      const supportedMarkets = marketChecks.filter(market => market !== null);
+      const supportedMarkets = marketChecks.filter((market) => market !== null);
       setMarkets(supportedMarkets);
 
       // Load Liquidation values
@@ -187,20 +195,19 @@ export default function AdminPage() {
 
       const rf = await interestRateModel.reserveFactor();
       setReserveFactor(ethers.formatUnits(rf, 18));
-
     } catch (err) {
-      console.error('Error loading current values:', err);
+      console.error("Error loading current values:", err);
     }
   };
 
   const showSuccess = (message) => {
     setSuccess(message);
-    setTimeout(() => setSuccess(''), 5000);
+    setTimeout(() => setSuccess(""), 5000);
   };
 
   const showError = (message) => {
     setError(message);
-    setTimeout(() => setError(''), 5000);
+    setTimeout(() => setError(""), 5000);
   };
 
   // LendingPool functions
@@ -218,7 +225,7 @@ export default function AdminPage() {
       const li = ethers.parseUnits(liquidationIncentive, 18);
       const secondtx = await liquidation.setLiquidateParams(lt, cf, li);
       await secondtx.wait();
-      showSuccess('Protocol params updated successfully!');
+      showSuccess("Protocol params updated successfully!");
       loadCurrentValues();
     } catch (err) {
       showError(`Error: ${err.message}`);
@@ -234,9 +241,11 @@ export default function AdminPage() {
       const lendingPool = await getLendingPoolContract();
       const tx = await lendingPool.supportMarket(newMarketAsset, newMarketIRM);
       await tx.wait();
-      showSuccess('Market added successfully! Remember to set price for the new market.');
-      setNewMarketAsset('');
-      setNewMarketIRM('');
+      showSuccess(
+        "Market added successfully! Remember to set price for the new market.",
+      );
+      setNewMarketAsset("");
+      setNewMarketIRM("");
       loadCurrentValues();
     } catch (err) {
       showError(`Error: ${err.message}`);
@@ -251,7 +260,7 @@ export default function AdminPage() {
       const lendingPool = await getLendingPoolContract();
       const tx = await lendingPool.unsupportMarket(asset);
       await tx.wait();
-      showSuccess('Market unsupported successfully!');
+      showSuccess("Market unsupported successfully!");
       loadCurrentValues();
     } catch (err) {
       showError(`Error: ${err.message}`);
@@ -265,10 +274,10 @@ export default function AdminPage() {
       setLoading(true);
       const priceRouter = await getPriceRouterContract();
 
-      if (priceSource === 'chainlink') {
+      if (priceSource === "chainlink") {
         const tx = await priceRouter.setChainlinkFeed(priceAsset, priceFeed);
         await tx.wait();
-        showSuccess('Chainlink price feed set successfully!');
+        showSuccess("Chainlink price feed set successfully!");
       } else {
         const myOracle = await getMyOracleContract();
         const price = ethers.parseEther(oraclePrice);
@@ -279,12 +288,12 @@ export default function AdminPage() {
         const tx2 = await myOracle.setPrice(priceAsset, price);
         await tx2.wait();
 
-        showSuccess('MyOracle price set successfully!');
+        showSuccess("MyOracle price set successfully!");
       }
 
-      setPriceAsset('');
-      setPriceFeed('');
-      setOraclePrice('');
+      setPriceAsset("");
+      setPriceFeed("");
+      setOraclePrice("");
     } catch (err) {
       showError(`Error: ${err.message}`);
     } finally {
@@ -307,8 +316,8 @@ export default function AdminPage() {
       await tx3.wait();
       const tx4 = await myOracle.setAdmin(adminAddress, adminStatus);
       await tx4.wait();
-      showSuccess(`Admin ${adminStatus ? 'added' : 'removed'} successfully!`);
-      setAdminAddress('');
+      showSuccess(`Admin ${adminStatus ? "added" : "removed"} successfully!`);
+      setAdminAddress("");
     } catch (err) {
       showError(`Error: ${err.message}`);
     } finally {
@@ -326,7 +335,7 @@ export default function AdminPage() {
       setIsSafeOwner(isOwner);
       await loadPendingTransactions();
     } catch (err) {
-      console.error('Error loading Safe info:', err);
+      console.error("Error loading Safe info:", err);
       showError(`Error loading Safe info: ${err.message}`);
     } finally {
       setSafeLoading(false);
@@ -338,7 +347,7 @@ export default function AdminPage() {
       const txs = await SafeMultisigService.getPendingTransactions();
       setPendingTransactions(txs);
     } catch (err) {
-      console.error('Error loading pending transactions:', err);
+      console.error("Error loading pending transactions:", err);
     }
   };
 
@@ -346,7 +355,9 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const { safeTxHash } = await SafeMultisigService.proposePause();
-      showSuccess(`Pause proposal created! Transaction hash: ${safeTxHash.substring(0, 10)}...`);
+      showSuccess(
+        `Pause proposal created! Transaction hash: ${safeTxHash.substring(0, 10)}...`,
+      );
       await loadPendingTransactions();
     } catch (err) {
       showError(`Error proposing pause: ${err.message}`);
@@ -359,7 +370,9 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const { safeTxHash } = await SafeMultisigService.proposeUnpause();
-      showSuccess(`Unpause proposal created! Transaction hash: ${safeTxHash.substring(0, 10)}...`);
+      showSuccess(
+        `Unpause proposal created! Transaction hash: ${safeTxHash.substring(0, 10)}...`,
+      );
       await loadPendingTransactions();
     } catch (err) {
       showError(`Error proposing unpause: ${err.message}`);
@@ -372,7 +385,7 @@ export default function AdminPage() {
     try {
       setLoading(true);
       await SafeMultisigService.signTransaction(safeTxHash);
-      showSuccess('Transaction signed successfully!');
+      showSuccess("Transaction signed successfully!");
       await loadPendingTransactions();
     } catch (err) {
       showError(`Error signing transaction: ${err.message}`);
@@ -384,8 +397,8 @@ export default function AdminPage() {
   const handleExecuteTransaction = async (safeTxHash) => {
     try {
       setLoading(true);
-      const receipt = await SafeMultisigService.executeTransaction(safeTxHash);
-      showSuccess('Transaction executed successfully!');
+      const _receipt = await SafeMultisigService.executeTransaction(safeTxHash);
+      showSuccess("Transaction executed successfully!");
       await loadPendingTransactions();
     } catch (err) {
       showError(`Error executing transaction: ${err.message}`);
@@ -400,25 +413,27 @@ export default function AdminPage() {
     }
   }, [tabValue, isAdmin]);
 
-
-
   return (
     <>
       {pageLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
           <CircularProgress />
         </Box>
-      ) : (!isAdmin || !account) ? (
+      ) : !isAdmin || !account ? (
         <Box sx={{ p: 3 }}>
           <Alert severity="error">
             <Typography variant="h6">Access Denied</Typography>
-            <Typography>You are not authorized to access the admin panel.</Typography>
+            <Typography>
+              You are not authorized to access the admin panel.
+            </Typography>
           </Alert>
         </Box>
       ) : (
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
-          <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <AdminPanelSettingsIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+          <Box sx={{ mb: 4, display: "flex", alignItems: "center", gap: 2 }}>
+            <AdminPanelSettingsIcon
+              sx={{ fontSize: 40, color: "primary.main" }}
+            />
             <Box>
               <Typography variant="h4" fontWeight="bold">
                 Admin Panel
@@ -429,11 +444,24 @@ export default function AdminPage() {
             </Box>
           </Box>
 
-          {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          {success && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {success}
+            </Alert>
+          )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
 
           <Paper sx={{ mb: 3 }}>
-            <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} variant="scrollable" scrollButtons="auto">
+            <Tabs
+              value={tabValue}
+              onChange={(e, newValue) => setTabValue(newValue)}
+              variant="scrollable"
+              scrollButtons="auto"
+            >
               <Tab label="Protocol Parameters" />
               <Tab label="Market Management" />
               <Tab label="Price Management" />
@@ -451,8 +479,14 @@ export default function AdminPage() {
                   <CardHeader title="Protocol Parameters" />
                   <Divider />
                   <CardContent>
-                    <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
-                      Configure collateral factor and liquidation parameters for the entire protocol
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      gutterBottom
+                      sx={{ mb: 3 }}
+                    >
+                      Configure collateral factor and liquidation parameters for
+                      the entire protocol
                     </Typography>
 
                     <Grid container spacing={3}>
@@ -472,7 +506,9 @@ export default function AdminPage() {
                           fullWidth
                           label="Liquidation Threshold (0-1)"
                           value={liquidationThreshold}
-                          onChange={(e) => setLiquidationThreshold(e.target.value)}
+                          onChange={(e) =>
+                            setLiquidationThreshold(e.target.value)
+                          }
                           type="number"
                           inputProps={{ step: "0.01" }}
                           helperText="Health factor threshold for liquidation"
@@ -494,7 +530,9 @@ export default function AdminPage() {
                           fullWidth
                           label="Liquidation Incentive (0-1)"
                           value={liquidationIncentive}
-                          onChange={(e) => setLiquidationIncentive(e.target.value)}
+                          onChange={(e) =>
+                            setLiquidationIncentive(e.target.value)
+                          }
                           type="number"
                           inputProps={{ step: "0.01" }}
                           helperText="Bonus reward for liquidators"
@@ -503,14 +541,17 @@ export default function AdminPage() {
                     </Grid>
 
                     <Alert severity="info" sx={{ mt: 3, mb: 2 }}>
-                      This will update both collateral parameters in LendingPool and liquidation parameters in Liquidation contract
+                      This will update both collateral parameters in LendingPool
+                      and liquidation parameters in Liquidation contract
                     </Alert>
 
                     <Button
                       variant="contained"
                       onClick={handleSetProtocolParams}
                       disabled={loading}
-                      startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                      startIcon={
+                        loading ? <CircularProgress size={20} /> : <SaveIcon />
+                      }
                       fullWidth
                       size="large"
                     >
@@ -527,9 +568,7 @@ export default function AdminPage() {
             <Grid container spacing={3}>
               <Grid item xs={12}>
                 <Card>
-                  <CardHeader
-                    title="Add New Market"
-                  />
+                  <CardHeader title="Add New Market" />
                   <Divider />
                   <CardContent>
                     <Grid container spacing={2}>
@@ -558,14 +597,19 @@ export default function AdminPage() {
                           disabled={loading || !newMarketAsset || !newMarketIRM}
                           startIcon={loading ? null : <AddIcon />}
                           fullWidth
-                          sx={{ height: '56px' }}
+                          sx={{ height: "56px" }}
                         >
-                          {loading ? <CircularProgress size={20} /> : "Add Market"}
+                          {loading ? (
+                            <CircularProgress size={20} />
+                          ) : (
+                            "Add Market"
+                          )}
                         </Button>
                       </Grid>
                     </Grid>
                     <Alert severity="warning" sx={{ mt: 2 }}>
-                      After adding a market, remember to set its price in the Price Management tab
+                      After adding a market, remember to set its price in the
+                      Price Management tab
                     </Alert>
                   </CardContent>
                 </Card>
@@ -576,13 +620,16 @@ export default function AdminPage() {
                   <CardHeader
                     title="Supported Markets"
                     action={
-                      <Chip label={`${markets.length} Markets`} color="primary" />
+                      <Chip
+                        label={`${markets.length} Markets`}
+                        color="primary"
+                      />
                     }
                   />
                   <Divider />
                   <CardContent>
                     {markets.length === 0 ? (
-                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Box sx={{ textAlign: "center", py: 4 }}>
                         <Typography color="text.secondary">
                           No markets supported yet. Add your first market above.
                         </Typography>
@@ -603,19 +650,19 @@ export default function AdminPage() {
                               </IconButton>
                             }
                             sx={{
-                              bgcolor: 'background.paper',
+                              bgcolor: "background.paper",
                               mb: 1,
                               borderRadius: 1,
-                              border: '1px solid',
-                              borderColor: 'divider'
+                              border: "1px solid",
+                              borderColor: "divider",
                             }}
                           >
                             <ListItemText
                               primary={market}
                               primaryTypographyProps={{
-                                fontFamily: 'monospace',
-                                fontSize: '0.9rem',
-                                fontWeight: 'medium'
+                                fontFamily: "monospace",
+                                fontSize: "0.9rem",
+                                fontWeight: "medium",
                               }}
                             />
                           </ListItem>
@@ -649,22 +696,30 @@ export default function AdminPage() {
                       <Typography variant="subtitle2" gutterBottom>
                         Price Source
                       </Typography>
-                      <Box sx={{ display: 'flex', gap: 2 }}>
+                      <Box sx={{ display: "flex", gap: 2 }}>
                         <Button
-                          variant={priceSource === 'chainlink' ? "contained" : "outlined"}
+                          variant={
+                            priceSource === "chainlink"
+                              ? "contained"
+                              : "outlined"
+                          }
                           onClick={() => {
-                            setPriceSource('chainlink');
-                            setOraclePrice('');
+                            setPriceSource("chainlink");
+                            setOraclePrice("");
                           }}
                           fullWidth
                         >
                           Chainlink Feed
                         </Button>
                         <Button
-                          variant={priceSource === 'myoracle' ? "contained" : "outlined"}
+                          variant={
+                            priceSource === "myoracle"
+                              ? "contained"
+                              : "outlined"
+                          }
                           onClick={() => {
-                            setPriceSource('myoracle');
-                            setPriceFeed('');
+                            setPriceSource("myoracle");
+                            setPriceFeed("");
                           }}
                           fullWidth
                         >
@@ -673,7 +728,7 @@ export default function AdminPage() {
                       </Box>
                     </Box>
 
-                    {priceSource === 'chainlink' ? (
+                    {priceSource === "chainlink" ? (
                       <>
                         <TextField
                           fullWidth
@@ -688,7 +743,13 @@ export default function AdminPage() {
                           variant="contained"
                           onClick={handleSetPrice}
                           disabled={loading || !priceAsset || !priceFeed}
-                          startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                          startIcon={
+                            loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              <SaveIcon />
+                            )
+                          }
                           fullWidth
                           size="large"
                         >
@@ -712,7 +773,13 @@ export default function AdminPage() {
                           variant="contained"
                           onClick={handleSetPrice}
                           disabled={loading || !priceAsset || !oraclePrice}
-                          startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                          startIcon={
+                            loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              <SaveIcon />
+                            )
+                          }
                           fullWidth
                           size="large"
                         >
@@ -722,9 +789,9 @@ export default function AdminPage() {
                     )}
 
                     <Alert severity="info" sx={{ mt: 3 }}>
-                      {priceSource === 'chainlink'
-                        ? 'Chainlink feeds provide decentralized, real-time price updates automatically'
-                        : 'Manual prices require admin to update them manually. Use for testing or assets without Chainlink feeds.'}
+                      {priceSource === "chainlink"
+                        ? "Chainlink feeds provide decentralized, real-time price updates automatically"
+                        : "Manual prices require admin to update them manually. Use for testing or assets without Chainlink feeds."}
                     </Alert>
                   </CardContent>
                 </Card>
@@ -740,7 +807,12 @@ export default function AdminPage() {
                   <CardHeader title="Admin Management" />
                   <Divider />
                   <CardContent>
-                    <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      gutterBottom
+                      sx={{ mb: 3 }}
+                    >
                       Add or remove admin privileges for addresses
                     </Typography>
 
@@ -757,7 +829,7 @@ export default function AdminPage() {
                       <Typography variant="subtitle2" gutterBottom>
                         Action
                       </Typography>
-                      <Box sx={{ display: 'flex', gap: 2 }}>
+                      <Box sx={{ display: "flex", gap: 2 }}>
                         <Button
                           variant={adminStatus ? "contained" : "outlined"}
                           onClick={() => setAdminStatus(true)}
@@ -781,15 +853,18 @@ export default function AdminPage() {
                       variant="contained"
                       onClick={handleSetAdmin}
                       disabled={loading || !adminAddress}
-                      startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                      startIcon={
+                        loading ? <CircularProgress size={20} /> : <SaveIcon />
+                      }
                       fullWidth
                       size="large"
                     >
-                      {adminStatus ? 'Add Admin' : 'Remove Admin'}
+                      {adminStatus ? "Add Admin" : "Remove Admin"}
                     </Button>
 
                     <Alert severity="warning" sx={{ mt: 3 }}>
-                      Be careful when managing admin privileges. Only trusted addresses should have admin access.
+                      Be careful when managing admin privileges. Only trusted
+                      addresses should have admin access.
                     </Alert>
                   </CardContent>
                 </Card>
@@ -806,7 +881,8 @@ export default function AdminPage() {
                   <Divider />
                   <CardContent>
                     <Alert severity="info" sx={{ mb: 3 }}>
-                      These parameters are read-only. The Interest Rate Model contract doesn't support updates after deployment.
+                      These parameters are read-only. The Interest Rate Model
+                      contract doesn't support updates after deployment.
                     </Alert>
                     <Grid container spacing={3}>
                       <Grid item xs={12} sm={6} md={4}>
@@ -875,7 +951,11 @@ export default function AdminPage() {
                         onClick={loadSafeInfo}
                         disabled={safeLoading}
                       >
-                        {safeLoading ? <CircularProgress size={20} /> : 'Refresh'}
+                        {safeLoading ? (
+                          <CircularProgress size={20} />
+                        ) : (
+                          "Refresh"
+                        )}
                       </Button>
                     }
                   />
@@ -887,7 +967,11 @@ export default function AdminPage() {
                           <Typography variant="body2" color="text.secondary">
                             Safe Address
                           </Typography>
-                          <Typography variant="body1" fontFamily="monospace" sx={{ mb: 2 }}>
+                          <Typography
+                            variant="body1"
+                            fontFamily="monospace"
+                            sx={{ mb: 2 }}
+                          >
                             {safeInfo.address}
                           </Typography>
                         </Grid>
@@ -911,7 +995,11 @@ export default function AdminPage() {
                           />
                         </Grid>
                         <Grid item xs={12}>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            gutterBottom
+                          >
                             Owners
                           </Typography>
                           {safeInfo.owners.map((owner, index) => (
@@ -919,19 +1007,25 @@ export default function AdminPage() {
                               key={index}
                               label={owner}
                               size="small"
-                              sx={{ mr: 1, mb: 1, fontFamily: 'monospace', fontSize: '0.75rem' }}
+                              sx={{
+                                mr: 1,
+                                mb: 1,
+                                fontFamily: "monospace",
+                                fontSize: "0.75rem",
+                              }}
                             />
                           ))}
                         </Grid>
                       </Grid>
                     ) : (
-                      <Box sx={{ textAlign: 'center', py: 2 }}>
+                      <Box sx={{ textAlign: "center", py: 2 }}>
                         <CircularProgress />
                       </Box>
                     )}
                     {!isSafeOwner && safeInfo && (
                       <Alert severity="warning" sx={{ mt: 2 }}>
-                        You are not a Safe owner. You can view transactions but cannot propose, sign, or execute them.
+                        You are not a Safe owner. You can view transactions but
+                        cannot propose, sign, or execute them.
                       </Alert>
                     )}
                   </CardContent>
@@ -944,8 +1038,15 @@ export default function AdminPage() {
                   <CardHeader title="Propose New Action" />
                   <Divider />
                   <CardContent>
-                    <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
-                      Propose a pause or unpause action. This will create a new transaction that requires {safeInfo?.threshold || '2'} signatures.
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      gutterBottom
+                      sx={{ mb: 3 }}
+                    >
+                      Propose a pause or unpause action. This will create a new
+                      transaction that requires {safeInfo?.threshold || "2"}{" "}
+                      signatures.
                     </Typography>
                     <Grid container spacing={2}>
                       <Grid item xs={12} sm={6}>
@@ -954,7 +1055,13 @@ export default function AdminPage() {
                           color="error"
                           onClick={handleProposePause}
                           disabled={loading || !isSafeOwner}
-                          startIcon={loading ? <CircularProgress size={20} /> : <PauseCircleIcon />}
+                          startIcon={
+                            loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              <PauseCircleIcon />
+                            )
+                          }
                           fullWidth
                           size="large"
                         >
@@ -967,7 +1074,13 @@ export default function AdminPage() {
                           color="success"
                           onClick={handleProposeUnpause}
                           disabled={loading || !isSafeOwner}
-                          startIcon={loading ? <CircularProgress size={20} /> : <PlayCircleIcon />}
+                          startIcon={
+                            loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              <PlayCircleIcon />
+                            )
+                          }
                           fullWidth
                           size="large"
                         >
@@ -987,16 +1100,19 @@ export default function AdminPage() {
                     action={
                       <Chip
                         label={`${pendingTransactions.length} Pending`}
-                        color={pendingTransactions.length > 0 ? "warning" : "default"}
+                        color={
+                          pendingTransactions.length > 0 ? "warning" : "default"
+                        }
                       />
                     }
                   />
                   <Divider />
                   <CardContent>
                     {pendingTransactions.length === 0 ? (
-                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Box sx={{ textAlign: "center", py: 4 }}>
                         <Typography color="text.secondary">
-                          No pending transactions. Propose an action above to get started.
+                          No pending transactions. Propose an action above to
+                          get started.
                         </Typography>
                       </Box>
                     ) : (
@@ -1006,19 +1122,23 @@ export default function AdminPage() {
                           const currentSigs = tx.confirmations?.length || 0;
                           const canExecute = currentSigs >= requiredSigs;
                           const hasUserSigned = tx.confirmations?.some(
-                            conf => conf.owner.toLowerCase() === account?.toLowerCase()
+                            (conf) =>
+                              conf.owner.toLowerCase() ===
+                              account?.toLowerCase(),
                           );
 
                           // Decode function name from data
-                          let actionName = 'Unknown';
+                          let actionName = "Unknown";
                           try {
                             const iface = new ethers.Interface([
-                              'function pause()',
-                              'function unpause()',
+                              "function pause()",
+                              "function unpause()",
                             ]);
-                            const decoded = iface.parseTransaction({ data: tx.data });
+                            const decoded = iface.parseTransaction({
+                              data: tx.data,
+                            });
                             actionName = decoded.name;
-                          } catch (e) {
+                          } catch (_e) {
                             // Unable to decode
                           }
 
@@ -1029,30 +1149,63 @@ export default function AdminPage() {
                               sx={{
                                 p: 2,
                                 mb: 2,
-                                border: canExecute ? '2px solid' : '1px solid',
-                                borderColor: canExecute ? 'success.main' : 'divider'
+                                border: canExecute ? "2px solid" : "1px solid",
+                                borderColor: canExecute
+                                  ? "success.main"
+                                  : "divider",
                               }}
                             >
                               <Grid container spacing={2} alignItems="center">
                                 <Grid item xs={12} md={6}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                    {actionName === 'pause' ? (
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 1,
+                                      mb: 1,
+                                    }}
+                                  >
+                                    {actionName === "pause" ? (
                                       <PauseCircleIcon color="error" />
                                     ) : (
                                       <PlayCircleIcon color="success" />
                                     )}
                                     <Typography variant="h6">
-                                      {actionName.charAt(0).toUpperCase() + actionName.slice(1)}
+                                      {actionName.charAt(0).toUpperCase() +
+                                        actionName.slice(1)}
                                     </Typography>
                                   </Box>
-                                  <Typography variant="body2" color="text.secondary" fontFamily="monospace" sx={{ mb: 1 }}>
+                                  <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                    fontFamily="monospace"
+                                    sx={{ mb: 1 }}
+                                  >
                                     {tx.safeTxHash.substring(0, 20)}...
                                   </Typography>
-                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      gap: 1,
+                                      flexWrap: "wrap",
+                                    }}
+                                  >
                                     <Chip
-                                      icon={hasUserSigned ? <CheckCircleIcon /> : <HourglassEmptyIcon />}
-                                      label={hasUserSigned ? "You Signed" : "Not Signed"}
-                                      color={hasUserSigned ? "success" : "default"}
+                                      icon={
+                                        hasUserSigned ? (
+                                          <CheckCircleIcon />
+                                        ) : (
+                                          <HourglassEmptyIcon />
+                                        )
+                                      }
+                                      label={
+                                        hasUserSigned
+                                          ? "You Signed"
+                                          : "Not Signed"
+                                      }
+                                      color={
+                                        hasUserSigned ? "success" : "default"
+                                      }
                                       size="small"
                                     />
                                     <Chip
@@ -1063,21 +1216,38 @@ export default function AdminPage() {
                                   </Box>
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                  <Box sx={{ display: 'flex', gap: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      gap: 1,
+                                      flexDirection: {
+                                        xs: "column",
+                                        sm: "row",
+                                      },
+                                    }}
+                                  >
                                     <Button
                                       variant="outlined"
-                                      onClick={() => handleSignTransaction(tx.safeTxHash)}
-                                      disabled={loading || !isSafeOwner || hasUserSigned}
+                                      onClick={() =>
+                                        handleSignTransaction(tx.safeTxHash)
+                                      }
+                                      disabled={
+                                        loading || !isSafeOwner || hasUserSigned
+                                      }
                                       startIcon={<CheckCircleIcon />}
                                       fullWidth
                                     >
-                                      {hasUserSigned ? 'Signed' : 'Sign'}
+                                      {hasUserSigned ? "Signed" : "Sign"}
                                     </Button>
                                     <Button
                                       variant="contained"
                                       color="primary"
-                                      onClick={() => handleExecuteTransaction(tx.safeTxHash)}
-                                      disabled={loading || !isSafeOwner || !canExecute}
+                                      onClick={() =>
+                                        handleExecuteTransaction(tx.safeTxHash)
+                                      }
+                                      disabled={
+                                        loading || !isSafeOwner || !canExecute
+                                      }
                                       startIcon={<PlayCircleIcon />}
                                       fullWidth
                                     >
