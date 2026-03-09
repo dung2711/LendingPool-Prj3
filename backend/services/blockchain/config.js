@@ -1,5 +1,5 @@
-import { ethers } from 'ethers';
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
+import { ethers } from "ethers";
 
 dotenv.config();
 
@@ -7,23 +7,23 @@ dotenv.config();
  * Blockchain configuration
  */
 export const config = {
-    // RPC URL - supports HTTP and WebSocket
-    rpcUrl: process.env.RPC_URL || 'http://localhost:8545',
-    wsUrl: process.env.WS_URL || 'ws://localhost:8545',
+	// RPC URL - supports HTTP and WebSocket
+	rpcUrl: process.env.RPC_URL || "http://localhost:8545",
+	wsUrl: process.env.WS_URL || "ws://localhost:8545",
 
-    // Contract addresses
-    lendingPoolAddress: process.env.LENDING_POOL_ADDRESS,
-    liquidationAddress: process.env.LIQUIDATION_ADDRESS,
-    priceRouterAddress: process.env.PRICE_ROUTER_ADDRESS,
+	// Contract addresses
+	lendingPoolAddress: process.env.LENDING_POOL_ADDRESS,
+	liquidationAddress: process.env.LIQUIDATION_ADDRESS,
+	priceRouterAddress: process.env.PRICE_ROUTER_ADDRESS,
 
-    // Network configuration
-    chainId: parseInt(process.env.CHAIN_ID || '31337'),
-    networkName: process.env.NETWORK_NAME || 'localhost',
+	// Network configuration
+	chainId: parseInt(process.env.CHAIN_ID || "31337"),
+	networkName: process.env.NETWORK_NAME || "localhost",
 
-    // Sync configuration
-    sync: {
-        batchSize: parseInt(process.env.SYNC_BATCH_SIZE || '1000')
-    }
+	// Sync configuration
+	sync: {
+		batchSize: parseInt(process.env.SYNC_BATCH_SIZE || "1000"),
+	},
 };
 
 /**
@@ -32,30 +32,34 @@ export const config = {
  * @returns {ethers.Provider}
  */
 export const getProvider = (useWebSocket = false) => {
-    try {
-        if (useWebSocket && config.wsUrl) {
-            return new ethers.WebSocketProvider(config.wsUrl);
-        }
-        return new ethers.JsonRpcProvider(config.rpcUrl);
-    } catch (error) {
-        console.error('Failed to create provider:', error);
-        throw error;
-    }
+	try {
+		if (useWebSocket && config.wsUrl) {
+			return new ethers.WebSocketProvider(config.wsUrl);
+		}
+		return new ethers.JsonRpcProvider(config.rpcUrl);
+	} catch (error) {
+		console.error("Failed to create provider:", error);
+		throw error;
+	}
 };
 
 /**
  * Validate configuration
  */
 export const validateConfig = () => {
-    const required = ['lendingPoolAddress'];
-    const missing = required.filter(key => !config[key]);
+	const required = ["lendingPoolAddress"];
+	const missing = required.filter((key) => !config[key]);
 
-    if (missing.length > 0) {
-        throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
-    }
+	if (missing.length > 0) {
+		throw new Error(
+			`Missing required environment variables: ${missing.join(", ")}`,
+		);
+	}
 
-    console.log('✅ Blockchain configuration validated');
-    console.log(`   Network: ${config.networkName} (Chain ID: ${config.chainId})`);
-    console.log(`   RPC: ${config.rpcUrl}`);
-    console.log(`   LendingPool: ${config.lendingPoolAddress}`);
+	console.log("✅ Blockchain configuration validated");
+	console.log(
+		`   Network: ${config.networkName} (Chain ID: ${config.chainId})`,
+	);
+	console.log(`   RPC: ${config.rpcUrl}`);
+	console.log(`   LendingPool: ${config.lendingPoolAddress}`);
 };

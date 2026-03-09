@@ -1,56 +1,56 @@
-import eventListener from './eventListener.js';
-import { validateConfig } from './config.js';
+import { validateConfig } from "./config.js";
+import eventListener from "./eventListener.js";
 
 /**
  * Initialize blockchain services
  */
 export const initializeBlockchainServices = async () => {
-    try {
-        console.log('\n🚀 Initializing blockchain services...\n');
+	try {
+		console.log("\n🚀 Initializing blockchain services...\n");
 
-        // Validate configuration
-        validateConfig();
+		// Validate configuration
+		validateConfig();
 
-        // Initialize and start event listener
-        await eventListener.initialize();
-        await eventListener.start();
+		// Initialize and start event listener
+		await eventListener.initialize();
+		await eventListener.start();
 
-        console.log('\n✅ Blockchain services initialized successfully\n');
+		console.log("\n✅ Blockchain services initialized successfully\n");
 
-        return true;
-    } catch (error) {
-        console.error('\n❌ Failed to initialize blockchain services:', error);
-        return false;
-    }
+		return true;
+	} catch (error) {
+		console.error("\n❌ Failed to initialize blockchain services:", error);
+		return false;
+	}
 };
 
 /**
  * Stop blockchain services
  */
 export const stopBlockchainServices = async () => {
-    try {
-        console.log('\n🛑 Stopping blockchain services...\n');
+	try {
+		console.log("\n🛑 Stopping blockchain services...\n");
 
-        await eventListener.stop();
+		await eventListener.stop();
 
-        console.log('\n✅ Blockchain services stopped\n');
-    } catch (error) {
-        console.error('\n❌ Failed to stop blockchain services:', error);
-    }
+		console.log("\n✅ Blockchain services stopped\n");
+	} catch (error) {
+		console.error("\n❌ Failed to stop blockchain services:", error);
+	}
 };
 
 /**
  * Get blockchain services status
  */
 export const getBlockchainStatus = async () => {
-    return await eventListener.getStatus();
+	return await eventListener.getStatus();
 };
 
 /**
  * Get event listener instance for subscribing to events
  */
 export const getEventListener = () => {
-    return eventListener;
+	return eventListener;
 };
 
 /**
@@ -58,6 +58,6 @@ export const getEventListener = () => {
  * @param {number} fromBlock - Starting block number
  * @param {number} toBlock - Ending block number (default: latest)
  */
-export const syncHistoricalEvents = async (fromBlock, toBlock = 'latest') => {
-    return await eventListener.syncPastEvents(fromBlock, toBlock);
+export const syncHistoricalEvents = async (fromBlock, toBlock = "latest") => {
+	return await eventListener.syncPastEvents(fromBlock, toBlock);
 };

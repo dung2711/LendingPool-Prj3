@@ -1,5 +1,5 @@
-import { Asset } from "../models/index.js";
 import { ethers } from "ethers";
+import { Asset } from "../models/index.js";
 
 /**
  * Get asset by Ethereum address
@@ -8,17 +8,17 @@ import { ethers } from "ethers";
  * @throws {Error} If address is invalid
  */
 export const getAssetByAddress = async (address) => {
-    if (!address) {
-        throw new Error('Address is required');
-    }
-    if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
-        throw new Error('Invalid Ethereum address');
-    }
-    try {
-        return await Asset.findByPk(address);
-    } catch (error) {
-        throw new Error(`Failed to fetch asset: ${error.message}`);
-    }
+	if (!address) {
+		throw new Error("Address is required");
+	}
+	if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
+		throw new Error("Invalid Ethereum address");
+	}
+	try {
+		return await Asset.findByPk(address);
+	} catch (error) {
+		throw new Error(`Failed to fetch asset: ${error.message}`);
+	}
 };
 
 /**
@@ -27,11 +27,11 @@ export const getAssetByAddress = async (address) => {
  * @throws {Error} If fetching fails
  */
 export const getAllAssets = async () => {
-    try {
-        return await Asset.findAll();
-    } catch (error) {
-        throw new Error(`Failed to fetch assets: ${error.message}`);
-    }
+	try {
+		return await Asset.findAll();
+	} catch (error) {
+		throw new Error(`Failed to fetch assets: ${error.message}`);
+	}
 };
 
 /**
@@ -45,109 +45,113 @@ export const getAllAssets = async () => {
  * @throws {Error} If input is invalid or asset already exists
  */
 export const createAsset = async (assetData) => {
-    const { address, name, symbol, decimals } = assetData;
+	const { address, name, symbol, decimals } = assetData;
 
-    if (!address || !name || !symbol || decimals === undefined) {
-        throw new Error('All asset fields are required');
-    }
-    if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
-        throw new Error('Invalid Ethereum address');
-    }
+	if (!address || !name || !symbol || decimals === undefined) {
+		throw new Error("All asset fields are required");
+	}
+	if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
+		throw new Error("Invalid Ethereum address");
+	}
 
-    try {
-        // Check if asset already exists
-        const existingAsset = await Asset.findByPk(address);
-        if (existingAsset) {
-            throw new Error('Asset already exists');
-        }
+	try {
+		// Check if asset already exists
+		const existingAsset = await Asset.findByPk(address);
+		if (existingAsset) {
+			throw new Error("Asset already exists");
+		}
 
-        return await Asset.create({
-            address,
-            name,
-            symbol,
-            decimals
-        });
-    } catch (error) {
-        // Re-throw custom errors
-        if (error.message === 'Asset already exists') {
-            throw error;
-        }
-        // Handle Sequelize unique constraint violations
-        if (error.name === 'SequelizeUniqueConstraintError') {
-            throw new Error('Asset already exists');
-        }
-        throw new Error(`Failed to create asset: ${error.message}`);
-    }
+		return await Asset.create({
+			address,
+			name,
+			symbol,
+			decimals,
+		});
+	} catch (error) {
+		// Re-throw custom errors
+		if (error.message === "Asset already exists") {
+			throw error;
+		}
+		// Handle Sequelize unique constraint violations
+		if (error.name === "SequelizeUniqueConstraintError") {
+			throw new Error("Asset already exists");
+		}
+		throw new Error(`Failed to create asset: ${error.message}`);
+	}
 };
 
 export const updateAssetSupportStatus = async (address, isSupported) => {
-    console.log(`Updating asset ${address} support status to ${isSupported}`);
-    if (!address) {
-        throw new Error('Address is required');
-    }
-    if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
-        throw new Error('Invalid Ethereum address');
-    }
-    if (typeof isSupported !== 'boolean') {
-        throw new Error('isSupported must be a boolean');
-    }
-    try {
-        const asset = await Asset.findByPk(address);
-        if (!asset) {
-            throw new Error('Asset not found');
-        }
-        asset.isSupported = isSupported;
-        await asset.save();
-        console.log("Asset after:", asset);
-        return asset;
-    } catch (error) {
-        if (error.message === 'Asset not found') {
-            throw error;
-        }
-        throw new Error(`Failed to update asset: ${error.message}`);
-    }
+	console.log(`Updating asset ${address} support status to ${isSupported}`);
+	if (!address) {
+		throw new Error("Address is required");
+	}
+	if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
+		throw new Error("Invalid Ethereum address");
+	}
+	if (typeof isSupported !== "boolean") {
+		throw new Error("isSupported must be a boolean");
+	}
+	try {
+		const asset = await Asset.findByPk(address);
+		if (!asset) {
+			throw new Error("Asset not found");
+		}
+		asset.isSupported = isSupported;
+		await asset.save();
+		console.log("Asset after:", asset);
+		return asset;
+	} catch (error) {
+		if (error.message === "Asset not found") {
+			throw error;
+		}
+		throw new Error(`Failed to update asset: ${error.message}`);
+	}
 };
 
-export const updateAssetBalances = async (address, totalDeposits, totalBorrows) => {
-    if (!address) {
-        throw new Error('Address is required');
-    }
-    if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
-        throw new Error('Invalid Ethereum address');
-    }
-    if (totalDeposits === undefined || totalBorrows === undefined) {
-        throw new Error('All balance fields are required');
-    }
-    try {
-        const asset = await Asset.findByPk(address);
-        if (!asset) {
-            throw new Error('Asset not found');
-        }
-        asset.totalDeposits = totalDeposits;
-        asset.totalBorrows = totalBorrows;
-        await asset.save();
-        return asset;
-    } catch (error) {
-        if (error.message === 'Asset not found') {
-            throw error;
-        }
-        throw new Error(`Failed to update asset balances: ${error.message}`);
-    }
+export const updateAssetBalances = async (
+	address,
+	totalDeposits,
+	totalBorrows,
+) => {
+	if (!address) {
+		throw new Error("Address is required");
+	}
+	if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
+		throw new Error("Invalid Ethereum address");
+	}
+	if (totalDeposits === undefined || totalBorrows === undefined) {
+		throw new Error("All balance fields are required");
+	}
+	try {
+		const asset = await Asset.findByPk(address);
+		if (!asset) {
+			throw new Error("Asset not found");
+		}
+		asset.totalDeposits = totalDeposits;
+		asset.totalBorrows = totalBorrows;
+		await asset.save();
+		return asset;
+	} catch (error) {
+		if (error.message === "Asset not found") {
+			throw error;
+		}
+		throw new Error(`Failed to update asset balances: ${error.message}`);
+	}
 };
 
 export const deleteAsset = async (address) => {
-    if (!address) {
-        throw new Error('Address is required');
-    }
-    if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
-        throw new Error('Invalid Ethereum address');
-    }
-    try {
-        const deleted = await Asset.destroy({ where: { address } });
-        return deleted > 0;
-    } catch (error) {
-        throw new Error(`Failed to delete asset: ${error.message}`);
-    }
+	if (!address) {
+		throw new Error("Address is required");
+	}
+	if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
+		throw new Error("Invalid Ethereum address");
+	}
+	try {
+		const deleted = await Asset.destroy({ where: { address } });
+		return deleted > 0;
+	} catch (error) {
+		throw new Error(`Failed to delete asset: ${error.message}`);
+	}
 };
 
 /**
@@ -157,22 +161,22 @@ export const deleteAsset = async (address) => {
  * @throws {Error} If input is invalid
  */
 export const getOrCreateAsset = async (assetData) => {
-    const { address, name, symbol, decimals } = assetData;
+	const { address, name, symbol, decimals } = assetData;
 
-    if (!address || !name || !symbol || decimals === undefined) {
-        throw new Error('All asset fields are required');
-    }
-    if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
-        throw new Error('Invalid Ethereum address');
-    }
+	if (!address || !name || !symbol || decimals === undefined) {
+		throw new Error("All asset fields are required");
+	}
+	if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
+		throw new Error("Invalid Ethereum address");
+	}
 
-    try {
-        const [asset, created] = await Asset.findOrCreate({
-            where: { address },
-            defaults: { address, name, symbol, decimals }
-        });
-        return { asset, created };
-    } catch (error) {
-        throw new Error(`Failed to get or create asset: ${error.message}`);
-    }
+	try {
+		const [asset, created] = await Asset.findOrCreate({
+			where: { address },
+			defaults: { address, name, symbol, decimals },
+		});
+		return { asset, created };
+	} catch (error) {
+		throw new Error(`Failed to get or create asset: ${error.message}`);
+	}
 };
