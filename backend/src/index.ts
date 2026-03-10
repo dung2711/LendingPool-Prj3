@@ -3,6 +3,12 @@ import cors from "cors";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import {
+  getBlockchainStatus,
+  getEventListener,
+  initializeBlockchainServices,
+  stopBlockchainServices,
+} from "../services/blockchain/index.js";
 import sequelize from "./config/database.js";
 import assetRoute from "./routes/assetRoute.js";
 import liquidatableUserRoute from "./routes/liquidatableUsersRoute.js";
@@ -10,12 +16,6 @@ import marketConfigRoute from "./routes/marketConfigRoute.js";
 import transactionRoute from "./routes/transactionRoute.js";
 import userAssetRoute from "./routes/userAssetRoute.js";
 import userRoute from "./routes/userRoute.js";
-import {
-  getBlockchainStatus,
-  getEventListener,
-  initializeBlockchainServices,
-  stopBlockchainServices,
-} from "./services/blockchain/index.js";
 
 const app = express();
 const PORT = process.env.PORT;

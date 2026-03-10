@@ -1,7 +1,7 @@
 import express from "express";
+import { calculateLiquidatableUsers } from "../../services/blockchain/eventHandlers.js";
+import eventListener from "../../services/blockchain/eventListener.js";
 import { getAllLiquidatableUsers } from "../controllers/liquidatableUsersController.js";
-import { calculateLiquidatableUsers } from "../services/blockchain/eventHandlers.js";
-import eventListener from "../services/blockchain/eventListener.js";
 
 const route = express.Router();
 
