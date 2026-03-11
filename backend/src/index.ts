@@ -15,7 +15,13 @@ import {
   getEventListener,
   initializeBlockchainServices,
   stopBlockchainServices,
-} from "./services/blockchain/index.js";
+} from "../services/blockchain/index.js";
+
+import { setupInfrastructure } from "./shared/bootstrap/common-setup.js";
+import { baseEnvSchema, validateEnv } from "./shared/config/index.js";
+
+const env = validateEnv(baseEnvSchema);
+await setupInfrastructure(env, "http-server");
 
 const app = express();
 const PORT = process.env.PORT;
