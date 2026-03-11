@@ -4,7 +4,7 @@ import {
   configureLogger,
   getAppLogger,
 } from "../config";
-import { createPostgreSQLService } from "../infra/postgre/sequelize";
+import { createPostgreSQLService } from "../infra";
 
 export async function setupInfrastructure<T extends BaseEnv>(
   env: T,
