@@ -9,7 +9,6 @@ import {
   initializeBlockchainServices,
   stopBlockchainServices,
 } from "../services/blockchain/index.js";
-import sequelize from "./config/database.js";
 import assetRoute from "./routes/assetRoute.js";
 import liquidatableUserRoute from "./routes/liquidatableUsersRoute.js";
 import marketConfigRoute from "./routes/marketConfigRoute.js";
@@ -34,15 +33,6 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"],
   },
 });
-
-try {
-  await sequelize.authenticate();
-  console.log("✅ DB connected");
-  await sequelize.sync(); // or { alter: true }
-  console.log("✅ Models synced");
-} catch (err) {
-  console.error("❌ DB connection error:", err);
-}
 
 // Middleware
 app.use(cors());

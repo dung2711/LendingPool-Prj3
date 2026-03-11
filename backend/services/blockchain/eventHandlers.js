@@ -4,28 +4,28 @@ import {
   getOrCreateAsset,
   updateAssetBalances,
   updateAssetSupportStatus,
-} from "../../controllers/assetController.js";
+} from "../../src/controllers/assetController.js";
 import {
   createLiquidatableUser,
   getAllLiquidatableUsers,
   removeLiquidatableUser,
-} from "../../controllers/liquidatableUsersController.js";
+} from "../../src/controllers/liquidatableUsersController.js";
 import {
   createMarketConfig,
   getMarketConfigByAddress,
   updateMarketConfig,
-} from "../../controllers/marketConfigController.js";
+} from "../../src/controllers/marketConfigController.js";
 import {
   createTransaction,
   getOrCreateTransaction,
-} from "../../controllers/transactionController.js";
+} from "../../src/controllers/transactionController.js";
 import {
   getAllAssetsUsers,
   getOrCreateUserAsset,
   getUserAsset,
   updateUserAsset,
-} from "../../controllers/userAssetController.js";
-import { getOrCreateUser } from "../../controllers/userController.js";
+} from "../../src/controllers/userAssetController.js";
+import { getOrCreateUser } from "../../src/controllers/userController.js";
 import {
   getERC20Contract,
   getLendingPoolContract,

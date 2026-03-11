@@ -7,7 +7,7 @@ import {
   initTransactionModel,
   initUserAssetModel,
   initUserModel,
-} from "../../../tmp_models";
+} from "../../../models";
 
 export function createDatabaseClient(sequelize: Sequelize) {
   const Asset = initAssetModel(sequelize);

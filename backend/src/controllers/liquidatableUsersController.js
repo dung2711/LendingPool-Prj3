@@ -1,8 +1,8 @@
-import { Liquidatable_Users } from "../models/index.js";
+import { LiquidatableUser } from "../models/index.js";
 
 export const getAllLiquidatableUsers = async () => {
   try {
-    return await Liquidatable_Users.findAll();
+    return await LiquidatableUser.findAll();
   } catch (error) {
     throw new Error(`Failed to fetch liquidatable users: ${error.message}`);
   }
@@ -14,7 +14,7 @@ export const createLiquidatableUser = async (userAddress) => {
   }
 
   try {
-    return await Liquidatable_Users.create({ userAddress });
+    return await LiquidatableUser.create({ userAddress });
   } catch (error) {
     // Re-throw custom errors
     if (error.message === "User is already marked as liquidatable") {
@@ -34,7 +34,7 @@ export const removeLiquidatableUser = async (userAddress) => {
   }
 
   try {
-    const deleted = await Liquidatable_Users.destroy({
+    const deleted = await LiquidatableUser.destroy({
       where: { userAddress },
     });
     return deleted > 0;
@@ -45,7 +45,7 @@ export const removeLiquidatableUser = async (userAddress) => {
 
 export const removeAllRows = async () => {
   try {
-    await Liquidatable_Users.destroy({ where: {} });
+    await LiquidatableUser.destroy({ where: {} });
   } catch (error) {
     throw new Error(`Failed to remove liquidatable users: ${error.message}`);
   }

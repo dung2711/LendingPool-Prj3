@@ -1,10 +1,10 @@
 import { ethers } from "ethers";
-import { User_Asset } from "../models/index.js";
+import { UserAsset } from "../models/index.js";
 
 /**
  * Get all user-asset associations for a specific user
  * @param {string} userAddress - Ethereum address of the user
- * @returns {Promise<User_Asset[]>} Array of user-asset instances
+ * @returns {Promise<UserAsset[]>} Array of user-asset instances
  * @throws {Error} If address is invalid
  */
 export const getAssetsByUser = async (userAddress) => {
@@ -15,7 +15,7 @@ export const getAssetsByUser = async (userAddress) => {
     throw new Error("Invalid Ethereum address");
   }
   try {
-    return await User_Asset.findAll({ where: { userAddress } });
+    return await UserAsset.findAll({ where: { userAddress } });
   } catch (error) {
     throw new Error(`Failed to fetch user assets: ${error.message}`);
   }
@@ -24,7 +24,7 @@ export const getAssetsByUser = async (userAddress) => {
 /**
  * Get all user-asset associations for a specific asset
  * @param {string} assetAddress - Ethereum address of the asset
- * @returns {Promise<User_Asset[]>} Array of user-asset instances
+ * @returns {Promise<UserAsset[]>} Array of user-asset instances
  * @throws {Error} If address is invalid
  */
 export const getUserAssetsByAsset = async (assetAddress) => {
@@ -35,7 +35,7 @@ export const getUserAssetsByAsset = async (assetAddress) => {
     throw new Error("Invalid Ethereum address");
   }
   try {
-    return await User_Asset.findAll({ where: { assetAddress } });
+    return await UserAsset.findAll({ where: { assetAddress } });
   } catch (error) {
     throw new Error(`Failed to fetch user assets: ${error.message}`);
   }
@@ -45,7 +45,7 @@ export const getUserAssetsByAsset = async (assetAddress) => {
  * Get specific user-asset association
  * @param {string} userAddress - Ethereum address of the user
  * @param {string} assetAddress - Ethereum address of the asset
- * @returns {Promise<User_Asset|null>} User-asset instance or null
+ * @returns {Promise<UserAsset|null>} User-asset instance or null
  * @throws {Error} If addresses are invalid
  */
 export const getUserAsset = async (userAddress, assetAddress) => {
@@ -59,7 +59,7 @@ export const getUserAsset = async (userAddress, assetAddress) => {
     throw new Error("Invalid Ethereum asset address");
   }
   try {
-    return await User_Asset.findOne({
+    return await UserAsset.findOne({
       where: { userAddress, assetAddress },
     });
   } catch (error) {
@@ -69,7 +69,7 @@ export const getUserAsset = async (userAddress, assetAddress) => {
 
 export const getAllAssetsUsers = async () => {
   try {
-    return await User_Asset.findAll();
+    return await UserAsset.findAll();
   } catch (error) {
     throw new Error(`Failed to fetch all user-assets: ${error.message}`);
   }
@@ -84,7 +84,7 @@ export const getAllAssetsUsers = async () => {
  * @param {string|number} data.borrowed - Borrowed amount (optional, default: '0')
  * @param {string|number} data.depositIndexSnapShot - Deposit index snapshot (optional, default: '1000000000000000000')
  * @param {string|number} data.borrowIndexSnapShot - Borrow index snapshot (optional, default: '1000000000000000000')
- * @returns {Promise<User_Asset>} Created user-asset instance
+ * @returns {Promise<UserAsset>} Created user-asset instance
  * @throws {Error} If input is invalid or association already exists
  */
 export const createUserAsset = async (data) => {
@@ -102,14 +102,14 @@ export const createUserAsset = async (data) => {
 
   try {
     // Check if association already exists
-    const existing = await User_Asset.findOne({
+    const existing = await UserAsset.findOne({
       where: { userAddress, assetAddress },
     });
     if (existing) {
       throw new Error("User-asset association already exists");
     }
 
-    return await User_Asset.create({
+    return await UserAsset.create({
       userAddress,
       assetAddress,
       deposited,
@@ -135,7 +135,7 @@ export const createUserAsset = async (data) => {
  * @param {string|number} updates.borrowed - New borrowed amount (optional)
  * @param {string|number} updates.depositIndexSnapShot - New deposit index (optional)
  * @param {string|number} updates.borrowIndexSnapShot - New borrow index (optional)
- * @returns {Promise<User_Asset>} Updated user-asset instance
+ * @returns {Promise<UserAsset>} Updated user-asset instance
  * @throws {Error} If addresses are invalid or association not found
  */
 export const updateUserAsset = async (userAddress, assetAddress, updates) => {
@@ -154,7 +154,7 @@ export const updateUserAsset = async (userAddress, assetAddress, updates) => {
   }
 
   try {
-    const userAsset = await User_Asset.findOne({
+    const userAsset = await UserAsset.findOne({
       where: { userAddress, assetAddress },
     });
     if (!userAsset) {
@@ -179,7 +179,7 @@ export const updateUserAsset = async (userAddress, assetAddress, updates) => {
 /**
  * Get or create user-asset association (idempotent operation)
  * @param {Object} data - User-asset data
- * @returns {Promise<{userAsset: User_Asset, created: boolean}>} User-asset instance and creation flag
+ * @returns {Promise<{userAsset: UserAsset, created: boolean}>} User-asset instance and creation flag
  * @throws {Error} If input is invalid
  */
 export const getOrCreateUserAsset = async (data) => {
@@ -196,7 +196,7 @@ export const getOrCreateUserAsset = async (data) => {
   }
 
   try {
-    const [userAsset, created] = await User_Asset.findOrCreate({
+    const [userAsset, created] = await UserAsset.findOrCreate({
       where: { userAddress, assetAddress },
       defaults: {
         userAddress,
@@ -230,7 +230,7 @@ export const deleteUserAsset = async (userAddress, assetAddress) => {
   }
 
   try {
-    const deleted = await User_Asset.destroy({
+    const deleted = await UserAsset.destroy({
       where: { userAddress, assetAddress },
     });
     return deleted > 0;

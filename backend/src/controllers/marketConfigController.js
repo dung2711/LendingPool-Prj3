@@ -1,8 +1,8 @@
 import { ethers } from "ethers";
-import { Market_config } from "../models/index.js";
+import { AssetConfig } from "../models/index.js";
 
 export const getMarketConfigByAddress = async (marketAddress) =>
-  await Market_config.findByPk(marketAddress);
+  await AssetConfig.findByPk(marketAddress);
 
 export const createMarketConfig = async (marketAddress) => {
   if (!marketAddress) {
@@ -14,7 +14,7 @@ export const createMarketConfig = async (marketAddress) => {
   ) {
     throw new Error("Invalid marketAddress format.");
   }
-  return await Market_config.create({
+  return await AssetConfig.create({
     marketAddress,
     baseRate: ethers.parseEther("0.02"),
     slope1: ethers.parseEther("0.08"),
