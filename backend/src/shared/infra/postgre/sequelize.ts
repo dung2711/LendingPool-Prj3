@@ -4,7 +4,10 @@ import type { BaseEnv } from "../../config/env/base";
 import { createDatabaseClient, type DatabaseClient } from "./models";
 
 export function createSequelizeClient(deps: {
-  env: Pick<BaseEnv, "POSTGRES_URL" | "POSTGRESQL_QUERY_LOG_THRESHOLD">;
+  env: Pick<
+    BaseEnv,
+    "POSTGRES_URL" | "POSTGRESQL_QUERY_LOG_THRESHOLD" | "NODE_ENV"
+  >;
   logger: Logger;
 }) {
   const { env, logger } = deps;
@@ -19,12 +22,10 @@ export function createSequelizeClient(deps: {
         });
       }
     },
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false,
-      },
-    },
+    dialectOptions:
+      env.NODE_ENV === "production"
+        ? { ssl: { require: true, rejectUnauthorized: true } }
+        : {},
   });
   logger.info("Sequelize client created with provided PostgreSQL URL");
 
