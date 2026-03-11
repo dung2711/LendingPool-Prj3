@@ -13,7 +13,7 @@ let liquidationABI;
 let priceRouterABI;
 try {
   // Try dynamic import first
-  const abisPath = path.resolve(__dirname, "../../../contracts/abis.js");
+  const abisPath = path.resolve(__dirname, "../../../shared/abis.js");
   if (fs.existsSync(abisPath)) {
     const abisModule = await import(abisPath);
     lendingPoolABI = abisModule.lendingPoolABI;
@@ -25,7 +25,7 @@ try {
 } catch (error) {
   console.error("Failed to import ABI:", error);
   throw new Error(
-    "LendingPool ABI not found. Ensure contracts/abis.js exports lendingPoolABI",
+    "LendingPool ABI not found. Ensure shared/abi.js exports lendingPoolABI",
   );
 }
 
