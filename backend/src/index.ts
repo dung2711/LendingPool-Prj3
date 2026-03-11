@@ -16,6 +16,11 @@ import marketConfigRoute from "./routes/marketConfigRoute.js";
 import transactionRoute from "./routes/transactionRoute.js";
 import userAssetRoute from "./routes/userAssetRoute.js";
 import userRoute from "./routes/userRoute.js";
+import { setupInfrastructure } from "./shared/bootstrap/common-setup.js";
+import { baseEnvSchema, validateEnv } from "./shared/config/index.js";
+
+const env = validateEnv(baseEnvSchema);
+await setupInfrastructure(env, "http-server");
 
 const app = express();
 const PORT = process.env.PORT;
