@@ -31,3 +31,7 @@ export async function setupInfrastructure<T extends BaseEnv>(
     cleanup,
   };
 }
+
+export type InfrastructureServices = Awaited<
+  ReturnType<typeof setupInfrastructure>
+>;

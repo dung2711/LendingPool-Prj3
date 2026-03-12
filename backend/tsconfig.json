@@ -9,6 +9,11 @@
     "module": "Preserve",
     "target": "esnext",
     "types": [],
+    "paths": {
+      "*": [
+        "./*"
+      ]
+    },
     // For nodejs:
     // "lib": ["esnext"],
     // "types": ["node"],
