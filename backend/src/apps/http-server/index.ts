@@ -9,9 +9,9 @@ import {
   initializeBlockchainServices,
   stopBlockchainServices,
 } from "../../../services/blockchain/index.js";
-import { createAssetController } from "../../modules/assets/asset.controller.js";
-import { createTransactionController } from "../../modules/transactions/transaction.controller.js";
-import { createUserController } from "../../modules/users/user.controller.js";
+import { createAssetController } from "../../modules/assets/asset.controller";
+import { createTransactionController } from "../../modules/transactions/transaction.controller";
+import { createUserController } from "../../modules/users/user.controller";
 import assetRoute from "../../routes/assetRoute.js";
 import liquidatableUserRoute from "../../routes/liquidatableUsersRoute.js";
 import marketConfigRoute from "../../routes/marketConfigRoute.js";
