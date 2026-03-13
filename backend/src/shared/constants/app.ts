@@ -10,3 +10,11 @@ export enum LogLevel {
   Warn = "warn",
   Error = "error",
 }
+
+export enum TransactionType {
+  Deposit = "deposit",
+  Withdraw = "withdraw",
+  Borrow = "borrow",
+  Repay = "repay",
+  Liquidate = "liquidate",
+}

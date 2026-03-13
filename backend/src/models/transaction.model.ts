@@ -5,7 +5,7 @@ import {
   Model,
   type Sequelize,
 } from "sequelize";
-import { TransactionType } from "../shared/constants/transaction";
+import { TransactionType } from "../shared/constants";
 
 export class Transaction extends Model<
   InferAttributes<Transaction>,
