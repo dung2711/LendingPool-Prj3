@@ -4,7 +4,7 @@ import {
   configureLogger,
   getAppLogger,
 } from "../config";
-import { createPostgreSQLService } from "../infra";
+import { createPostgreSQLService, createRabbitMQService } from "../infra";
 
 export async function setupInfrastructure<T extends BaseEnv>(
   env: T,
@@ -17,17 +17,27 @@ export async function setupInfrastructure<T extends BaseEnv>(
   await dbService.connect();
   const dbClient = dbService.getClient();
 
+  const rabbitService = createRabbitMQService({ env, logger });
+  await rabbitService.connect();
+  const rabbitChannel = rabbitService.getChannel();
+
   async function cleanup() {
     try {
       await dbService.close();
     } catch (error) {
       logger.warn("Failed to close Postgres connection {error}", { error });
     }
+    try {
+      await rabbitService.close();
+    } catch (error) {
+      logger.warn("Failed to close RabbitMQ connection {error}", { error });
+    }
   }
 
   return {
     logger,
     dbClient,
+    rabbitChannel,
     cleanup,
   };
 }

@@ -155,4 +155,4 @@ export function createBlockchainConfig(deps: {
   };
 }
 
-export type BlockchainRuntime = ReturnType<typeof createBlockchainConfig>;
+export type BlockchainConfig = ReturnType<typeof createBlockchainConfig>;

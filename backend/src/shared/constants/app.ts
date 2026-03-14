@@ -18,3 +18,7 @@ export enum TransactionType {
   Repay = "repay",
   Liquidate = "liquidate",
 }
+
+export enum RabbitMQEx {
+  BLOCKCHAIN_EVENTS = "blockchain.events",
+}

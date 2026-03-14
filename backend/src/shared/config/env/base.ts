@@ -12,6 +12,7 @@ export const baseEnvSchema = z.object({
     .number()
     .default(400)
     .describe("Postgres query log threshold in milliseconds"),
+  RABBITMQ_URL: z.url().describe("RabbitMQ connection URL"),
 });
 
 export type BaseEnv = z.infer<typeof baseEnvSchema>;
