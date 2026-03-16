@@ -19,6 +19,13 @@ export const blockchainEnvSchema = z.object({
   BSC_TESTNET_MY_ORACLE_ADDRESS: zEvmAddress.optional(),
   BSC_TESTNET_LIQUIDATION_ADDRESS: zEvmAddress.optional(),
   BSC_TESTNET_PRICE_ROUTER_ADDRESS: zEvmAddress.optional(),
+
+  MAX_BLOCK_RANGE: z
+    .number()
+    .int()
+    .positive()
+    .default(100)
+    .describe("Maximum block range to scan in one batch"),
 });
 
 export type BlockchainEnv = z.infer<typeof blockchainEnvSchema>;

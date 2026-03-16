@@ -1,6 +1,6 @@
-import type { Channel, ChannelWrapper } from "amqp-connection-manager";
 import type { Logger } from "@logtape/logtape";
-import type { RabbitMQEx } from "../constants";
+import type { Channel, ChannelWrapper } from "amqp-connection-manager";
+import type { RabbitMQEx, RabbitMQQueue } from "../constants";
 
 export function createRabbitMQHelperService(deps: {
   logger: Logger;
@@ -16,7 +16,7 @@ export function createRabbitMQHelperService(deps: {
     retryDelays = RETRY_DELAYS_MS,
   }: {
     mainEx: RabbitMQEx;
-    queueName: string;
+    queueName: RabbitMQQueue;
     action: (event: T) => Promise<void> | void;
     retryDelays?: number[];
   }): Promise<void> {
@@ -30,7 +30,7 @@ export function createRabbitMQHelperService(deps: {
         arguments: { "x-dead-letter-exchange": dlxEx },
       });
 
-      await channel.bindQueue(queueName, mainEx, "#");
+      await channel.bindQueue(queueName, mainEx, queueName);
 
       for (let i = 0; i < retryDelays.length; i++) {
         const retryQueue = `${queueName}.retry.${i}`;
@@ -40,7 +40,7 @@ export function createRabbitMQHelperService(deps: {
           arguments: {
             "x-message-ttl": retryDelays[i],
             "x-dead-letter-exchange": mainEx,
-            "x-dead-letter-routing-key": "#",
+            "x-dead-letter-routing-key": queueName,
           },
         });
 
@@ -111,9 +111,9 @@ export function createRabbitMQHelperService(deps: {
     });
   }
 
-  async function publishEvent<T extends { type: string }>(params: {
+  async function publishEvent<T>(params: {
     exchangeName: RabbitMQEx | string;
-    routingKey: string;
+    routingKey: RabbitMQQueue;
     event: T;
     options?: {
       persistent?: boolean;
@@ -143,13 +143,13 @@ export function createRabbitMQHelperService(deps: {
         timestamp: options.timestamp,
       });
 
-      logger.info(`Published ${event.type} event`, {
+      logger.info(`Published event`, {
         ...logContext,
         exchange: exchangeName,
         routingKey,
       });
     } catch (error) {
-      logger.error(`Failed to publish ${event.type} event`, {
+      logger.error(`Failed to publish event`, {
         error,
         ...logContext,
         exchange: exchangeName,
@@ -164,3 +164,7 @@ export function createRabbitMQHelperService(deps: {
     publishEvent,
   };
 }
+
+export type RabbitMQHelperService = ReturnType<
+  typeof createRabbitMQHelperService
+>;

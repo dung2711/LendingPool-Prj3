@@ -13,6 +13,7 @@ export class Transaction extends Model<
 > {
   declare id: bigint;
   declare transactionHash: string;
+  declare chainId: string;
   declare userId: string;
   declare assetId: string;
   declare type: TransactionType;
@@ -28,11 +29,16 @@ export function initTransactionModel(sequelize: Sequelize): typeof Transaction {
       id: {
         type: DataTypes.BIGINT,
         primaryKey: true,
+        autoIncrement: true,
       },
       transactionHash: {
         type: DataTypes.STRING,
         allowNull: false,
         unique: true,
+      },
+      chainId: {
+        type: DataTypes.STRING,
+        allowNull: false,
       },
       userId: {
         type: DataTypes.STRING,
@@ -76,6 +82,9 @@ export function initTransactionModel(sequelize: Sequelize): typeof Transaction {
       indexes: [
         {
           fields: ["transactionHash"],
+        },
+        {
+          fields: ["chainId"],
         },
         {
           fields: ["userId"],

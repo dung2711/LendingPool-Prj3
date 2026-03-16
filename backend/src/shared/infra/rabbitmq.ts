@@ -4,8 +4,8 @@ import {
   type ChannelWrapper,
   connect as createConnectionManager,
 } from "amqp-connection-manager";
-import type { BaseEnv } from "../config";
 import type { Channel } from "amqplib";
+import type { BaseEnv } from "../config";
 
 export function createRabbitMQService(deps: {
   env: Pick<BaseEnv, "RABBITMQ_URL">;
@@ -85,7 +85,7 @@ export function createRabbitMQService(deps: {
     }
   }
 
-  async function getChannel(): Promise<ChannelWrapper> {
+  function getChannel(): ChannelWrapper {
     if (!state.channelWrapper) {
       throw new Error(
         "RabbitMQ channel not initialized. Call connect() first.",
