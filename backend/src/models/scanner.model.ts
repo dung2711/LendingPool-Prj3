@@ -29,7 +29,7 @@ export const initScannerModel = (sequelize: Sequelize): typeof Scanner => {
       },
       lastScannedAt: {
         type: DataTypes.DATE,
-        allowNull: false,
+        defaultValue: DataTypes.NOW,
       },
       createdAt: {
         type: DataTypes.DATE,

@@ -6,12 +6,19 @@ export const baseEnvSchema = z.object({
     .enum(NodeEnv)
     .default(NodeEnv.Development)
     .describe("Node environment"),
+  PORT: z.coerce.number().default(4000).describe("Port to run the server on"),
   LOG_LEVEL: z.enum(LogLevel).default(LogLevel.Info).describe("Logging level"),
   POSTGRES_URL: z.url().describe("Postgres connection URL"),
   POSTGRESQL_QUERY_LOG_THRESHOLD: z.coerce
     .number()
     .default(400)
     .describe("Postgres query log threshold in milliseconds"),
+  RABBITMQ_URL: z.url().describe("RabbitMQ connection URL"),
+  REDIS_URL: z.url().describe("Redis connection URL"),
+  WS_EVENTS_CHANNEL: z
+    .string()
+    .default("lending-pool:ws:events")
+    .describe("Redis channel for WebSocket events"),
 });
 
 export type BaseEnv = z.infer<typeof baseEnvSchema>;
