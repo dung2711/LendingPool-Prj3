@@ -4,7 +4,7 @@ import {
   liquidationABI,
   myOracleABI,
   priceRouterABI,
-} from "../../../../shared/abis.js";
+} from "../../../shared/abis.js";
 
 export const chainIds = {
   sepolia: 11155111,

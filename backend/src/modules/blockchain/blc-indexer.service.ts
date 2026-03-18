@@ -45,15 +45,18 @@ export function createBLCIndexerService(deps: {
             },
           });
 
-          logger.info("Initialized scanner state for chain", {
+          logger.info("Initialized scanner state for chain {chainId}", {
             chainId,
             lastScannedBlock: state.lastScannedBlock,
           });
         } catch (error) {
-          logger.error("Failed to initialize scanner state for chain", {
-            chainId,
-            error: (error as Error).message,
-          });
+          logger.error(
+            "Failed to initialize scanner state for chain {chainId}: {error}",
+            {
+              chainId,
+              error: (error as Error).message,
+            },
+          );
         }
       }),
     );

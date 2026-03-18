@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:18.1-alpine
+    container_name: lending-pool-postgres-local
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lending_pool
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -U postgres' ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lending-pool-network
+
+  redis:
+    image: redis:8.4.0-alpine
+    container_name: lending-pool-redis-local
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ 'CMD', 'redis-cli', 'ping' ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lending-pool-network
+
+  rabbitmq:
+    image: rabbitmq:4.2.3-management-alpine
+    container_name: lending-pool-rabbitmq-local
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - '5672:5672' # AMQP port
+      - '15672:15672' # Management UI port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: [ 'CMD', 'rabbitmq-diagnostics', 'ping' ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lending-pool-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  lending-pool-network:
+    driver: bridge

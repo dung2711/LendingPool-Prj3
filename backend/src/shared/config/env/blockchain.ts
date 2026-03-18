@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { baseEnvSchema } from "./base";
 
 const zEvmAddress = z
   .string()
   .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid EVM address");
 
-export const blockchainEnvSchema = z.object({
+export const blockchainEnvSchema = baseEnvSchema.extend({
   ETHEREUM_RPC_URL: z.url().describe("Sepolia JSON-RPC URL"),
   BSC_RPC_URL: z.url().optional().describe("BSC Testnet JSON-RPC URL"),
 
