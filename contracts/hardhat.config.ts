@@ -18,10 +18,10 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      forking: {
-        url: process.env.INFURA_URL!,
-        blockNumber: 10473834,
-      },
+      // forking: {
+      //   url: process.env.INFURA_URL!,
+      //   blockNumber: 10473834,
+      // },
     },
     sepolia: {
       url: process.env.INFURA_URL!,
