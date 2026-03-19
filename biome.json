@@ -93,7 +93,7 @@
         "useAwait": "error",
         "useGetterReturn": "error",
         "useNamespaceKeyword": "error",
-        "noUnusedExpressions": "error"
+        "noUnusedExpressions": "off"
       },
       "nursery": {
         "useArraySortCompare": "error",

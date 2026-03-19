@@ -1,32 +1,32 @@
 {
-  "name": "lending-pool",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev --webpack",
-    "build": "next build --webpack",
-    "start": "next start"
-  },
-  "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^7.3.5",
-    "@mui/material": "^7.3.5",
-    "@safe-global/api-kit": "^4.0.1",
-    "@safe-global/protocol-kit": "^6.1.2",
-    "@safe-global/sdk-starter-kit": "^3.0.2",
-    "axios": "^1.13.2",
-    "ethers": "^6.15.0",
-    "next": "^16.1.1",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "socket.io-client": "^4.8.1"
-  },
-  "devDependencies": {
-    "@types/node": "^20.10.6",
-    "@types/react": "^19.0.1",
-    "@types/react-dom": "^19.0.1",
-    "babel-plugin-react-compiler": "1.0.0",
-    "typescript": "^5.3.3"
-  }
+	"name": "lending-pool",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "next dev --webpack",
+		"build": "next build --webpack",
+		"start": "next start"
+	},
+	"dependencies": {
+		"@emotion/react": "^11.14.0",
+		"@emotion/styled": "^11.14.1",
+		"@mui/icons-material": "^7.3.5",
+		"@mui/material": "^7.3.5",
+		"@safe-global/api-kit": "^4.0.1",
+		"@safe-global/protocol-kit": "^6.1.2",
+		"@safe-global/sdk-starter-kit": "^3.0.2",
+		"axios": "^1.13.2",
+		"ethers": "^6.15.0",
+		"next": "^16.1.1",
+		"react": "19.2.0",
+		"react-dom": "19.2.0",
+		"socket.io-client": "^4.8.1"
+	},
+	"devDependencies": {
+		"@types/node": "^20.10.6",
+		"@types/react": "^19.0.1",
+		"@types/react-dom": "^19.0.1",
+		"babel-plugin-react-compiler": "1.0.0",
+		"typescript": "^5.3.3"
+	}
 }

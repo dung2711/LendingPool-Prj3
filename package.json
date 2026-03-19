@@ -1,14 +1,14 @@
 {
-  "type": "module",
-  "scripts": {
-    "lint": "npx @biomejs/biome lint",
-    "format": "npx @biomejs/biome format . --write",
-    "check": "npx @biomejs/biome check . --write"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.6"
-  },
-  "dependencies": {
-    "ethers": "^6.16.0"
-  }
+	"type": "module",
+	"scripts": {
+		"lint": "npx @biomejs/biome lint",
+		"format": "npx @biomejs/biome format . --write",
+		"check": "npx @biomejs/biome check . --write"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.6"
+	},
+	"dependencies": {
+		"ethers": "^6.16.0"
+	}
 }

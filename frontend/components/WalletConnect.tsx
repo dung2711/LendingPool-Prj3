@@ -84,7 +84,9 @@ export default function WalletConnect(): ReactElement {
         };
       }
 
-      return () => {};
+      return () => {
+        // No cleanup needed for this case
+      };
     }
   }, []);
 
