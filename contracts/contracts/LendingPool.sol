@@ -9,22 +9,36 @@ import {
     SafeERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {
-    ReentrancyGuard
-} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+    ReentrancyGuardUpgradeable
+} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {
+    AccessControlUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {
+    PausableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {
+    Initializable
+} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {
+    UUPSUpgradeable
+} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {
     IPriceRouter,
     IInterestRateModel,
     ILiquidation
 } from "./interfaces/Interfaces.sol";
+import {LendingPoolStorage} from "./LendingPoolStorage.sol";
 
-contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
+contract LendingPool is
+    Initializable,
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable,
+    LendingPoolStorage
+{
     using SafeERC20 for IERC20;
-
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    uint public constant SECONDS_PER_YEAR = 60 * 60 * 24 * 365;
-    uint public constant SCALE = 1e18;
 
     event AdminAdded(address indexed admin);
     event AdminRemoved(address indexed admin);
@@ -55,48 +69,34 @@ contract LendingPool is AccessControl, Pausable, ReentrancyGuard {
         uint newDepositIndex
     );
 
-    struct Market {
-        bool isSupported;
-        uint totalDeposits;
-        uint totalBorrows;
-        uint borrowIndex;
-        uint depositIndex;
-        uint lastUpdateTimestamp;
-        address interestRateModel;
+    constructor() {
+        _disableInitializers();
     }
 
-    struct Balance {
-        uint deposited;
-        uint borrowed;
-        uint borrowIndexSnapShot;
-        uint depositIndexSnapShot;
-    }
-
-    mapping(address => Market) public markets; // asset => Market
-    address[] public allMarkets; // list of all supported assets
-    mapping(address => bool) public marketExists; // asset => exists
-    mapping(address => mapping(address => Balance)) public userBalances; // user => asset => Balance
-    mapping(address => address[]) public userMarkets; // user => list of assets
-    mapping(address => mapping(address => bool)) public userMarketExists; // user => asset => exists
-
-    uint public collateralFactor; // 18 decimals
-
-    address public liquidation;
-    address public priceRouter;
-
-    constructor(
+    function initialize(
         address _liquidation,
         address _priceRouter,
         uint _collateralFactor,
         address _admin
-    ) {
+    ) public initializer {
+        __UUPSUpgradeable_init();
+        __Pausable_init();
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+
         require(_admin != address(0), "Invalid admin address");
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(PAUSER_ROLE, _admin);
+        _grantRole(UPGRADER_ROLE, _admin);
+
         liquidation = _liquidation;
         priceRouter = _priceRouter;
         collateralFactor = _collateralFactor;
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(PAUSER_ROLE, _admin);
     }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     modifier onlyLiquidation() {
         require(msg.sender == liquidation, "Not liquidation contract");
