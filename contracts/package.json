@@ -1,7 +1,6 @@
 {
   "name": "lending-pool-prj3",
   "version": "1.0.0",
-  "type": "module",
   "scripts": {
     "test": "hardhat test",
     "compile": "hardhat compile",

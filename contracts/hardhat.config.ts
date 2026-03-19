@@ -19,11 +19,12 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       forking: {
-        url: process.env.INFURA_URL || "",
+        url: process.env.INFURA_URL!,
+        blockNumber: 10473834,
       },
     },
     sepolia: {
-      url: process.env.INFURA_URL || "",
+      url: process.env.INFURA_URL!,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       gasPrice: "auto",
       timeout: 120000,

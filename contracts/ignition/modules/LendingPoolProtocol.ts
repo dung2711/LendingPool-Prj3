@@ -1,7 +1,5 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
-import hardhat from "hardhat";
-
-const { ethers } = hardhat;
+import { ethers } from "ethers";
 
 export default buildModule("LendingPoolProtocol", (m) => {
   const SAFE_ADDRESS = process.env.SAFE_ADDRESS;
