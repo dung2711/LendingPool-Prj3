@@ -8,7 +8,7 @@ export function createRedisService(deps: {
 }) {
   const { env, logger } = deps;
 
-  let state: {
+  const state: {
     client: Redis | null;
     isConnecting: boolean;
   } = {

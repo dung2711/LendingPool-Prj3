@@ -40,7 +40,7 @@ export function createPostgreSQLService(deps: {
   logger: Logger;
 }) {
   const { env, logger } = deps;
-  let state: {
+  const state: {
     client: Sequelize | null;
     db: DatabaseClient | null;
     isConnecting: boolean;

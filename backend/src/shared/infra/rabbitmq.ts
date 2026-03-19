@@ -12,7 +12,7 @@ export function createRabbitMQService(deps: {
   logger: Logger;
 }) {
   const { env, logger } = deps;
-  let state: {
+  const state: {
     connectionManager: AmqpConnectionManager | null;
     channelWrapper: ChannelWrapper | null;
     isConnecting: boolean;
