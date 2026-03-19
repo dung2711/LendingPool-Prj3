@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "scripts": {
     "lint": "npx @biomejs/biome lint",
     "format": "npx @biomejs/biome format . --write",

@@ -74,7 +74,7 @@ const wsServer = createWsServer({
 });
 
 // Start server
-httpServer.listen(env.PORT, async () => {
+httpServer.listen(env.PORT, "0.0.0.0", async () => {
   logger.info("Server is running on http://localhost:{port}", {
     port: env.PORT,
   });
@@ -98,6 +98,11 @@ async function shutdown() {
       message: (error as Error).message,
     });
   }
+
+  // Close HTTP server
+  httpServer.close(() => {
+    logger.info("HTTP server closed");
+  });
 
   await cleanup();
   process.exit(0);

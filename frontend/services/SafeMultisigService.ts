@@ -84,9 +84,8 @@ export const safeMultisigService = {
 
       const safeTxHash = await protocolKit.getTransactionHash(safeTransaction);
       const signature = await protocolKit.signHash(safeTxHash);
-      const signerAddress = (await protocolKit
-        .getSafeProvider()
-        .getSignerAddress()) || "";
+      const signerAddress =
+        (await protocolKit.getSafeProvider().getSignerAddress()) || "";
 
       await apiKit.proposeTransaction({
         safeAddress: SAFE_ADDRESS,
@@ -125,9 +124,8 @@ export const safeMultisigService = {
 
       const safeTxHash = await protocolKit.getTransactionHash(safeTransaction);
       const signature = await protocolKit.signHash(safeTxHash);
-      const signerAddress = (await protocolKit
-        .getSafeProvider()
-        .getSignerAddress()) || "";
+      const signerAddress =
+        (await protocolKit.getSafeProvider().getSignerAddress()) || "";
 
       await apiKit.proposeTransaction({
         safeAddress: SAFE_ADDRESS,
