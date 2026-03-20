@@ -14,21 +14,16 @@ contract InterestRateModel {
     uint public optimalUtilization; // e.g. 0.8e18 = 80%
     uint public reserveFactor; // e.g. 0.1e18 = 10%
 
-    mapping(address => bool) public isAdmin;
-
+    address public controller;
     address public lendingPool;
 
-    // _______Event_______
-    event LendingPoolSet(address indexed pool);
-    event AdminSet(address indexed admin, bool allowed);
-
-    // _______Constructor_______
     constructor(
         uint _baseRate,
         uint _rateSlope1,
         uint _rateSlope2,
         uint _optimalUtilization,
-        uint _reserveFactor
+        uint _reserveFactor,
+        address _controller
     ) {
         require(_optimalUtilization <= 1e18, "Invalid optimal utilization");
         require(_reserveFactor <= 1e18, "Invalid reserve factor");
@@ -37,40 +32,48 @@ contract InterestRateModel {
         rateSlope2 = _rateSlope2;
         optimalUtilization = _optimalUtilization;
         reserveFactor = _reserveFactor;
-        isAdmin[msg.sender] = true;
+        controller = _controller;
     }
 
-    modifier onlyAdmin() {
-        require(isAdmin[msg.sender], "Not an admin");
+    modifier onlyController() {
+        require(msg.sender == controller, "Only controller can call");
         _;
     }
 
-    function setLendingPool(address _lendingPool) external onlyAdmin {
-        require(_lendingPool != address(0), "Invalid pool");
-        require(lendingPool == address(0), "Lending pool already set");
-        lendingPool = _lendingPool;
-        emit LendingPoolSet(_lendingPool);
+    function setController(address _controller) external onlyController {
+        require(_controller != address(0), "Invalid controller address");
+        controller = _controller;
     }
 
-    function setAdmin(address admin, bool allowed) external onlyAdmin{
-        isAdmin[admin] = allowed;
-        emit AdminSet(admin, allowed);
+    function setLendingPool(address _lendingPool) external onlyController {
+        require(_lendingPool != address(0), "Invalid pool");
+        lendingPool = _lendingPool;
     }
 
     function getBorrowRate(address asset) public view returns (uint) {
-        uint utilizationRate = ILendingPool(lendingPool).getUtilizationRate(asset);
-        if(utilizationRate == 0) return 0;
-        if(utilizationRate <= optimalUtilization){
-           return baseRate + utilizationRate * rateSlope1 / SCALE;
+        uint utilizationRate = ILendingPool(lendingPool).getUtilizationRate(
+            asset
+        );
+        if (utilizationRate == 0) return 0;
+        if (utilizationRate <= optimalUtilization) {
+            return baseRate + (utilizationRate * rateSlope1) / SCALE;
         } else {
-           return baseRate + rateSlope1 * optimalUtilization / SCALE + 
-                                            rateSlope2 * (utilizationRate - optimalUtilization) / SCALE;
+            return
+                baseRate +
+                (rateSlope1 * optimalUtilization) /
+                SCALE +
+                (rateSlope2 * (utilizationRate - optimalUtilization)) /
+                SCALE;
         }
     }
 
     function getDepositRate(address asset) public view returns (uint) {
         uint borrowRate = getBorrowRate(asset);
-        uint utilizationRate = ILendingPool(lendingPool).getUtilizationRate(asset);
-        return (borrowRate * utilizationRate * (SCALE-reserveFactor)) / (SCALE * SCALE);
+        uint utilizationRate = ILendingPool(lendingPool).getUtilizationRate(
+            asset
+        );
+        return
+            (borrowRate * utilizationRate * (SCALE - reserveFactor)) /
+            (SCALE * SCALE);
     }
 }

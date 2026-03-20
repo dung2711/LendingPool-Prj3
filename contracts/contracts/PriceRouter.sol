@@ -6,12 +6,6 @@ import {
     AggregatorV3Interface
 } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {
-    IERC20Metadata
-} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {
-    AccessControlUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {
     Initializable
 } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {
@@ -20,90 +14,89 @@ import {
 import {IMyOracle} from "./interfaces/Interfaces.sol";
 import {PriceRouterStorage} from "./PriceRouterStorage.sol";
 
-contract PriceRouter is
-    Initializable,
-    AccessControlUpgradeable,
-    UUPSUpgradeable,
-    PriceRouterStorage
-{
+contract PriceRouter is Initializable, UUPSUpgradeable, PriceRouterStorage {
     event FeedSet(address indexed asset, address feedOrToken, Source source);
     event FeedRemoved(address indexed asset);
-    event MyOracleUpdated(address indexed newMyOracle);
+
+    modifier onlyController() {
+        require(msg.sender == controller, "Only controller can call");
+        _;
+    }
 
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(address _myOracle) public initializer {
-        __AccessControl_init();
-        __UUPSUpgradeable_init();
+    function initialize(
+        address _myOracle,
+        address _controller
+    ) public initializer {
+        require(_myOracle != address(0), "Invalid oracle");
+        require(_controller != address(0), "Invalid controller");
         myOracle = _myOracle;
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        controller = _controller;
     }
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    ) internal override onlyController {}
 
-    function setAdmin(
-        address admin,
-        bool status
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (status) {
-            _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        } else {
-            _revokeRole(DEFAULT_ADMIN_ROLE, admin);
-        }
+    function setController(address _controller) external onlyController {
+        require(_controller != address(0), "Invalid controller address");
+        controller = _controller;
     }
 
-    function setMyOracle(
-        address _myOracle
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMyOracle(address _myOracle) external onlyController {
         myOracle = _myOracle;
-        emit MyOracleUpdated(_myOracle);
     }
 
     function setChainlinkFeed(
         address asset,
         address feed
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyController {
         feeds[asset] = FeedInfo({source: Source.CHAINLINK, feedOrToken: feed});
         emit FeedSet(asset, feed, Source.CHAINLINK);
     }
 
-    function setMyOracleFeed(
-        address asset
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMyOracleFeed(address asset) external onlyController {
         feeds[asset] = FeedInfo({source: Source.MYORACLE, feedOrToken: asset});
         emit FeedSet(asset, asset, Source.MYORACLE);
     }
 
-    function removeFeed(address asset) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function removeFeed(address asset) external onlyController {
         feeds[asset] = FeedInfo({source: Source.NONE, feedOrToken: address(0)});
         emit FeedRemoved(asset);
     }
 
     function getPrice(address asset) public view returns (uint) {
-        require(feeds[asset].source != Source.NONE, "No price feed available");
         FeedInfo memory feedInfo = feeds[asset];
+        require(feedInfo.source != Source.NONE, "No price feed available");
         if (feedInfo.source == Source.CHAINLINK) {
             AggregatorV3Interface priceFeed = AggregatorV3Interface(
                 feedInfo.feedOrToken
             );
-            (, int price, , , ) = priceFeed.latestRoundData();
-            require(price > 0, "Invalid price from Chainlink");
+            (
+                uint80 roundId,
+                int chainlinkPrice,
+                ,
+                uint updatedAt,
+                uint80 answeredInRound
+            ) = priceFeed.latestRoundData();
+            require(updatedAt > 0, "Round not complete");
+            require(answeredInRound >= roundId, "Stale price");
+            require(chainlinkPrice > 0, "Invalid price from Chainlink");
             uint feedDecimal = priceFeed.decimals();
             if (feedDecimal > 18) {
-                price = price / int(10 ** (feedDecimal - 18));
+                chainlinkPrice = chainlinkPrice / int(10 ** (feedDecimal - 18));
             } else {
-                price = price * int(10 ** (18 - feedDecimal));
+                chainlinkPrice = chainlinkPrice * int(10 ** (18 - feedDecimal));
             }
-            return uint(price); // Normalize to 18 decimals
+            return uint(chainlinkPrice); // Normalize to 18 decimals
         } else if (feedInfo.source == Source.MYORACLE) {
-            uint price = IMyOracle(myOracle).getPriceMyOracle(
+            uint myOraclePrice = IMyOracle(myOracle).getPriceMyOracle(
                 feedInfo.feedOrToken
             );
-            return price;
+            return myOraclePrice;
         } else {
             revert("Invalid price source");
         }

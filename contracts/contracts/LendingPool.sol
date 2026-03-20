@@ -9,14 +9,11 @@ import {
     SafeERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {
-    ReentrancyGuardUpgradeable
-} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import {
-    AccessControlUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+    ReentrancyGuardTransient
+} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {
     PausableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {
     Initializable
 } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -32,16 +29,13 @@ import {LendingPoolStorage} from "./LendingPoolStorage.sol";
 
 contract LendingPool is
     Initializable,
-    AccessControlUpgradeable,
     PausableUpgradeable,
-    ReentrancyGuardUpgradeable,
+    ReentrancyGuardTransient,
     UUPSUpgradeable,
     LendingPoolStorage
 {
     using SafeERC20 for IERC20;
 
-    event AdminAdded(address indexed admin);
-    event AdminRemoved(address indexed admin);
     event MarketSupported(address indexed asset, address interestRateModel);
     event MarketUnsupported(address indexed asset);
     event CollateralFactorUpdated(uint newCollateralFactor);
@@ -69,6 +63,7 @@ contract LendingPool is
         uint newDepositIndex
     );
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -77,18 +72,18 @@ contract LendingPool is
         address _liquidation,
         address _priceRouter,
         uint _collateralFactor,
-        address _admin
+        address _controller
     ) public initializer {
-        __UUPSUpgradeable_init();
         __Pausable_init();
-        __AccessControl_init();
-        __ReentrancyGuard_init();
 
-        require(_admin != address(0), "Invalid admin address");
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(PAUSER_ROLE, _admin);
-        _grantRole(UPGRADER_ROLE, _admin);
-
+        require(_controller != address(0), "Invalid controller address");
+        require(_liquidation != address(0), "Invalid liquidation");
+        require(_priceRouter != address(0), "Invalid price router");
+        require(
+            _collateralFactor > 0 && _collateralFactor <= SCALE,
+            "Invalid collateral factor"
+        );
+        controller = _controller;
         liquidation = _liquidation;
         priceRouter = _priceRouter;
         collateralFactor = _collateralFactor;
@@ -96,7 +91,12 @@ contract LendingPool is
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    ) internal override onlyController {}
+
+    modifier onlyController() {
+        require(msg.sender == controller, "Only controller can call");
+        _;
+    }
 
     modifier onlyLiquidation() {
         require(msg.sender == liquidation, "Not liquidation contract");
@@ -113,49 +113,26 @@ contract LendingPool is
         _;
     }
 
-    /// Config functions
-    function setAdmin(
-        address admin,
-        bool status
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (status) {
-            _grantRole(DEFAULT_ADMIN_ROLE, admin);
-            emit AdminAdded(admin);
-        } else {
-            _revokeRole(DEFAULT_ADMIN_ROLE, admin);
-            emit AdminRemoved(admin);
-        }
+    function setController(address _controller) external onlyController {
+        require(_controller != address(0), "Invalid controller address");
+        controller = _controller;
     }
 
-    function isAdmin(address admin) external view returns (bool) {
-        return hasRole(DEFAULT_ADMIN_ROLE, admin);
-    }
-
-    function pause() external onlyRole(PAUSER_ROLE) {
+    function pause() external onlyController {
         _pause();
     }
 
-    function unpause() external onlyRole(PAUSER_ROLE) {
+    function unpause() external onlyController {
         _unpause();
-    }
-
-    function grantPauserRole(address pauser) external onlyRole(PAUSER_ROLE) {
-        _grantRole(PAUSER_ROLE, pauser);
-    }
-
-    function revokePauserRole(address pauser) external onlyRole(PAUSER_ROLE) {
-        _revokeRole(PAUSER_ROLE, pauser);
     }
 
     function supportMarket(
         address asset,
         address interestRateModel
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyController {
         if (marketExists[asset]) {
             markets[asset].isSupported = true;
             markets[asset].interestRateModel = interestRateModel;
-            emit MarketSupported(asset, interestRateModel);
-            return;
         } else {
             markets[asset] = Market({
                 isSupported: true,
@@ -168,32 +145,30 @@ contract LendingPool is
             });
             allMarkets.push(asset);
             marketExists[asset] = true;
-            emit MarketSupported(asset, interestRateModel);
         }
+        emit MarketSupported(asset, interestRateModel);
     }
 
-    function unsupportMarket(
-        address asset
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function unsupportMarket(address asset) external onlyController {
         markets[asset].isSupported = false;
         emit MarketUnsupported(asset);
     }
 
-    function setPriceRouter(
-        address _priceRouter
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setPriceRouter(address _priceRouter) external onlyController {
         priceRouter = _priceRouter;
     }
 
-    function setLiquidation(
-        address _liquidation
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setLiquidation(address _liquidation) external onlyController {
         liquidation = _liquidation;
     }
 
     function setCollateralParams(
         uint _collateralFactor
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyController {
+        require(
+            _collateralFactor > 0 && _collateralFactor <= SCALE,
+            "Invalid collateral factor"
+        );
         collateralFactor = _collateralFactor;
         emit CollateralFactorUpdated(_collateralFactor);
     }
@@ -379,8 +354,7 @@ contract LendingPool is
         );
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
-            SCALE;
+        uint amountUSD = (assetPrice * amount) / (10 ** decimals);
         require(
             (totalDepositedUSD * collateralFactor) / SCALE >=
                 (totalBorrowedUSD + amountUSD),
@@ -523,6 +497,7 @@ contract LendingPool is
         uint currentBorrow = _currentUserBorrow(borrower, repayAsset);
 
         // repayAmount should not exceed currentBorrow: checked in Liquidation contract
+        require(repayAmount <= currentBorrow, "Repay exceeds borrow");
         uint newBorrow = currentBorrow - repayAmount;
         if (newBorrow == 0) {
             b.borrowed = 0;
@@ -544,7 +519,7 @@ contract LendingPool is
         require(m.isSupported, "Market not supported");
 
         uint timeElapsed = block.timestamp - m.lastUpdateTimestamp;
-        require(timeElapsed > 0, "No time elapsed");
+        if (timeElapsed == 0) return m;
 
         IInterestRateModel i = IInterestRateModel(m.interestRateModel);
         uint borrowRate = i.getBorrowRate(asset);
@@ -713,8 +688,7 @@ contract LendingPool is
         (totalDepositedUSD, totalBorrowedUSD) = _previewAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
-            SCALE;
+        uint amountUSD = (assetPrice * amount) / (10 ** decimals);
         newBorrowUSD = totalBorrowedUSD + amountUSD;
         if (newBorrowUSD == 0) {
             newHealthFactor = type(uint).max;
@@ -746,8 +720,7 @@ contract LendingPool is
         (totalDepositedUSD, totalBorrowedUSD) = _previewAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
-            SCALE;
+        uint amountUSD = (assetPrice * amount) / (10 ** decimals);
         newDepositedUSD = totalDepositedUSD > amountUSD
             ? totalDepositedUSD - amountUSD
             : 0;
@@ -772,8 +745,7 @@ contract LendingPool is
         (, totalBorrowedUSD) = _previewAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
-            SCALE;
+        uint amountUSD = (assetPrice * amount) / (10 ** decimals);
         newBorrowedUSD = totalBorrowedUSD > amountUSD
             ? totalBorrowedUSD - amountUSD
             : 0;
@@ -789,8 +761,7 @@ contract LendingPool is
         (totalDepositedUSD, ) = _previewAccountLiquidity(user);
         uint assetPrice = IPriceRouter(priceRouter).getPrice(asset);
         uint decimals = IERC20Metadata(asset).decimals();
-        uint amountUSD = (assetPrice * amount * (10 ** (18 - decimals))) /
-            SCALE;
+        uint amountUSD = (assetPrice * amount) / (10 ** decimals);
         newDepositedUSD = totalDepositedUSD + amountUSD;
     }
 

@@ -15,10 +15,9 @@ import {
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IPriceRouter, ILendingPool} from "./interfaces/Interfaces.sol";
 
-contract Liquidation is ReentrancyGuard, AccessControl {
+contract Liquidation is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    // Liquidation contract code goes here
     uint public constant SCALE = 1e18;
 
     event LiquidationParamsUpdated(
@@ -39,45 +38,41 @@ contract Liquidation is ReentrancyGuard, AccessControl {
     uint public closeFactor; // 18 decimal
     uint public liquidationIncentive; // 18 decimal
 
+    address public controller;
     address public priceRouter;
     address public lendingPool;
+
+    modifier onlyController() {
+        require(msg.sender == controller, "Only controller can call");
+        _;
+    }
 
     constructor(
         address _priceRouter,
         address _lendingPool,
         uint _liquidationThreshold,
         uint _closeFactor,
-        uint _liquidationIncentive
+        uint _liquidationIncentive,
+        address _controller
     ) {
         priceRouter = _priceRouter;
         lendingPool = _lendingPool;
         liquidationThreshold = _liquidationThreshold;
         closeFactor = _closeFactor;
         liquidationIncentive = _liquidationIncentive;
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        controller = _controller;
     }
 
-    /// Config functions
-    function setAdmin(
-        address admin,
-        bool status
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (status) {
-            _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        } else {
-            _revokeRole(DEFAULT_ADMIN_ROLE, admin);
-        }
+    function setController(address _controller) external onlyController {
+        require(_controller != address(0), "Invalid controller address");
+        controller = _controller;
     }
 
-    function setPriceRouter(
-        address _priceRouter
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setPriceRouter(address _priceRouter) external onlyController {
         priceRouter = _priceRouter;
     }
 
-    function setLendingPool(
-        address _lendingPool
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setLendingPool(address _lendingPool) external onlyController {
         lendingPool = _lendingPool;
     }
 
@@ -85,7 +80,7 @@ contract Liquidation is ReentrancyGuard, AccessControl {
         uint _liquidationThreshold,
         uint _closeFactor,
         uint _liquidationIncentive
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyController {
         liquidationThreshold = _liquidationThreshold;
         closeFactor = _closeFactor;
         liquidationIncentive = _liquidationIncentive;

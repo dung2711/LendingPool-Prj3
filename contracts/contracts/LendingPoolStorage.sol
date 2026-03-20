@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-contract LendingPoolStorage {
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+abstract contract LendingPoolStorage {
     uint public constant SECONDS_PER_YEAR = 60 * 60 * 24 * 365;
     uint public constant SCALE = 1e18;
 
@@ -25,6 +23,7 @@ contract LendingPoolStorage {
     }
 
     uint public collateralFactor;
+    address public controller;
     address public liquidation;
     address public priceRouter;
 
@@ -35,5 +34,5 @@ contract LendingPoolStorage {
     mapping(address => address[]) public userMarkets; // user => list of assets
     mapping(address => mapping(address => bool)) public userMarketExists; // user => asset => exists
 
-    uint256[50] private __gap;
+    uint256[40] private __gap;
 }
