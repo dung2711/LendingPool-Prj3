@@ -8,22 +8,18 @@ contract InterestRateModel {
     uint constant SCALE = 1e18;
 
     // _______State_______
-    uint public baseRate; // e.g. 0.02e18 = 2% base rate
-    uint public rateSlope1; // e.g. 0.08e18 = 8%
-    uint public rateSlope2; // e.g. 1.00e18 = 100%
-    uint public optimalUtilization; // e.g. 0.8e18 = 80%
-    uint public reserveFactor; // e.g. 0.1e18 = 10%
-
-    address public controller;
-    address public lendingPool;
+    uint immutable baseRate; // e.g. 0.02e18 = 2% base rate
+    uint immutable rateSlope1; // e.g. 0.08e18 = 8%
+    uint immutable rateSlope2; // e.g. 1.00e18 = 100%
+    uint immutable optimalUtilization; // e.g. 0.8e18 = 80%
+    uint immutable reserveFactor; // e.g. 0.1e18 = 10%
 
     constructor(
         uint _baseRate,
         uint _rateSlope1,
         uint _rateSlope2,
         uint _optimalUtilization,
-        uint _reserveFactor,
-        address _controller
+        uint _reserveFactor
     ) {
         require(_optimalUtilization <= 1e18, "Invalid optimal utilization");
         require(_reserveFactor <= 1e18, "Invalid reserve factor");
@@ -32,28 +28,9 @@ contract InterestRateModel {
         rateSlope2 = _rateSlope2;
         optimalUtilization = _optimalUtilization;
         reserveFactor = _reserveFactor;
-        controller = _controller;
     }
 
-    modifier onlyController() {
-        require(msg.sender == controller, "Only controller can call");
-        _;
-    }
-
-    function setController(address _controller) external onlyController {
-        require(_controller != address(0), "Invalid controller address");
-        controller = _controller;
-    }
-
-    function setLendingPool(address _lendingPool) external onlyController {
-        require(_lendingPool != address(0), "Invalid pool");
-        lendingPool = _lendingPool;
-    }
-
-    function getBorrowRate(address asset) public view returns (uint) {
-        uint utilizationRate = ILendingPool(lendingPool).getUtilizationRate(
-            asset
-        );
+    function getBorrowRate(uint utilizationRate) public view returns (uint) {
         if (utilizationRate == 0) return 0;
         if (utilizationRate <= optimalUtilization) {
             return baseRate + (utilizationRate * rateSlope1) / SCALE;
@@ -67,11 +44,8 @@ contract InterestRateModel {
         }
     }
 
-    function getDepositRate(address asset) public view returns (uint) {
-        uint borrowRate = getBorrowRate(asset);
-        uint utilizationRate = ILendingPool(lendingPool).getUtilizationRate(
-            asset
-        );
+    function getDepositRate(uint utilizationRate) public view returns (uint) {
+        uint borrowRate = getBorrowRate(utilizationRate);
         return
             (borrowRate * utilizationRate * (SCALE - reserveFactor)) /
             (SCALE * SCALE);

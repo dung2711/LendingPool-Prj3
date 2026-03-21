@@ -39,6 +39,10 @@ interface ILendingPool {
         address newImplementation,
         bytes calldata data
     ) external;
+    function setInterestRateModel(
+        address asset,
+        address interestRateModel
+    ) external;
 }
 
 interface IPriceRouter {
@@ -62,7 +66,6 @@ interface IMyOracle {
 
 interface ILiquidation {
     function isAccountLiquidatable(address user) external view returns (bool);
-    function getCloseFactor() external view returns (uint);
     function calculateSeizeAmount(
         address repayAsset,
         address collateralAsset,
@@ -80,8 +83,6 @@ interface ILiquidation {
 }
 
 interface IInterestRateModel {
-    function getBorrowRate(address asset) external view returns (uint);
-    function getDepositRate(address asset) external view returns (uint);
-    function setController(address _controller) external;
-    function setLendingPool(address _lendingPool) external;
+    function getBorrowRate(uint utilizationRate) external view returns (uint);
+    function getDepositRate(uint utilizationRate) external view returns (uint);
 }

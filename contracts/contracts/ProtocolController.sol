@@ -15,7 +15,6 @@ contract ProtocolController is AccessControl {
     address public priceRouter;
     address public myOracle;
     address public liquidation;
-    address public interestRateModel;
 
     event LendingPoolUpdated(
         address indexed oldAddress,
@@ -33,13 +32,18 @@ contract ProtocolController is AccessControl {
         address indexed oldAddress,
         address indexed newAddress
     );
+    event ControllerMigrated(
+        address indexed oldController,
+        address indexed newController
+    );
+    event PriceRouterUpgraded(address indexed newImplementation);
+    event LendingPoolUpgraded(address indexed newImplementation);
 
     constructor(
         address _lendingPool,
         address _priceRouter,
         address _myOracle,
         address _liquidation,
-        address _interestRateModel,
         address _admin
     ) {
         require(_lendingPool != address(0), "Invalid lending pool");
@@ -51,7 +55,6 @@ contract ProtocolController is AccessControl {
         priceRouter = _priceRouter;
         myOracle = _myOracle;
         liquidation = _liquidation;
-        interestRateModel = _interestRateModel;
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
@@ -63,8 +66,8 @@ contract ProtocolController is AccessControl {
         IMyOracle(myOracle).setController(newController);
         IPriceRouter(priceRouter).setController(newController);
         ILiquidation(liquidation).setController(newController);
-        IInterestRateModel(interestRateModel).setController(newController);
         ILendingPool(lendingPool).setController(newController);
+        emit ControllerMigrated(address(this), newController);
     }
 
     function setLendingPool(
@@ -72,7 +75,6 @@ contract ProtocolController is AccessControl {
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_lendingPool != address(0), "Invalid lending pool");
         ILiquidation(liquidation).setLendingPool(_lendingPool);
-        IInterestRateModel(interestRateModel).setLendingPool(_lendingPool);
         emit LendingPoolUpdated(lendingPool, _lendingPool);
         lendingPool = _lendingPool;
     }
@@ -172,16 +174,34 @@ contract ProtocolController is AccessControl {
         ILendingPool(lendingPool).setCollateralParams(_collateralFactor);
     }
 
+    function setInterestRateModelBatch(
+        address[] calldata assets,
+        address interestRateModel
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(interestRateModel != address(0), "Invalid IRM");
+        require(assets.length > 0, "Empty assets array");
+        for (uint i = 0; i < assets.length; i++) {
+            ILendingPool(lendingPool).setInterestRateModel(
+                assets[i],
+                interestRateModel
+            );
+        }
+    }
+
     // Proxy upgrade functions
     function upgradePriceRouter(
         address newImplementation
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newImplementation != address(0), "Invalid implementation");
         IPriceRouter(priceRouter).upgradeToAndCall(newImplementation, "");
+        emit PriceRouterUpgraded(newImplementation);
     }
 
     function upgradeLendingPool(
         address newImplementation
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newImplementation != address(0), "Invalid implementation");
         ILendingPool(lendingPool).upgradeToAndCall(newImplementation, "");
+        emit LendingPoolUpgraded(newImplementation);
     }
 }

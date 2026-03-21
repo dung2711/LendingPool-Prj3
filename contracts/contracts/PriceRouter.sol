@@ -23,6 +23,7 @@ contract PriceRouter is Initializable, UUPSUpgradeable, PriceRouterStorage {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -92,13 +93,8 @@ contract PriceRouter is Initializable, UUPSUpgradeable, PriceRouterStorage {
                 chainlinkPrice = chainlinkPrice * int(10 ** (18 - feedDecimal));
             }
             return uint(chainlinkPrice); // Normalize to 18 decimals
-        } else if (feedInfo.source == Source.MYORACLE) {
-            uint myOraclePrice = IMyOracle(myOracle).getPriceMyOracle(
-                feedInfo.feedOrToken
-            );
-            return myOraclePrice;
-        } else {
-            revert("Invalid price source");
         }
+
+        return IMyOracle(myOracle).getPriceMyOracle(feedInfo.feedOrToken);
     }
 }
