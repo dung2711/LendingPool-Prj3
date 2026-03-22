@@ -2,32 +2,28 @@
 
 pragma solidity ^0.8.28;
 
-import {MyToken} from "./MyToken.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-contract MyOracle is AccessControl {
+contract MyOracle {
     event PriceUpdated(address indexed asset, uint price);
 
     mapping(address => uint) public prices; // asset => price in 18 decimals
+    address public controller;
 
-    constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    constructor(address _controller) {
+        require(_controller != address(0), "Invalid controller address");
+        controller = _controller;
     }
 
-    function setAdmin(
-        address admin,
-        bool status
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (status) {
-            _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        } else {
-            _revokeRole(DEFAULT_ADMIN_ROLE, admin);
-        }
+    modifier onlyController() {
+        require(msg.sender == controller, "Only controller can call");
+        _;
     }
 
-    function setPrice(
-        address asset,
-        uint price
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setController(address _controller) external onlyController {
+        require(_controller != address(0), "Invalid controller address");
+        controller = _controller;
+    }
+
+    function setPrice(address asset, uint price) external onlyController {
         require(asset != address(0), "Invalid asset address");
         require(price > 0, "Price must be greater than zero");
         prices[asset] = price;
@@ -35,6 +31,7 @@ contract MyOracle is AccessControl {
     }
 
     function getPriceMyOracle(address asset) public view returns (uint) {
+        require(prices[asset] > 0, "Price not set");
         return prices[asset]; // price in 18 decimals
     }
 }

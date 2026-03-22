@@ -12,13 +12,11 @@ import {
 import {
     ReentrancyGuard
 } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IPriceRouter, ILendingPool} from "./interfaces/Interfaces.sol";
 
-contract Liquidation is ReentrancyGuard, AccessControl {
+contract Liquidation is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    // Liquidation contract code goes here
     uint public constant SCALE = 1e18;
 
     event LiquidationParamsUpdated(
@@ -39,45 +37,56 @@ contract Liquidation is ReentrancyGuard, AccessControl {
     uint public closeFactor; // 18 decimal
     uint public liquidationIncentive; // 18 decimal
 
+    address public controller;
     address public priceRouter;
     address public lendingPool;
+
+    modifier onlyController() {
+        require(msg.sender == controller, "Only controller can call");
+        _;
+    }
 
     constructor(
         address _priceRouter,
         address _lendingPool,
         uint _liquidationThreshold,
         uint _closeFactor,
-        uint _liquidationIncentive
+        uint _liquidationIncentive,
+        address _controller
     ) {
+        require(_priceRouter != address(0), "Invalid price router");
+        require(_lendingPool != address(0), "Invalid lending pool");
+        require(_controller != address(0), "Invalid controller");
+        require(
+            _liquidationThreshold > 0 && _liquidationThreshold <= SCALE,
+            "Invalid threshold"
+        );
+        require(
+            _closeFactor > 0 && _closeFactor <= SCALE,
+            "Invalid close factor"
+        );
+        require(
+            _liquidationIncentive > 0 && _liquidationIncentive <= 0.2e18,
+            "Incentive too high"
+        );
         priceRouter = _priceRouter;
         lendingPool = _lendingPool;
         liquidationThreshold = _liquidationThreshold;
         closeFactor = _closeFactor;
         liquidationIncentive = _liquidationIncentive;
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        controller = _controller;
     }
 
-    /// Config functions
-    function setAdmin(
-        address admin,
-        bool status
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (status) {
-            _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        } else {
-            _revokeRole(DEFAULT_ADMIN_ROLE, admin);
-        }
+    function setController(address _controller) external onlyController {
+        require(_controller != address(0), "Invalid controller address");
+        controller = _controller;
     }
 
-    function setPriceRouter(
-        address _priceRouter
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setPriceRouter(address _priceRouter) external onlyController {
         priceRouter = _priceRouter;
     }
 
-    function setLendingPool(
-        address _lendingPool
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setLendingPool(address _lendingPool) external onlyController {
         lendingPool = _lendingPool;
     }
 
@@ -85,7 +94,16 @@ contract Liquidation is ReentrancyGuard, AccessControl {
         uint _liquidationThreshold,
         uint _closeFactor,
         uint _liquidationIncentive
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyController {
+        require(
+            _liquidationThreshold > 0 && _liquidationThreshold <= SCALE,
+            "Invalid threshold"
+        );
+        require(
+            _closeFactor > 0 && _closeFactor <= SCALE,
+            "Invalid close factor"
+        );
+        require(_liquidationIncentive <= 0.2e18, "Incentive too high");
         liquidationThreshold = _liquidationThreshold;
         closeFactor = _closeFactor;
         liquidationIncentive = _liquidationIncentive;
@@ -104,24 +122,16 @@ contract Liquidation is ReentrancyGuard, AccessControl {
         if (totalDepositedUSD == 0) {
             return false;
         }
-        if (
+        return
             (totalBorrowedUSD * SCALE) / totalDepositedUSD >=
-            liquidationThreshold
-        ) {
-            return true;
-        }
-        return false;
-    }
-
-    function getCloseFactor() external view returns (uint) {
-        return closeFactor;
+            liquidationThreshold;
     }
 
     /// Core logic
     function calculateSeizeAmount(
         address repayAsset,
         address collateralAsset,
-        uint repayAmount
+        uint repayAmount // token decimals của repayAsset
     ) public view returns (uint seizeAmount) {
         IPriceRouter pr = IPriceRouter(priceRouter);
         uint priceBorrowed = pr.getPrice(repayAsset);
@@ -130,9 +140,23 @@ contract Liquidation is ReentrancyGuard, AccessControl {
             priceBorrowed > 0 && priceCollateral > 0,
             "Invalid asset price"
         );
-        seizeAmount =
-            (repayAmount * (SCALE + liquidationIncentive) * priceBorrowed) /
-            (priceCollateral * SCALE);
+        uint repayDecimals = IERC20Metadata(repayAsset).decimals();
+        uint collateralDecimals = IERC20Metadata(collateralAsset).decimals();
+
+        // normalize repayAmount lên 18 decimals
+        uint repayAmount18 = repayDecimals <= 18
+            ? repayAmount * (10 ** (18 - repayDecimals))
+            : repayAmount / (10 ** (repayDecimals - 18));
+
+        // tính ở 18 decimals — lúc này price ratio triệt tiêu đúng
+        uint seizeAmount18 = (repayAmount18 *
+            (SCALE + liquidationIncentive) *
+            priceBorrowed) / (priceCollateral * SCALE);
+
+        // convert về collateral token decimals
+        seizeAmount = collateralDecimals <= 18
+            ? seizeAmount18 / (10 ** (18 - collateralDecimals))
+            : seizeAmount18 * (10 ** (collateralDecimals - 18));
     }
 
     function liquidate(
@@ -140,17 +164,13 @@ contract Liquidation is ReentrancyGuard, AccessControl {
         address liquidator,
         address repayAsset,
         address collateralAsset,
-        uint repayAmount
+        uint repayAmount // token decimals của repayAsset
     ) external nonReentrant {
         require(
             borrower != address(0) && liquidator != address(0),
             "Zero address"
         );
         require(repayAmount > 0, "Repay amount must be greater than zero");
-        require(
-            lendingPool != address(0) && priceRouter != address(0),
-            "LendingPool or PriceRouter not set"
-        );
 
         ILendingPool lendingPoolContract = ILendingPool(lendingPool);
         lendingPoolContract.accrueInterest(repayAsset);
@@ -161,33 +181,29 @@ contract Liquidation is ReentrancyGuard, AccessControl {
             borrower,
             repayAsset
         );
-        uint maxRepayAmount = (currentBorrow *
-            (10 ** (18 - IERC20Metadata(repayAsset).decimals())) *
-            closeFactor) / SCALE; // convert to 18 decimals
+        uint maxRepayAmount = (currentBorrow * closeFactor) / SCALE; // convert to 18 decimals
         uint actualRepayAmount = repayAmount > maxRepayAmount
             ? maxRepayAmount
             : repayAmount;
-        // Transfer repayAmount of repayAsset from liquidator to LendingPool
+
         IERC20(repayAsset).safeTransferFrom(
             liquidator,
             lendingPool,
             actualRepayAmount
         );
-        // Update borrower's borrow balance in LendingPool
+
         lendingPoolContract.repayFromLiquidation(
             borrower,
             repayAsset,
             actualRepayAmount
         );
-        // Calculate seize amount
-        uint seizeAmountIn18decimals = calculateSeizeAmount(
+
+        uint seizeAmount = calculateSeizeAmount(
             repayAsset,
             collateralAsset,
             actualRepayAmount
         );
-        uint seizeAmount = (seizeAmountIn18decimals *
-            (10 ** IERC20Metadata(collateralAsset).decimals())) / SCALE; // convert back to collateral asset decimals
-        // Check borrower's collateral balance
+
         uint borrowerDeposit = lendingPoolContract.getUserCurrentDeposit(
             borrower,
             collateralAsset
@@ -209,7 +225,7 @@ contract Liquidation is ReentrancyGuard, AccessControl {
             borrower,
             repayAsset,
             collateralAsset,
-            repayAmount,
+            actualRepayAmount,
             seizeAmount
         );
     }

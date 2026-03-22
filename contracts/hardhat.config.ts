@@ -1,5 +1,6 @@
 import type { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "@openzeppelin/hardhat-upgrades";
 import "solidity-coverage";
 import env from "dotenv";
 
@@ -14,17 +15,18 @@ const config: HardhatUserConfig = {
         runs: 200,
       },
       viaIR: true,
+      evmVersion: "cancun",
     },
   },
   networks: {
     hardhat: {
       // forking: {
-      //   url: process.env.INFURA_URL!,
+      //   url: process.env.SEPOLIA_INFURA_URL!,
       //   blockNumber: 10473834,
       // },
     },
     sepolia: {
-      url: process.env.INFURA_URL!,
+      url: process.env.SEPOLIA_INFURA_URL!,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       gasPrice: "auto",
       timeout: 120000,
