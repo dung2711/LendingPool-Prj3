@@ -205,7 +205,7 @@ export default function RepayDialog({
         return;
       }
 
-      const maxRepayAmount = (await lendingPool.getMaxRepayAmount(
+      const maxRepayAmount = (await lendingPool.getPreviewUserBorrow(
         userAddress,
         selectedAsset.address,
       )) as bigint;
