@@ -55,8 +55,11 @@ services:
 
 volumes:
   postgres_data:
+    name: lending_pool_postgres_data
   redis_data:
+    name: lending_pool_redis_data
   rabbitmq_data:
+    name: lending_pool_rabbitmq_data
 
 networks:
   lending-pool-network:

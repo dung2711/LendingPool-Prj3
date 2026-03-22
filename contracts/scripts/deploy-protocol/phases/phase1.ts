@@ -9,6 +9,7 @@ export async function deployPhase1(
   protocolConfig: ProtocolConfig,
   network: SupportedNetwork,
 ): Promise<Addresses> {
+  const safeAddress = process.env.SAFE_ADDRESS;
   const [deployer] = await ethers.getSigners();
   console.log("\n========== PHASE 1: DEPLOY ==========");
   console.log("Deploying contracts with the account:", deployer.address);
@@ -112,7 +113,7 @@ export async function deployPhase1(
     addresses[network].priceRouter,
     addresses[network].myOracle,
     addresses[network].liquidation,
-    deployer.address,
+    safeAddress,
   );
   await controller.waitForDeployment();
   console.log("Controller deployed at:", controller.target);

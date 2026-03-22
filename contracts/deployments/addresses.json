@@ -1,13 +1,13 @@
 {
   "sepolia": {
-    "stableCoinIRM": "0x54A270f0bfe41Bc49D8A2973906ad94eD410Fd16",
-    "volatileCoinIRM": "0xBc8601E6036B6e9b6179C7bcC5dFef2F8F3F62d4",
-    "myOracle": "0xaF0E0f3dDC614348a4646c3C124EC020C680B987",
-    "priceRouter": "0x0717691E590e85848BC7210A3eDAef28a232b7df",
+    "stableCoinIRM": "0x16f1a1aacedec137b1b8e45b65744b2488249A28",
+    "volatileCoinIRM": "0x11D4d767b5B0aB1f6BDce66D4b2E0F17353901aB",
+    "myOracle": "0x26dEDaFdEd909EeADe8F573A2C3Bf766d2eC7Dca",
+    "priceRouter": "0x192a2B10E7B4dBc9d3D2Efb0bA57C74DEf4ccC19",
     "priceRouterImpl": "0x1D4a1A368A802EfE59cF30F403292803Ab8e70A8",
-    "lendingPool": "0x502553b4BF51217fcC40753D8a807db9FedD6433",
+    "lendingPool": "0x5bc247D81bb9a415Bf02066A0b0bd83bf67fb54b",
     "lendingPoolImpl": "0x2d94Cf96DbEf8B7542af27c6E8ba3102d917C7a3",
-    "liquidation": "0xC58D06C09E8cfB806BC7FE0d68e68c4D578D674b",
-    "controller": "0x7Aa4Ea05508b11Cd0f5FaA46558527911da96F11"
+    "liquidation": "0x27E6D807C4aB7f55bAD41365011A8e42f66c4CFB",
+    "controller": "0x600c6d2e5eC4D4b68246a2e0F5b37956E0bE2aa0"
   }
 }
