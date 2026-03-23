@@ -44,12 +44,12 @@ export function createRabbitMQHelperService(deps: {
           },
         });
 
-        await channel.bindQueue(retryQueue, dlxEx, `retry.${i}`);
+        await channel.bindQueue(retryQueue, dlxEx, `${queueName}.retry.${i}`);
       }
 
       const dlq = `${queueName}.dlq`;
       await channel.assertQueue(dlq, { durable: true });
-      await channel.bindQueue(dlq, dlxEx, "failed");
+      await channel.bindQueue(dlq, dlxEx, `${queueName}.failed`);
 
       await channel.consume(queueName, async (msg) => {
         if (!msg) return;
@@ -84,13 +84,18 @@ export function createRabbitMQHelperService(deps: {
               delayMs: retryDelays[retryCount],
             });
 
-            channel.publish(dlxEx, `retry.${retryCount}`, msg.content, {
-              headers: {
-                ...headers,
-                "x-retry-count": retryCount + 1,
+            channel.publish(
+              dlxEx,
+              `${queueName}.retry.${retryCount}`,
+              msg.content,
+              {
+                headers: {
+                  ...headers,
+                  "x-retry-count": retryCount + 1,
+                },
+                persistent: true,
               },
-              persistent: true,
-            });
+            );
 
             channel.ack(msg);
           } else {
@@ -99,7 +104,7 @@ export function createRabbitMQHelperService(deps: {
               error,
             });
 
-            channel.publish(dlxEx, "failed", msg.content, {
+            channel.publish(dlxEx, `${queueName}.failed`, msg.content, {
               headers,
               persistent: true,
             });

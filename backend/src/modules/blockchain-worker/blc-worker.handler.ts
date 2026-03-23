@@ -729,7 +729,7 @@ export function createBLCWorkerHandler(deps: {
         transactionHash,
       });
     } catch (error) {
-      logger.error("Error handling MarketSupported event", {
+      logger.error("Error handling MarketSupported event {error}", {
         error: (error as Error).message,
         payload: params,
       });
