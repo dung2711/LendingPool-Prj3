@@ -22,8 +22,16 @@ export function createTransactionService(deps: {
 
     validateAddress(userAddress);
     try {
+      const user = await dbClient.user.findOne({
+        where: { userAddress },
+      });
+      if (!user) {
+        throw new AppErr(ErrCode.UserNotFound, {
+          errors: "User not found",
+        });
+      }
       const where: Record<string | symbol, unknown> = {
-        userAddress,
+        userId: user.id,
         ...(type ? { type } : {}),
       };
       if (cursorTS && cursorID) {

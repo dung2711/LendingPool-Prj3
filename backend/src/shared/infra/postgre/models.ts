@@ -46,6 +46,14 @@ export function createDatabaseClient(sequelize: Sequelize) {
   User.hasMany(LiquidatableUser, { foreignKey: "userId", sourceKey: "id" });
   LiquidatableUser.belongsTo(User, { foreignKey: "userId" });
 
+  // User <-> UserAsset (1:N) — direct relationship for join-table
+  User.hasMany(UserAsset, { foreignKey: "userId", sourceKey: "id" });
+  UserAsset.belongsTo(User, { foreignKey: "userId" });
+
+  // Asset <-> UserAsset (1:N) — direct relationship for join-table
+  Asset.hasMany(UserAsset, { foreignKey: "assetId", sourceKey: "id" });
+  UserAsset.belongsTo(Asset, { foreignKey: "assetId" });
+
   return {
     asset: Asset,
     user: User,

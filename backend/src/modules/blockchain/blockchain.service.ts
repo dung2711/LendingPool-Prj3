@@ -72,7 +72,7 @@ export function createBlockchainService(deps: {
     details: Record<string, unknown>;
   }) {
     const { handlerName, chainId, event, details } = params;
-    logger.debug("Handling blockchain event", {
+    logger.info("Handling blockchain event", {
       handlerName,
       eventName: event.eventName,
       chainId,
