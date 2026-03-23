@@ -8,11 +8,11 @@ contract InterestRateModel {
     uint constant SCALE = 1e18;
 
     // _______State_______
-    uint immutable baseRate; // e.g. 0.02e18 = 2% base rate
-    uint immutable rateSlope1; // e.g. 0.08e18 = 8%
-    uint immutable rateSlope2; // e.g. 1.00e18 = 100%
-    uint immutable optimalUtilization; // e.g. 0.8e18 = 80%
-    uint immutable reserveFactor; // e.g. 0.1e18 = 10%
+    uint public immutable baseRate; // e.g. 0.02e18 = 2% base rate
+    uint public immutable rateSlope1; // e.g. 0.08e18 = 8%
+    uint public immutable rateSlope2; // e.g. 1.00e18 = 100%
+    uint public immutable optimalUtilization; // e.g. 0.8e18 = 80%
+    uint public immutable reserveFactor; // e.g. 0.1e18 = 10%
 
     constructor(
         uint _baseRate,

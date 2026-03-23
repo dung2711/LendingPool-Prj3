@@ -120,7 +120,7 @@ export default function Dashboard(): ReactElement {
 
       // Fetch prices and rates from blockchain for user's assets
       const marketData =
-        userData.assets.length === 0
+        !userData?.assets || userData.assets.length === 0
           ? []
           : await Promise.all(
               userData.assets.map(async (userAsset) => {

@@ -74,7 +74,7 @@ export default function DepositDialog({
           const userAddress = await signer.getAddress();
 
           const [totalDepositedUSD, newDepositedUSD] =
-            (await lendingPool.preViewDeposit(
+            (await lendingPool.previewDeposit(
               userAddress,
               selectedAsset.address,
               amountInWei,

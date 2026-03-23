@@ -145,7 +145,7 @@ export default function History(): ReactElement {
       // Process transactions
       const allTxs: TransactionData[] = [];
 
-      for (const tx of txData.transactions) {
+      for (const tx of txData?.transactions || []) {
         const asset = assetMap[tx.assetAddress.toLowerCase()];
         if (!asset) continue; // Skip if asset not found
 
@@ -163,7 +163,7 @@ export default function History(): ReactElement {
           amountFormatted,
           amountUSD: null,
           amountUSDFormatted,
-          hash: tx.txHash,
+          hash: tx.transactionHash,
           timestamp: tx.timestamp,
           blockNumber: tx.blockNumber,
         });

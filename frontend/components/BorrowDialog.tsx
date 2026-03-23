@@ -120,7 +120,7 @@ export default function BorrowDialog({
             totalBorrowedUSD,
             newBorrowUSD,
             newHealthFactor,
-          ] = (await lendingPool.preViewBorrow(
+          ] = (await lendingPool.previewBorrow(
             userAddress,
             selectedAsset.address,
             amountInWei,

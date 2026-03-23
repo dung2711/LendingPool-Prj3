@@ -8,7 +8,7 @@ export interface Transaction {
   amount: string;
   timestamp: number;
   blockNumber: number;
-  txHash: string;
+  transactionHash: string;
 }
 
 export interface PaginatedTransactions {
