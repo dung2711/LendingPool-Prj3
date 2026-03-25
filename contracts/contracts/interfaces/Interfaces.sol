@@ -43,6 +43,8 @@ interface ILendingPool {
         address asset,
         address interestRateModel
     ) external;
+    function withdrawTreasury(address asset, address to, uint amount) external;
+    function rescueToken(address token, address to, uint amount) external;
 }
 
 interface IPriceRouter {

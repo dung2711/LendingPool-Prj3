@@ -6,8 +6,7 @@ import {
     ILendingPool,
     IPriceRouter,
     IMyOracle,
-    ILiquidation,
-    IInterestRateModel
+    ILiquidation
 } from "./interfaces/Interfaces.sol";
 
 contract ProtocolController is AccessControl {
@@ -162,6 +161,25 @@ contract ProtocolController is AccessControl {
         ILendingPool(lendingPool).supportMarket(asset, irm);
     }
 
+    function supportMarketWithChainlinkFeed(
+        address asset,
+        address irm,
+        address feed
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        ILendingPool(lendingPool).supportMarket(asset, irm);
+        IPriceRouter(priceRouter).setChainlinkFeed(asset, feed);
+    }
+
+    function supportMarketWithMyOracleFeed(
+        address asset,
+        address irm,
+        uint price
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        ILendingPool(lendingPool).supportMarket(asset, irm);
+        IPriceRouter(priceRouter).setMyOracleFeed(asset);
+        IMyOracle(myOracle).setPrice(asset, price);
+    }
+
     function unsupportMarket(
         address asset
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -186,6 +204,22 @@ contract ProtocolController is AccessControl {
                 interestRateModel
             );
         }
+    }
+
+    function withdrawTreasury(
+        address asset,
+        address to,
+        uint amount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        ILendingPool(lendingPool).withdrawTreasury(asset, to, amount);
+    }
+
+    function rescueToken(
+        address token,
+        address to,
+        uint amount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        ILendingPool(lendingPool).rescueToken(token, to, amount);
     }
 
     // Proxy upgrade functions

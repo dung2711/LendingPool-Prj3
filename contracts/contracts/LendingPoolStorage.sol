@@ -33,6 +33,7 @@ abstract contract LendingPoolStorage {
     mapping(address => mapping(address => Balance)) public userBalances; // user => asset => Balance
     mapping(address => address[]) public userMarkets; // user => list of assets
     mapping(address => mapping(address => bool)) public userMarketExists; // user => asset => exists
+    mapping(address => uint256) public treasuryBalances; // asset => amount
 
-    uint256[40] private __gap;
+    uint256[39] private __gap;
 }

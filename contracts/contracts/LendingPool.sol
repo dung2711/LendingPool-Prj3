@@ -58,12 +58,20 @@ contract LendingPool is
     event Accrue(
         address indexed asset,
         uint interestAccrued,
-        uint depositInterestAccrued,
+        uint toDepositors,
+        uint totalTreasury,
         uint newTotalBorrows,
         uint newBorrowIndex,
         uint newTotalDeposits,
         uint newDepositIndex
     );
+    event Donated(address indexed donor, address indexed asset, uint amount);
+    event TreasuryWithdrawn(
+        address indexed asset,
+        address indexed to,
+        uint amount
+    );
+    event TokenRescued(address indexed token, address indexed to, uint amount);
 
     // ─── Constructor & Initializer ────────────────────────────────────────────
 
@@ -187,7 +195,47 @@ contract LendingPool is
         emit CollateralFactorUpdated(_collateralFactor);
     }
 
-    // ─── Core Logic ───────────────────────────────────────────────────────────
+    function donate(
+        address asset,
+        uint amount
+    )
+        external
+        nonReentrant
+        amountGreaterThanZero(amount)
+        whenNotPaused
+        onlySupportedMarket(asset)
+    {
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+        treasuryBalances[asset] += amount;
+        emit Donated(msg.sender, asset, amount);
+    }
+
+    function withdrawTreasury(
+        address asset,
+        address to,
+        uint amount
+    ) external onlyController amountGreaterThanZero(amount) {
+        require(to != address(0), "Invalid recipient");
+        require(amount <= treasuryBalances[asset], "Exceeds treasury balance");
+        treasuryBalances[asset] -= amount;
+        IERC20(asset).safeTransfer(to, amount);
+        emit TreasuryWithdrawn(asset, to, amount);
+    }
+
+    function rescueToken(
+        address token,
+        address to,
+        uint amount
+    ) external onlyController amountGreaterThanZero(amount) {
+        require(to != address(0), "Invalid recipient");
+        uint actual = IERC20(token).balanceOf(address(this));
+        uint tracked = markets[token].totalDeposits + treasuryBalances[token];
+        uint surplus = actual > tracked ? actual - tracked : 0;
+        require(amount <= surplus, "Amount exceeds surplus");
+        IERC20(token).safeTransfer(to, amount);
+        emit TokenRescued(token, to, amount);
+    }
+
     // ─── Core Logic ───────────────────────────────────────────────────────────
 
     function deposit(
@@ -229,6 +277,16 @@ contract LendingPool is
         accrueInterest(asset);
         Market storage m = markets[asset];
         Balance storage b = userBalances[msg.sender][asset];
+
+        // Calculate max liquidity available for borrowing and ensure sufficient liquidity
+        uint availableLiquidity = m.totalDeposits +
+            treasuryBalances[asset] -
+            m.totalBorrows;
+        require(
+            amount <= availableLiquidity,
+            "Not enough liquidity in the market"
+        );
+
         // Calculate total collateral and ensure user can borrow
         (uint totalDepositedUSD, uint totalBorrowedUSD) = getAccountLiquidity(
             msg.sender
@@ -321,6 +379,7 @@ contract LendingPool is
             b.depositIndexSnapShot = m.depositIndex;
         }
         m.totalDeposits -= actualAmount;
+        require(actualAmount > 0, "Nothing to withdraw");
         IERC20(asset).safeTransfer(msg.sender, actualAmount);
         emit Withdraw(msg.sender, asset, actualAmount);
     }
@@ -526,11 +585,17 @@ contract LendingPool is
             SCALE;
         m.depositIndex += depositIndexIncrease;
 
+        uint toTreasury = interestAccrued > depositInterestAccrued
+            ? interestAccrued - depositInterestAccrued
+            : 0;
+        treasuryBalances[asset] += toTreasury;
+
         m.lastUpdateTimestamp = block.timestamp;
         emit Accrue(
             asset,
             interestAccrued,
             depositInterestAccrued,
+            treasuryBalances[asset],
             m.totalBorrows,
             m.borrowIndex,
             m.totalDeposits,
