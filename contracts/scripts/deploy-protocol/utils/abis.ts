@@ -7,6 +7,7 @@ const Contract = {
   PriceRouter: "PriceRouter",
   MyOracle: "MyOracle",
   Liquidation: "Liquidation",
+  ProtocolTimelock: "ProtocolTimelock",
   ProtocolController: "ProtocolController",
   InterestRateModel: "InterestRateModel",
 } as const;

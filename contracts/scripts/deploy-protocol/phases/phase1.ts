@@ -10,6 +10,18 @@ export async function deployPhase1(
   network: SupportedNetwork,
 ): Promise<Addresses> {
   const safeAddress = process.env.SAFE_ADDRESS;
+  if (!safeAddress || !ethers.isAddress(safeAddress)) {
+    throw new Error("SAFE_ADDRESS missing or invalid");
+  }
+
+  const minDelayRaw = process.env.TIMELOCK_MIN_DELAY_SECONDS ?? "86400";
+  if (!/^\d+$/.test(minDelayRaw)) {
+    throw new Error(
+      "TIMELOCK_MIN_DELAY_SECONDS must be a non-negative integer",
+    );
+  }
+  const timelockMinDelay = BigInt(minDelayRaw);
+
   const [deployer] = await ethers.getSigners();
   console.log("\n========== PHASE 1: DEPLOY ==========");
   console.log("Deploying contracts with the account:", deployer.address);
@@ -107,13 +119,31 @@ export async function deployPhase1(
   console.log("Liquidation deployed at:", liquidation.target);
   addresses[network].liquidation = await liquidation.getAddress();
 
+  const ProtocolTimelock = await ethers.getContractFactory("ProtocolTimelock");
+  const proposers = [safeAddress];
+  const executors = [ethers.ZeroAddress];
+
+  const timelock = await ProtocolTimelock.deploy(
+    timelockMinDelay,
+    proposers,
+    executors,
+    ethers.ZeroAddress,
+  );
+  await timelock.waitForDeployment();
+  addresses[network].timelock = await timelock.getAddress();
+  const controllerAdmin = addresses[network].timelock!;
+
+  console.log("ProtocolTimelock deployed at:", timelock.target);
+  console.log("Timelock minDelay (seconds):", timelockMinDelay.toString());
+  console.log("Timelock executor mode:", "open (address(0))");
+
   const Controller = await ethers.getContractFactory("ProtocolController");
   const controller = await Controller.deploy(
     addresses[network].lendingPool,
     addresses[network].priceRouter,
     addresses[network].myOracle,
     addresses[network].liquidation,
-    safeAddress,
+    controllerAdmin,
   );
   await controller.waitForDeployment();
   console.log("Controller deployed at:", controller.target);

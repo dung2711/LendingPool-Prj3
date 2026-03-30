@@ -304,6 +304,10 @@ contract LendingPool is
         b.borrowed = amount + currentBorrow;
         b.borrowIndexSnapShot = m.borrowIndex;
         m.totalBorrows += amount;
+        if (!userMarketExists[msg.sender][asset]) {
+            userMarkets[msg.sender].push(asset);
+            userMarketExists[msg.sender][asset] = true;
+        }
         IERC20(asset).safeTransfer(msg.sender, amount);
         emit Borrow(msg.sender, asset, amount);
     }

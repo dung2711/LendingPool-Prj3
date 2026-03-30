@@ -20,6 +20,7 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
+      allowBlocksWithSameTimestamp: true,
       // forking: {
       //   url: process.env.SEPOLIA_INFURA_URL!,
       //   blockNumber: 10473834,

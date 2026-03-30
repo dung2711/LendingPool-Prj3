@@ -14,6 +14,7 @@ export type Addresses = Partial<
       lendingPool: string;
       lendingPoolImpl: string;
       liquidation: string;
+      timelock: string;
       controller: string;
     }>
   >
