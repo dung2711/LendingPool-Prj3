@@ -11,7 +11,9 @@
 		"target": "esnext",
 		"types": [],
 		"paths": {
-			"@shared/*": ["../shared/*"]
+			"@shared/*": [
+				"../shared/*"
+			]
 		},
 		// For nodejs:
 		// "lib": ["esnext"],
@@ -39,8 +41,15 @@
 		"noUncheckedSideEffectImports": true,
 		"moduleDetection": "force",
 		"skipLibCheck": true,
-		"moduleResolution": "bundler"
+		"moduleResolution": "bundler",
+		"ignoreDeprecations": "6.0",
 	},
-	"include": ["src"],
-	"exclude": ["node_modules", "dist", "packages"]
+	"include": [
+		"src"
+	],
+	"exclude": [
+		"node_modules",
+		"dist",
+		"packages"
+	]
 }
