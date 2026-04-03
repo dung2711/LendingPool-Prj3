@@ -59,6 +59,7 @@ contract LendingPool is
         address indexed asset,
         uint interestAccrued,
         uint toDepositors,
+        uint toTreasury,
         uint totalTreasury,
         uint newTotalBorrows,
         uint newBorrowIndex,
@@ -217,6 +218,12 @@ contract LendingPool is
     ) external onlyController amountGreaterThanZero(amount) {
         require(to != address(0), "Invalid recipient");
         require(amount <= treasuryBalances[asset], "Exceeds treasury balance");
+        Market storage m = markets[asset];
+        require(
+            m.totalDeposits + treasuryBalances[asset] - amount >=
+                m.totalBorrows,
+            "Insufficient liquidity after withdrawal"
+        );
         treasuryBalances[asset] -= amount;
         IERC20(asset).safeTransfer(to, amount);
         emit TreasuryWithdrawn(asset, to, amount);
@@ -599,6 +606,7 @@ contract LendingPool is
             asset,
             interestAccrued,
             depositInterestAccrued,
+            toTreasury,
             treasuryBalances[asset],
             m.totalBorrows,
             m.borrowIndex,
