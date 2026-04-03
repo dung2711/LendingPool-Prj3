@@ -1,12 +1,16 @@
 import type { Sequelize } from "sequelize";
 import {
+  initAccrueLogModel,
   initAssetConfigModel,
   initAssetModel,
+  initAssetSnapshotModel,
   initLiquidatableUserModel,
   initScannerModel,
   initTransactionModel,
+  initTreasuryLogModel,
   initUserAssetModel,
   initUserModel,
+  initUserSnapshotModel,
 } from "../../../models";
 
 export function createDatabaseClient(sequelize: Sequelize) {
@@ -17,6 +21,10 @@ export function createDatabaseClient(sequelize: Sequelize) {
   const Scanner = initScannerModel(sequelize);
   const Transaction = initTransactionModel(sequelize);
   const UserAsset = initUserAssetModel(sequelize);
+  const AssetSnapshot = initAssetSnapshotModel(sequelize);
+  const UserSnapshot = initUserSnapshotModel(sequelize);
+  const TreasuryLog = initTreasuryLogModel(sequelize);
+  const AccrueLog = initAccrueLogModel(sequelize);
 
   // User <-> Asset (M:N via UserAsset)
   User.belongsToMany(Asset, {
@@ -54,6 +62,22 @@ export function createDatabaseClient(sequelize: Sequelize) {
   Asset.hasMany(UserAsset, { foreignKey: "assetId", sourceKey: "id" });
   UserAsset.belongsTo(Asset, { foreignKey: "assetId" });
 
+  // Asset <-> AssetSnapshot (1:N)
+  Asset.hasMany(AssetSnapshot, { foreignKey: "assetId", sourceKey: "id" });
+  AssetSnapshot.belongsTo(Asset, { foreignKey: "assetId" });
+
+  // User <-> UserSnapshot (1:N)
+  User.hasMany(UserSnapshot, { foreignKey: "userId", sourceKey: "id" });
+  UserSnapshot.belongsTo(User, { foreignKey: "userId" });
+
+  // Asset <-> TreasuryLog (1:N)
+  Asset.hasMany(TreasuryLog, { foreignKey: "assetId", sourceKey: "id" });
+  TreasuryLog.belongsTo(Asset, { foreignKey: "assetId" });
+
+  // Asset <-> AccrueLog (1:N)
+  Asset.hasMany(AccrueLog, { foreignKey: "assetId", sourceKey: "id" });
+  AccrueLog.belongsTo(Asset, { foreignKey: "assetId" });
+
   return {
     asset: Asset,
     user: User,
@@ -62,6 +86,10 @@ export function createDatabaseClient(sequelize: Sequelize) {
     scanner: Scanner,
     transaction: Transaction,
     userAsset: UserAsset,
+    assetSnapshot: AssetSnapshot,
+    userSnapshot: UserSnapshot,
+    treasuryLog: TreasuryLog,
+    accrueLog: AccrueLog,
     $sequelize: sequelize,
   };
 }

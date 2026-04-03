@@ -35,3 +35,9 @@ export enum RabbitMQQueue {
   BLOCKCHAIN_COLLATERAL_FACTOR_UPDATED = "blockchain.collateral_factor_updated",
   BLOCKCHAIN_LIQUIDATION_PARAMS_UPDATED = "blockchain.liquidation_params_updated",
 }
+
+export enum TreasuryEventType {
+  accrue = "accrue",
+  donate = "donate",
+  withdraw = "withdraw",
+}

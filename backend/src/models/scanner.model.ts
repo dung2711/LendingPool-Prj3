@@ -11,7 +11,7 @@ export class Scanner extends Model<
   InferCreationAttributes<Scanner>
 > {
   declare chainId: string;
-  declare lastScannedBlock: number;
+  declare lastScannedBlock: bigint;
   declare lastScannedAt: Date;
   declare createdAt: Date;
 }
@@ -24,7 +24,7 @@ export const initScannerModel = (sequelize: Sequelize): typeof Scanner => {
         primaryKey: true,
       },
       lastScannedBlock: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       lastScannedAt: {
