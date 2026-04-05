@@ -1,4 +1,5 @@
 import type { Logger } from "@logtape/logtape";
+import { Op } from "sequelize";
 import { chainIds, ProtocolContract } from "src/shared/constants/blockchain.js";
 import type { DatabaseClient } from "src/shared/infra/index.js";
 import type { IdUtils } from "src/shared/utils/id.js";
@@ -20,7 +21,7 @@ export function createLiquidatableUsersService(deps: {
     chainIds.sepolia,
   );
 
-  async function calculateLiquidatableUsers() {
+  async function calculateLiquidatableUsers(): Promise<void> {
     const blockNumber = await provider.getBlockNumber();
     const block = await provider.getBlock(blockNumber);
     const blockTimestamp = block.timestamp;
@@ -30,6 +31,17 @@ export function createLiquidatableUsersService(deps: {
         (ua) => BigInt(ua.borrowedAmount) > 0n,
       );
       const activeUserIds = [...new Set(activeUsers.map((ua) => ua.userId))];
+      const users = await dbClient.user.findAll({
+        where: {
+          id: {
+            [Op.in]: activeUserIds,
+          },
+        },
+        attributes: ["id", "userAddress"],
+      });
+      const userAddressMap = new Map(
+        users.map((user) => [user.id, user.userAddress]),
+      );
 
       logger.info("Checking liquidatable status for {count} active users", {
         count: activeUserIds.length,
@@ -41,16 +53,27 @@ export function createLiquidatableUsersService(deps: {
         existingLiquidatable.map((u) => u.userId),
       );
 
-      const currentLiquidatableUserIds = [];
+      const currentLiquidatableAddresses = [];
 
       // Check each active user
       for (const userId of activeUserIds) {
         try {
+          const userAddress = userAddressMap.get(userId);
+          if (!userAddress) {
+            logger.warn(
+              "Skip liquidatable check: user not found for userId {userId}",
+              {
+                userId,
+              },
+            );
+            continue;
+          }
+
           const isLiquidatable =
-            await liquidationContract.isAccountLiquidatable(userId);
+            await liquidationContract.isAccountLiquidatable(userAddress);
 
           if (isLiquidatable) {
-            currentLiquidatableUserIds.push(userId);
+            currentLiquidatableAddresses.push(userAddress);
 
             // Only add if not already in database
             if (!existingUserIds.has(userId)) {
@@ -100,19 +123,19 @@ export function createLiquidatableUsersService(deps: {
       }
 
       logger.info("Liquidatable users calculation completed: {count} users", {
-        count: currentLiquidatableUserIds.length,
+        count: currentLiquidatableAddresses.length,
       });
 
       // Publish WebSocket event if publisher is available
       if (wsPublisher) {
         await wsPublisher.publish(WSEvent.LiquidatableUsersUpdated, {
-          users: currentLiquidatableUserIds.map((userId) => ({ userId })),
+          users: currentLiquidatableAddresses.map((address) => ({ address })),
           blockNumber: blockNumber || 0,
           timestamp: blockTimestamp || new Date(),
         });
       }
 
-      return currentLiquidatableUserIds;
+      return;
     } catch (error) {
       logger.error("Error calculating liquidatable users: {error}", { error });
       throw error;

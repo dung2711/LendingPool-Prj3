@@ -4,13 +4,15 @@
 		// File Layout
 		"rootDir": "./src",
 		"outDir": "./dist",
-		"baseUrl": ".",
 		// Environment Settings
 		// See also https://aka.ms/tsconfig/module
 		"module": "Preserve",
 		"target": "esnext",
 		"types": [],
 		"paths": {
+			"src/*": [
+				"./src/*"
+			],
 			"@shared/*": [
 				"../shared/*"
 			]
@@ -42,7 +44,6 @@
 		"moduleDetection": "force",
 		"skipLibCheck": true,
 		"moduleResolution": "bundler",
-		"ignoreDeprecations": "6.0",
 	},
 	"include": [
 		"src"

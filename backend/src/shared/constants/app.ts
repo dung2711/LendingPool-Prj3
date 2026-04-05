@@ -30,6 +30,8 @@ export enum RabbitMQQueue {
   BLOCKCHAIN_REPAY = "blockchain.repay",
   BLOCKCHAIN_LIQUIDATE = "blockchain.liquidate",
   BLOCKCHAIN_ACCRUE_INTEREST = "blockchain.accrue_interest",
+  BLOCKCHAIN_TREASURY_DONATE = "blockchain.treasury_donate",
+  BLOCKCHAIN_TREASURY_WITHDRAWN = "blockchain.treasury_withdrawn",
   BLOCKCHAIN_MARKET_SUPPORTED = "blockchain.market_supported",
   BLOCKCHAIN_MARKET_UNSUPPORTED = "blockchain.market_unsupported",
   BLOCKCHAIN_COLLATERAL_FACTOR_UPDATED = "blockchain.collateral_factor_updated",
@@ -37,7 +39,7 @@ export enum RabbitMQQueue {
 }
 
 export enum TreasuryEventType {
-  accrue = "accrue",
-  donate = "donate",
-  withdraw = "withdraw",
+  Accrue = "accrue",
+  Donate = "donate",
+  Withdraw = "withdraw",
 }

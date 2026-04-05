@@ -25,13 +25,36 @@ export type ITransactionEventReq = {
   amount: string;
   transactionHash: string;
   blockNumber: number;
+  logIndex: number;
 };
 
 export type IAccrueEventReq = {
   chainId: ChainId;
   assetAddress: string;
+  interestAccrued: string;
+  toDeposit: string;
+  toTreasury: string;
+  totalTreasury: string;
   newTotalBorrows: string;
   newTotalDeposits: string;
+  transactionHash: string;
+  blockNumber: number;
+};
+
+export type IDonatedEventReq = {
+  chainId: ChainId;
+  donorAddress: string;
+  assetAddress: string;
+  amount: string;
+  transactionHash: string;
+  blockNumber: number;
+};
+
+export type ITreasuryWithdrawnEventReq = {
+  chainId: ChainId;
+  assetAddress: string;
+  toAddress: string;
+  amount: string;
   transactionHash: string;
   blockNumber: number;
 };
@@ -65,4 +88,9 @@ export type ILiquidationParamsUpdatedEventReq = {
   liquidationThreshold: string;
   transactionHash: string;
   blockNumber: number;
+};
+
+export type SyncCursor = {
+  blockNumber: number;
+  logIndex: number;
 };

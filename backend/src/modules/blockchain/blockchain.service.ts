@@ -5,10 +5,12 @@ import type {
   ChainId,
   IAccrueEventReq,
   ICollateralFactorUpdatedEventReq,
+  IDonatedEventReq,
   ILiquidationParamsUpdatedEventReq,
   IMarketSupportedEventReq,
   IMarketUnsupportedEventReq,
   ITransactionEventReq,
+  ITreasuryWithdrawnEventReq,
 } from "src/shared/types/blockchain";
 import type { RabbitMQHelperService } from "src/shared/utils";
 
@@ -62,6 +64,7 @@ export function createBlockchainService(deps: {
       amount: amount.toString(),
       transactionHash: event.transactionHash,
       blockNumber: event.blockNumber,
+      logIndex: event.index,
     };
   }
 
@@ -249,13 +252,25 @@ export function createBlockchainService(deps: {
     chainId: ChainId;
     event: EventLog;
   }) {
-    const { asset, newTotalBorrows, newTotalDeposits } = event.args;
+    const {
+      asset,
+      interestAccrued,
+      toDeposit,
+      toTreasury,
+      totalTreasury,
+      newTotalBorrows,
+      newTotalDeposits,
+    } = event.args;
     logHandleInvocation({
       handlerName: "handleAccrueEvent",
       chainId,
       event,
       details: {
         assetAddress: asset,
+        interestAccrued: interestAccrued.toString(),
+        toDeposit: toDeposit.toString(),
+        toTreasury: toTreasury.toString(),
+        totalTreasury: totalTreasury.toString(),
         newTotalBorrows: newTotalBorrows.toString(),
         newTotalDeposits: newTotalDeposits.toString(),
       },
@@ -267,8 +282,80 @@ export function createBlockchainService(deps: {
       payload: {
         chainId,
         assetAddress: asset,
+        interestAccrued: interestAccrued.toString(),
+        toDeposit: toDeposit.toString(),
+        toTreasury: toTreasury.toString(),
+        totalTreasury: totalTreasury.toString(),
         newTotalBorrows: newTotalBorrows.toString(),
         newTotalDeposits: newTotalDeposits.toString(),
+        transactionHash: event.transactionHash,
+        blockNumber: event.blockNumber,
+      },
+    });
+  }
+
+  async function handleDonatedEvent({
+    chainId,
+    event,
+  }: {
+    chainId: ChainId;
+    event: EventLog;
+  }) {
+    const { donor, asset, amount } = event.args;
+    logHandleInvocation({
+      handlerName: "handleDonatedEvent",
+      chainId,
+      event,
+      details: {
+        donorAddress: donor,
+        assetAddress: asset,
+        amount: amount.toString(),
+      },
+    });
+
+    await publishEvent<IDonatedEventReq>({
+      chainId,
+      event,
+      queueName: RabbitMQQueue.BLOCKCHAIN_TREASURY_DONATE,
+      payload: {
+        chainId,
+        donorAddress: donor,
+        assetAddress: asset,
+        amount: amount.toString(),
+        transactionHash: event.transactionHash,
+        blockNumber: event.blockNumber,
+      },
+    });
+  }
+
+  async function handleTreasuryWithdrawnEvent({
+    chainId,
+    event,
+  }: {
+    chainId: ChainId;
+    event: EventLog;
+  }) {
+    const { asset, to, amount } = event.args;
+    logHandleInvocation({
+      handlerName: "handleTreasuryWithdrawnEvent",
+      chainId,
+      event,
+      details: {
+        assetAddress: asset,
+        toAddress: to,
+        amount: amount.toString(),
+      },
+    });
+
+    await publishEvent<ITreasuryWithdrawnEventReq>({
+      chainId,
+      event,
+      queueName: RabbitMQQueue.BLOCKCHAIN_TREASURY_WITHDRAWN,
+      payload: {
+        chainId,
+        assetAddress: asset,
+        toAddress: to,
+        amount: amount.toString(),
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
       },
@@ -405,6 +492,8 @@ export function createBlockchainService(deps: {
     handleRepayEvent,
     handleCollateralSeizedEvent,
     handleAccrueEvent,
+    handleDonatedEvent,
+    handleTreasuryWithdrawnEvent,
     handleMarketSupportedEvent,
     handleMarketUnsupportedEvent,
     handleCollateralFactorUpdatedEvent,

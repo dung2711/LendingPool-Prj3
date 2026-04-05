@@ -19,6 +19,7 @@ export async function setupInfrastructure<T extends BaseEnv>(
 
   const dbService = createPostgreSQLService({ env, logger });
   await dbService.connect();
+  const sequelize = dbService.getSequelizeInstance();
   const dbClient = dbService.getClient();
 
   const rabbitService = createRabbitMQService({ env, logger });
@@ -52,6 +53,7 @@ export async function setupInfrastructure<T extends BaseEnv>(
 
   return {
     logger,
+    sequelize,
     dbClient,
     rabbitChannel,
     redisClient,

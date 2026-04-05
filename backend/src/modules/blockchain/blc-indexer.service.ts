@@ -39,7 +39,7 @@ export function createBLCIndexerService(deps: {
             where: { chainId: chainId.toString() },
             defaults: {
               chainId: chainId.toString(),
-              lastScannedBlock: Math.max(currentBlock - 10, 0),
+              lastScannedBlock: BigInt(Math.max(currentBlock - 10, 0)),
               lastScannedAt: dayjs().toDate(),
               createdAt: dayjs().toDate(),
             },
@@ -159,6 +159,7 @@ export function createBLCIndexerService(deps: {
         toBlock,
         error: (error as Error).message,
       });
+      throw error;
     }
   }
 
@@ -168,7 +169,9 @@ export function createBLCIndexerService(deps: {
       where: { chainId: chainId.toString() },
     });
 
-    const fromBlock = scannerState ? scannerState.lastScannedBlock + 1 : 0;
+    const fromBlock = scannerState
+      ? Number(scannerState.lastScannedBlock) + 1
+      : 0;
     const currentBlock = await blcConfig.getProvider(chainId).getBlockNumber();
     const toBlock = Math.min(currentBlock, fromBlock + env.MAX_BLOCK_RANGE - 1);
 
@@ -187,7 +190,7 @@ export function createBLCIndexerService(deps: {
 
     await dbClient.scanner.update(
       {
-        lastScannedBlock: toBlock,
+        lastScannedBlock: BigInt(toBlock),
         lastScannedAt: dayjs().toDate(),
       },
       {

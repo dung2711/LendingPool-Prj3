@@ -14,6 +14,8 @@ export class UserAsset extends Model<
   declare assetId: string;
   declare depositedAmount: string;
   declare borrowedAmount: string;
+  declare lastSyncedBlock: bigint;
+  declare lastSyncedLogIndex: number;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -36,6 +38,16 @@ export function initUserAssetModel(sequelize: Sequelize): typeof UserAsset {
       borrowedAmount: {
         type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
+      },
+      lastSyncedBlock: {
+        type: DataTypes.BIGINT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      lastSyncedLogIndex: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
       },
       createdAt: {
         type: DataTypes.DATE,
