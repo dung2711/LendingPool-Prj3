@@ -45,7 +45,7 @@ export const ZGetTransactionsDetailsReq = z
       (!data.cursorTS && data.cursorID)
     ) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["cursorID"],
         message: "cursorTS and cursorID must be provided together",
       });
