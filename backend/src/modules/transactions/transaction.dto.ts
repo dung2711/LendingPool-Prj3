@@ -1,38 +1,56 @@
+import dayjs from "dayjs";
 import { TransactionType } from "src/shared/constants";
 import { z } from "zod";
 
-const zDate = z
+const zCursorTimestamp = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
+  .trim()
+  .min(1)
+  .refine((value) => dayjs(value).isValid(), {
+    message: "cursorTS must be a valid timestamp",
+  })
   .optional();
 
-export const ZGetTransactionsDetailsReq = z.object({
-  userAddress: z
-    .string()
-    .describe(
-      "The address of the user whose transactions details are being requested",
+export const ZGetTransactionsDetailsReq = z
+  .object({
+    userAddress: z
+      .string()
+      .describe(
+        "The address of the user whose transactions details are being requested",
+      ),
+    cursorTS: zCursorTimestamp.describe(
+      "Opaque cursor timestamp returned by previous API response",
     ),
-  cursorTS: zDate.describe(
-    "The timestamp to paginate transactions details (YYYY-MM-DD)",
-  ),
-  cursorID: z
-    .string()
-    .optional()
-    .describe("The ID of the cursor transaction for pagination"),
-  type: z
-    .enum(TransactionType)
-    .optional()
-    .describe("The type of transactions to retrieve"),
-  limit: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(100)
-    .describe(
-      "The maximum number of transactions details to retrieve (default: 10, max: 100)",
-    )
-    .default(10),
-});
+    cursorID: z
+      .string()
+      .optional()
+      .describe("The ID of the cursor transaction for pagination"),
+    type: z
+      .enum(TransactionType)
+      .optional()
+      .describe("The type of transactions to retrieve"),
+    limit: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(100)
+      .describe(
+        "The maximum number of transactions details to retrieve (default: 10, max: 100)",
+      )
+      .default(10),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      (data.cursorTS && !data.cursorID) ||
+      (!data.cursorTS && data.cursorID)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["cursorID"],
+        message: "cursorTS and cursorID must be provided together",
+      });
+    }
+  });
 
 export type IGetTransactionsDetailsReq = z.infer<
   typeof ZGetTransactionsDetailsReq

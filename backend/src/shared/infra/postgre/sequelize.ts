@@ -94,6 +94,13 @@ export function createPostgreSQLService(deps: {
     return state.db;
   }
 
+  function getSequelizeInstance(): Sequelize {
+    if (!state.client) {
+      throw new Error("Sequelize client is not available");
+    }
+    return state.client;
+  }
+
   async function close(): Promise<void> {
     if (state.client) {
       await state.client.close();
@@ -108,6 +115,7 @@ export function createPostgreSQLService(deps: {
   return {
     connect,
     getClient,
+    getSequelizeInstance,
     close,
   };
 }

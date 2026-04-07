@@ -5,19 +5,23 @@ import {
   Model,
   type Sequelize,
 } from "sequelize";
+import { chainIds } from "src/shared/constants";
+import type { ChainId } from "src/shared/types";
 
 export class Asset extends Model<
   InferAttributes<Asset>,
   InferCreationAttributes<Asset>
 > {
-  declare id: string;
+  declare id: bigint;
   declare assetAddress: string;
+  declare chainId: ChainId;
   declare symbol: string;
   declare name: string;
   declare decimals: number;
   declare isSupported: boolean;
   declare totalDeposited: string;
   declare totalBorrowed: string;
+  declare treasuryBalance: string;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -26,12 +30,19 @@ export function initAssetModel(sequelize: Sequelize): typeof Asset {
   Asset.init(
     {
       id: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         primaryKey: true,
       },
       assetAddress: {
         type: DataTypes.STRING,
         allowNull: false,
+      },
+      chainId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        validate: {
+          isIn: [Object.values(chainIds)],
+        },
       },
       symbol: {
         type: DataTypes.STRING,
@@ -57,6 +68,10 @@ export function initAssetModel(sequelize: Sequelize): typeof Asset {
         type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
       },
+      treasuryBalance: {
+        type: DataTypes.DECIMAL(78, 0),
+        defaultValue: "0",
+      },
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
@@ -73,7 +88,7 @@ export function initAssetModel(sequelize: Sequelize): typeof Asset {
       indexes: [
         {
           unique: true,
-          fields: ["assetAddress"],
+          fields: ["assetAddress", "chainId"],
         },
         {
           fields: ["isSupported"],

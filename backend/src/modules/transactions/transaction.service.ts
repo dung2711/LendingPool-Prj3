@@ -35,12 +35,13 @@ export function createTransactionService(deps: {
         ...(type ? { type } : {}),
       };
       if (cursorTS && cursorID) {
+        const cursorDate = dayjs(cursorTS).toDate();
         where[Op.or] = [
           {
-            createdAt: { [Op.lt]: dayjs(cursorTS).toDate() },
+            createdAt: { [Op.lt]: cursorDate },
           },
           {
-            createdAt: dayjs(cursorTS).toDate(),
+            createdAt: cursorDate,
             id: { [Op.lt]: cursorID },
           },
         ];
@@ -89,7 +90,7 @@ export function createTransactionService(deps: {
       if (hasNextPage) {
         const last = items[items.length - 1];
         nextCursor = {
-          cursorTS: last.createdAt.toDateString(),
+          cursorTS: last.createdAt.toISOString(),
           cursorID: last.id.toString(),
         };
       }

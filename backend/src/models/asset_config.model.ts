@@ -11,7 +11,7 @@ export class AssetConfig extends Model<
   InferCreationAttributes<AssetConfig>
 > {
   declare id: string;
-  declare assetId: string;
+  declare assetId: bigint;
   declare baseRate: string;
   declare slope1: string;
   declare slope2: string;
@@ -33,7 +33,7 @@ export function initAssetConfigModel(sequelize: Sequelize): typeof AssetConfig {
         primaryKey: true,
       },
       assetId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       baseRate: {

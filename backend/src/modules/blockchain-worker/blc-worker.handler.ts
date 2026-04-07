@@ -1,42 +1,145 @@
 import type { Logger } from "@logtape/logtape";
 import { Contract } from "ethers";
+import type Redis from "ioredis";
 import {
+  literal,
+  type Sequelize,
+  type Transaction as SequelizeTransaction,
+} from "sequelize";
+import {
+  DuplicateTransactionError,
   ProtocolContract,
   protocolContractABIs,
   TransactionType,
+  TreasuryEventType,
 } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
 import type {
   IAccrueEventReq,
   ICollateralFactorUpdatedEventReq,
+  IDonatedEventReq,
   ILiquidationParamsUpdatedEventReq,
   IMarketSupportedEventReq,
   IMarketUnsupportedEventReq,
   ITransactionEventReq,
+  ITreasuryWithdrawnEventReq,
+  SyncCursor,
 } from "src/shared/types";
 import type { IdUtils } from "src/shared/utils/id";
 import type { BlockchainConfig } from "../blockchain/blockchain.config";
-
-type TransactionTypeValue =
-  | TransactionType.Deposit
-  | TransactionType.Withdraw
-  | TransactionType.Borrow
-  | TransactionType.Repay
-  | TransactionType.Liquidate;
 
 export function createBLCWorkerHandler(deps: {
   logger: Logger;
   dbClient: DatabaseClient;
   blcConfig: BlockchainConfig;
   idUtils: IdUtils;
+  sequelize: Sequelize;
+  redisClient: Redis;
 }) {
-  const { logger, dbClient, blcConfig, idUtils } = deps;
+  const { logger, dbClient, blcConfig, idUtils, sequelize, redisClient } = deps;
+  function getUserAssetSyncRedisKey(params: {
+    userId: bigint;
+    assetId: bigint;
+  }) {
+    const { userId, assetId } = params;
+    return `blc:user-asset-sync:${userId}:${assetId}`;
+  }
+
+  function isIncomingCursorStale(params: {
+    current: SyncCursor;
+    incoming: SyncCursor;
+  }) {
+    const { current, incoming } = params;
+
+    return (
+      incoming.blockNumber < current.blockNumber ||
+      (incoming.blockNumber === current.blockNumber &&
+        incoming.logIndex <= current.logIndex)
+    );
+  }
+
+  function assertValidLogIndex(params: {
+    logIndex: number;
+    transactionHash: string;
+    blockNumber: number;
+  }) {
+    const { logIndex, transactionHash, blockNumber } = params;
+    if (!Number.isInteger(logIndex) || logIndex < 0) {
+      throw new Error(
+        `Invalid logIndex for tx ${transactionHash} at block ${blockNumber}`,
+      );
+    }
+  }
+
+  async function readLastSyncedCursor(params: {
+    redisKey: string;
+    userId: bigint;
+    assetId: bigint;
+    transaction: SequelizeTransaction;
+  }): Promise<SyncCursor> {
+    const { redisKey, userId, assetId, transaction } = params;
+
+    try {
+      const cached = await redisClient.get(redisKey);
+      if (cached) {
+        const parsed = JSON.parse(cached) as SyncCursor;
+        if (
+          Number.isFinite(parsed.blockNumber) &&
+          Number.isFinite(parsed.logIndex)
+        ) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      logger.warn("Failed to read sync cursor from Redis", {
+        redisKey,
+        error: (error as Error).message,
+      });
+    }
+
+    const row = await dbClient.userAsset.findOne({
+      where: {
+        userId,
+        assetId,
+      },
+      attributes: ["lastSyncedBlock", "lastSyncedLogIndex"],
+      transaction,
+    });
+
+    if (!row) {
+      return {
+        blockNumber: 0,
+        logIndex: 0,
+      };
+    }
+
+    return {
+      blockNumber: Number(row.lastSyncedBlock),
+      logIndex: Number(row.lastSyncedLogIndex),
+    };
+  }
+
+  async function writeLastSyncedCursor(params: {
+    redisKey: string;
+    cursor: SyncCursor;
+  }) {
+    const { redisKey, cursor } = params;
+
+    try {
+      await redisClient.set(redisKey, JSON.stringify(cursor));
+    } catch (error) {
+      logger.warn("Failed to write sync cursor to Redis", {
+        redisKey,
+        error: (error as Error).message,
+      });
+    }
+  }
 
   async function ensureUser(userAddress: string) {
     await dbClient.user.findOrCreate({
       where: { userAddress },
       defaults: {
-        id: idUtils.generateId(),
+        id: idUtils.snowflakeId(),
         userAddress,
         joinedAt: new Date(),
         createdAt: new Date(),
@@ -70,7 +173,7 @@ export function createBLCWorkerHandler(deps: {
     ]);
 
     await dbClient.asset.create({
-      id: idUtils.generateId(),
+      id: idUtils.snowflakeId(),
       assetAddress,
       name,
       symbol,
@@ -127,12 +230,13 @@ export function createBLCWorkerHandler(deps: {
   async function ensureTransaction(params: {
     transactionHash: string;
     chainId: ITransactionEventReq["chainId"];
-    userId: string;
-    assetId: string;
+    userId: bigint;
+    assetId: bigint;
     amount: string;
     amountUSD: string;
     blockNumber: number;
-    type: TransactionTypeValue;
+    type: TransactionType;
+    transaction: SequelizeTransaction;
   }) {
     const {
       transactionHash,
@@ -143,9 +247,10 @@ export function createBLCWorkerHandler(deps: {
       amountUSD,
       blockNumber,
       type,
+      transaction,
     } = params;
 
-    const [transaction, created] = await dbClient.transaction.findOrCreate({
+    const [tx, created] = await dbClient.transaction.findOrCreate({
       where: { transactionHash },
       defaults: {
         transactionHash,
@@ -158,30 +263,63 @@ export function createBLCWorkerHandler(deps: {
         type,
         createdAt: new Date(),
       },
+      transaction,
     });
 
-    if (!created && transaction.type !== type) {
-      logger.warn(
-        "Transaction hash already exists with a different type, keeping existing record",
-        {
-          transactionHash,
-          existingType: transaction.type,
-          incomingType: type,
-        },
-      );
+    if (!created) {
+      throw new DuplicateTransactionError(transactionHash);
     }
 
-    return transaction;
+    return tx;
   }
 
   async function syncUserAssetBalance(params: {
-    userId: string;
+    userId: bigint;
     userAddress: string;
-    assetId: string;
+    assetId: bigint;
     assetAddress: string;
     chainId: ITransactionEventReq["chainId"];
+    blockNumber: number;
+    logIndex: number;
+    transaction: SequelizeTransaction;
   }) {
-    const { userId, userAddress, assetId, assetAddress, chainId } = params;
+    const {
+      userId,
+      userAddress,
+      assetId,
+      assetAddress,
+      chainId,
+      blockNumber,
+      logIndex,
+      transaction,
+    } = params;
+
+    const redisKey = getUserAssetSyncRedisKey({ userId, assetId });
+    const incomingCursor: SyncCursor = { blockNumber, logIndex };
+
+    const currentCursor = await readLastSyncedCursor({
+      redisKey,
+      userId,
+      assetId,
+      transaction,
+    });
+
+    if (
+      isIncomingCursorStale({
+        current: currentCursor,
+        incoming: incomingCursor,
+      })
+    ) {
+      logger.debug("Skipping stale user-asset sync", {
+        userId,
+        assetId,
+        blockNumber,
+        logIndex,
+        currentBlock: currentCursor.blockNumber,
+        currentLogIndex: currentCursor.logIndex,
+      });
+      return;
+    }
 
     const lendingPoolContract = blcConfig.getProtocolContract(
       ProtocolContract.LendingPool,
@@ -190,6 +328,7 @@ export function createBLCWorkerHandler(deps: {
     const userBalance = await lendingPoolContract.userBalances(
       userAddress,
       assetAddress,
+      { blockTag: blockNumber },
     );
     const depositedAmount = userBalance.deposited.toString();
     const borrowedAmount = userBalance.borrowed.toString();
@@ -204,51 +343,111 @@ export function createBLCWorkerHandler(deps: {
         assetId,
         depositedAmount,
         borrowedAmount,
+        lastSyncedBlock: BigInt(blockNumber),
+        lastSyncedLogIndex: logIndex,
       },
+      transaction,
     });
 
     if (!created) {
-      await dbClient.userAsset.update(
+      const [updatedRows] = await dbClient.userAsset.update(
         {
           depositedAmount,
           borrowedAmount,
+          lastSyncedBlock: BigInt(blockNumber),
+          lastSyncedLogIndex: logIndex,
         },
         {
           where: {
             userId,
             assetId,
           },
+          transaction,
         },
       );
+
+      if (updatedRows === 0) {
+        throw new Error(
+          `Failed to update userAsset for ${userId}:${assetId} at ${blockNumber}:${logIndex}`,
+        );
+      }
     }
+
+    transaction.afterCommit(() =>
+      writeLastSyncedCursor({
+        redisKey,
+        cursor: incomingCursor,
+      }),
+    );
   }
 
   async function updateAssetTotalsByDelta(params: {
     assetAddress: string;
     depositedDelta?: bigint;
     borrowedDelta?: bigint;
+    transaction: SequelizeTransaction;
   }) {
-    const { assetAddress, depositedDelta = 0n, borrowedDelta = 0n } = params;
+    const {
+      assetAddress,
+      depositedDelta = 0n,
+      borrowedDelta = 0n,
+      transaction,
+    } = params;
 
-    const asset = await dbClient.asset.findOne({ where: { assetAddress } });
-    if (!asset) {
-      throw new Error(`Asset not found: ${assetAddress}`);
-    }
-
-    const nextDeposited = BigInt(asset.totalDeposited) + depositedDelta;
-    const nextBorrowed = BigInt(asset.totalBorrowed) + borrowedDelta;
-
-    await dbClient.asset.update(
+    const [affectedRows] = await dbClient.asset.update(
       {
-        totalDeposited: (nextDeposited < 0n ? 0n : nextDeposited).toString(),
-        totalBorrowed: (nextBorrowed < 0n ? 0n : nextBorrowed).toString(),
+        totalDeposited: literal(
+          `GREATEST((totalDeposited::NUMERIC) + (${depositedDelta.toString()})::NUMERIC, 0)`,
+        ),
+        totalBorrowed: literal(
+          `GREATEST((totalBorrowed::NUMERIC) + (${borrowedDelta.toString()})::NUMERIC, 0)`,
+        ),
       },
       {
         where: {
           assetAddress,
         },
+        transaction,
       },
     );
+
+    if (affectedRows === 0) {
+      throw new Error(`Asset not found: ${assetAddress}`);
+    }
+  }
+
+  async function updateAssetTreasuryBalanceByDelta(params: {
+    assetAddress: string;
+    treasuryDelta: bigint;
+    transaction: SequelizeTransaction;
+  }) {
+    const { assetAddress, treasuryDelta, transaction } = params;
+
+    const [affectedRows, updatedAssets] = await dbClient.asset.update(
+      {
+        treasuryBalance: literal(
+          `GREATEST((treasuryBalance::NUMERIC) + (${treasuryDelta.toString()})::NUMERIC, 0)`,
+        ),
+      },
+      {
+        where: {
+          assetAddress,
+        },
+        transaction,
+        returning: true,
+      },
+    );
+
+    if (affectedRows === 0) {
+      throw new Error(`Asset not found: ${assetAddress}`);
+    }
+
+    const updatedAsset = updatedAssets[0];
+    if (!updatedAsset) {
+      throw new Error(`Asset update failed to return row: ${assetAddress}`);
+    }
+
+    return updatedAsset.treasuryBalance;
   }
 
   async function fetchMarketConfigValues(params: {
@@ -318,7 +517,10 @@ export function createBLCWorkerHandler(deps: {
         amount,
         transactionHash,
         blockNumber,
+        logIndex,
       } = params;
+
+      assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
       logger.info(
         "Deposit event received from queue on {chainId}: user {userAddress} deposited {amount} of asset {assetAddress} in transaction {transactionHash} at block {blockNumber}",
@@ -338,34 +540,47 @@ export function createBLCWorkerHandler(deps: {
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
 
-      await ensureTransaction({
-        transactionHash,
-        chainId,
-        userId: user.id,
-        assetId: asset.id,
-        amount,
-        amountUSD,
-        blockNumber,
-        type: TransactionType.Deposit,
-      });
+      await sequelize.transaction(async (t) => {
+        await ensureTransaction({
+          transactionHash,
+          chainId,
+          userId: user.id,
+          assetId: asset.id,
+          amount,
+          amountUSD,
+          blockNumber,
+          type: TransactionType.Deposit,
+          transaction: t,
+        });
 
-      await syncUserAssetBalance({
-        userId: user.id,
-        userAddress,
-        assetId: asset.id,
-        assetAddress,
-        chainId,
-      });
+        await syncUserAssetBalance({
+          userId: user.id,
+          userAddress,
+          assetId: asset.id,
+          assetAddress,
+          chainId,
+          blockNumber,
+          logIndex,
+          transaction: t,
+        });
 
-      await updateAssetTotalsByDelta({
-        assetAddress,
-        depositedDelta: BigInt(amount),
+        await updateAssetTotalsByDelta({
+          assetAddress,
+          depositedDelta: BigInt(amount),
+          transaction: t,
+        });
       });
 
       logger.info("Deposit processed: TX {transactionHash}", {
         transactionHash,
       });
     } catch (error) {
+      if (error instanceof DuplicateTransactionError) {
+        logger.warn("Skip duplicate Deposit event", {
+          transactionHash: params.transactionHash,
+        });
+        return;
+      }
       logger.error("Error handling Deposit event", {
         error: (error as Error).message,
         payload: params,
@@ -383,7 +598,10 @@ export function createBLCWorkerHandler(deps: {
         amount,
         transactionHash,
         blockNumber,
+        logIndex,
       } = params;
+
+      assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
       logger.info(
         "Withdraw event received from queue on {chainId}: user {userAddress} withdrew {amount} of asset {assetAddress} in transaction {transactionHash} at block {blockNumber}",
@@ -403,34 +621,47 @@ export function createBLCWorkerHandler(deps: {
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
 
-      await ensureTransaction({
-        transactionHash,
-        chainId,
-        userId: user.id,
-        assetId: asset.id,
-        amount,
-        amountUSD,
-        blockNumber,
-        type: TransactionType.Withdraw,
-      });
+      await sequelize.transaction(async (t) => {
+        await ensureTransaction({
+          transactionHash,
+          chainId,
+          userId: user.id,
+          assetId: asset.id,
+          amount,
+          amountUSD,
+          blockNumber,
+          type: TransactionType.Withdraw,
+          transaction: t,
+        });
 
-      await syncUserAssetBalance({
-        userId: user.id,
-        userAddress,
-        assetId: asset.id,
-        assetAddress,
-        chainId,
-      });
+        await syncUserAssetBalance({
+          userId: user.id,
+          userAddress,
+          assetId: asset.id,
+          assetAddress,
+          chainId,
+          blockNumber,
+          logIndex,
+          transaction: t,
+        });
 
-      await updateAssetTotalsByDelta({
-        assetAddress,
-        depositedDelta: -BigInt(amount),
+        await updateAssetTotalsByDelta({
+          assetAddress,
+          depositedDelta: -BigInt(amount),
+          transaction: t,
+        });
       });
 
       logger.info("Withdraw processed: TX {transactionHash}", {
         transactionHash,
       });
     } catch (error) {
+      if (error instanceof DuplicateTransactionError) {
+        logger.warn("Skip duplicate Withdraw event", {
+          transactionHash: params.transactionHash,
+        });
+        return;
+      }
       logger.error("Error handling Withdraw event", {
         error: (error as Error).message,
         payload: params,
@@ -448,7 +679,10 @@ export function createBLCWorkerHandler(deps: {
         amount,
         transactionHash,
         blockNumber,
+        logIndex,
       } = params;
+
+      assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
       logger.info(
         "Borrow event received from queue on {chainId}: user {userAddress} borrowed {amount} of asset {assetAddress} in transaction {transactionHash} at block {blockNumber}",
@@ -468,34 +702,47 @@ export function createBLCWorkerHandler(deps: {
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
 
-      await ensureTransaction({
-        transactionHash,
-        chainId,
-        userId: user.id,
-        assetId: asset.id,
-        amount,
-        amountUSD,
-        blockNumber,
-        type: TransactionType.Borrow,
-      });
+      await sequelize.transaction(async (t) => {
+        await ensureTransaction({
+          transactionHash,
+          chainId,
+          userId: user.id,
+          assetId: asset.id,
+          amount,
+          amountUSD,
+          blockNumber,
+          type: TransactionType.Borrow,
+          transaction: t,
+        });
 
-      await syncUserAssetBalance({
-        userId: user.id,
-        userAddress,
-        assetId: asset.id,
-        assetAddress,
-        chainId,
-      });
+        await syncUserAssetBalance({
+          userId: user.id,
+          userAddress,
+          assetId: asset.id,
+          assetAddress,
+          chainId,
+          blockNumber,
+          logIndex,
+          transaction: t,
+        });
 
-      await updateAssetTotalsByDelta({
-        assetAddress,
-        borrowedDelta: BigInt(amount),
+        await updateAssetTotalsByDelta({
+          assetAddress,
+          borrowedDelta: BigInt(amount),
+          transaction: t,
+        });
       });
 
       logger.info("Borrow processed: TX {transactionHash}", {
         transactionHash,
       });
     } catch (error) {
+      if (error instanceof DuplicateTransactionError) {
+        logger.warn("Skip duplicate Borrow event", {
+          transactionHash: params.transactionHash,
+        });
+        return;
+      }
       logger.error("Error handling Borrow event", {
         error: (error as Error).message,
         payload: params,
@@ -513,7 +760,10 @@ export function createBLCWorkerHandler(deps: {
         amount,
         transactionHash,
         blockNumber,
+        logIndex,
       } = params;
+
+      assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
       logger.info(
         "Repay event received from queue on {chainId}: user {userAddress} repaid {amount} of asset {assetAddress} in transaction {transactionHash} at block {blockNumber}",
@@ -533,32 +783,45 @@ export function createBLCWorkerHandler(deps: {
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
 
-      await ensureTransaction({
-        transactionHash,
-        chainId,
-        userId: user.id,
-        assetId: asset.id,
-        amount,
-        amountUSD,
-        blockNumber,
-        type: TransactionType.Repay,
-      });
+      await sequelize.transaction(async (t) => {
+        await ensureTransaction({
+          transactionHash,
+          chainId,
+          userId: user.id,
+          assetId: asset.id,
+          amount,
+          amountUSD,
+          blockNumber,
+          type: TransactionType.Repay,
+          transaction: t,
+        });
 
-      await syncUserAssetBalance({
-        userId: user.id,
-        userAddress,
-        assetId: asset.id,
-        assetAddress,
-        chainId,
-      });
+        await syncUserAssetBalance({
+          userId: user.id,
+          userAddress,
+          assetId: asset.id,
+          assetAddress,
+          chainId,
+          blockNumber,
+          logIndex,
+          transaction: t,
+        });
 
-      await updateAssetTotalsByDelta({
-        assetAddress,
-        borrowedDelta: -BigInt(amount),
+        await updateAssetTotalsByDelta({
+          assetAddress,
+          borrowedDelta: -BigInt(amount),
+          transaction: t,
+        });
       });
 
       logger.info("Repay processed: TX {transactionHash}", { transactionHash });
     } catch (error) {
+      if (error instanceof DuplicateTransactionError) {
+        logger.warn("Skip duplicate Repay event", {
+          transactionHash: params.transactionHash,
+        });
+        return;
+      }
       logger.error("Error handling Repay event", {
         error: (error as Error).message,
         payload: params,
@@ -576,7 +839,10 @@ export function createBLCWorkerHandler(deps: {
         amount,
         transactionHash,
         blockNumber,
+        logIndex,
       } = params;
+
+      assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
       logger.info(
         "CollateralSeized event received on {chainId}: borrower {userAddress}, asset {assetAddress}, amount {amount}, tx {transactionHash}, block {blockNumber}",
@@ -596,29 +862,47 @@ export function createBLCWorkerHandler(deps: {
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
 
-      await ensureTransaction({
-        transactionHash,
-        chainId,
-        userId: user.id,
-        assetId: asset.id,
-        amount,
-        amountUSD,
-        blockNumber,
-        type: TransactionType.Liquidate,
-      });
+      await sequelize.transaction(async (t) => {
+        await ensureTransaction({
+          transactionHash,
+          chainId,
+          userId: user.id,
+          assetId: asset.id,
+          amount,
+          amountUSD,
+          blockNumber,
+          type: TransactionType.Liquidate,
+          transaction: t,
+        });
 
-      await syncUserAssetBalance({
-        userId: user.id,
-        userAddress,
-        assetId: asset.id,
-        assetAddress,
-        chainId,
+        await syncUserAssetBalance({
+          userId: user.id,
+          userAddress,
+          assetId: asset.id,
+          assetAddress,
+          chainId,
+          blockNumber,
+          logIndex,
+          transaction: t,
+        });
+
+        await updateAssetTotalsByDelta({
+          assetAddress,
+          depositedDelta: -BigInt(amount),
+          transaction: t,
+        });
       });
 
       logger.info("CollateralSeized processed: TX {transactionHash}", {
         transactionHash,
       });
     } catch (error) {
+      if (error instanceof DuplicateTransactionError) {
+        logger.warn("Skip duplicate CollateralSeized event", {
+          transactionHash: params.transactionHash,
+        });
+        return;
+      }
       logger.error("Error handling CollateralSeized event", {
         error: (error as Error).message,
         payload: params,
@@ -632,6 +916,10 @@ export function createBLCWorkerHandler(deps: {
       const {
         chainId,
         assetAddress,
+        interestAccrued,
+        toDeposit,
+        toTreasury,
+        totalTreasury,
         newTotalBorrows,
         newTotalDeposits,
         transactionHash,
@@ -639,10 +927,14 @@ export function createBLCWorkerHandler(deps: {
       } = params;
 
       logger.info(
-        "Accrue event received on {chainId}: asset {assetAddress}, deposits {newTotalDeposits}, borrows {newTotalBorrows}, tx {transactionHash}, block {blockNumber}",
+        "Accrue event received on {chainId}: asset {assetAddress}, tx {transactionHash}, block {blockNumber}",
         {
           chainId,
           assetAddress,
+          interestAccrued,
+          toDeposit,
+          toTreasury,
+          totalTreasury,
           newTotalDeposits,
           newTotalBorrows,
           transactionHash,
@@ -650,17 +942,67 @@ export function createBLCWorkerHandler(deps: {
         },
       );
 
-      await ensureAsset(assetAddress, chainId);
+      const asset = await ensureAsset(assetAddress, chainId);
+      if (!asset) {
+        throw new Error(`Asset not found: ${assetAddress}`);
+      }
+      const assetId = asset.id;
 
-      await dbClient.asset.update(
-        {
-          totalDeposited: newTotalDeposits,
-          totalBorrowed: newTotalBorrows,
-        },
-        {
-          where: { assetAddress },
-        },
-      );
+      await sequelize.transaction(async (t) => {
+        await updateAssetTotalsByDelta({
+          assetAddress,
+          depositedDelta: BigInt(toDeposit),
+          borrowedDelta: BigInt(interestAccrued),
+          transaction: t,
+        });
+
+        const balanceAfter = await updateAssetTreasuryBalanceByDelta({
+          assetAddress,
+          treasuryDelta: BigInt(toTreasury),
+          transaction: t,
+        });
+
+        if (BigInt(balanceAfter) !== BigInt(totalTreasury)) {
+          logger.warn("Treasury balance drift detected after Accrue", {
+            assetAddress,
+            transactionHash,
+            blockNumber,
+            expectedTotalTreasury: totalTreasury,
+            calculatedBalanceAfter: balanceAfter,
+          });
+        }
+
+        await Promise.all([
+          dbClient.accrueLog.create(
+            {
+              id: idUtils.generateId(),
+              assetId,
+              interestAccrued,
+              toDeposit,
+              toTreasury,
+              newTotalBorrows,
+              newTotalDeposits,
+              transactionHash,
+              blockNumber: BigInt(blockNumber),
+              createdAt: new Date(),
+            },
+            { transaction: t },
+          ),
+          dbClient.treasuryLog.create(
+            {
+              id: idUtils.generateId(),
+              assetId,
+              amount: toTreasury,
+              balanceAfter,
+              eventType: TreasuryEventType.Accrue,
+              transactionHash,
+              blockNumber: BigInt(blockNumber),
+              createdAt: new Date(),
+            },
+            { transaction: t },
+          ),
+        ]);
+      });
 
       logger.info("Accrue processed: TX {transactionHash}", {
         transactionHash,
@@ -697,39 +1039,171 @@ export function createBLCWorkerHandler(deps: {
 
       const asset = await ensureAsset(assetAddress, chainId);
 
-      if (!asset.isSupported) {
-        await dbClient.asset.update(
-          { isSupported: true },
-          { where: { assetAddress } },
-        );
-      }
-
       const marketConfigValues = await fetchMarketConfigValues({
         chainId,
         interestRateModelAddress,
       });
 
-      const existingConfig = await dbClient.assetConfig.findOne({
-        where: { assetId: asset.id },
-      });
+      await sequelize.transaction(async (t) => {
+        if (!asset.isSupported) {
+          await dbClient.asset.update(
+            { isSupported: true },
+            {
+              where: { assetAddress },
+              transaction: t,
+            },
+          );
+        }
 
-      if (existingConfig) {
-        await dbClient.assetConfig.update(marketConfigValues, {
-          where: { assetId: asset.id },
-        });
-      } else {
-        await dbClient.assetConfig.create({
-          id: idUtils.generateId(),
-          assetId: asset.id,
-          ...marketConfigValues,
-        });
-      }
+        const [updatedRows] = await dbClient.assetConfig.update(
+          marketConfigValues,
+          {
+            where: { assetId: asset.id },
+            transaction: t,
+          },
+        );
+
+        if (updatedRows === 0) {
+          await dbClient.assetConfig.create(
+            {
+              id: idUtils.generateId(),
+              assetId: asset.id,
+              ...marketConfigValues,
+            },
+            { transaction: t },
+          );
+        }
+      });
 
       logger.info("MarketSupported processed: TX {transactionHash}", {
         transactionHash,
       });
     } catch (error) {
       logger.error("Error handling MarketSupported event {error}", {
+        error: (error as Error).message,
+        payload: params,
+      });
+      throw error;
+    }
+  }
+
+  async function handleDonateJob(params: IDonatedEventReq) {
+    try {
+      const {
+        chainId,
+        donorAddress,
+        assetAddress,
+        amount,
+        transactionHash,
+        blockNumber,
+      } = params;
+
+      logger.info(
+        "Donated event received on {chainId}: donor {donorAddress}, asset {assetAddress}, amount {amount}, tx {transactionHash}, block {blockNumber}",
+        {
+          chainId,
+          donorAddress,
+          assetAddress,
+          amount,
+          transactionHash,
+          blockNumber,
+        },
+      );
+
+      const asset = await ensureAsset(assetAddress, chainId);
+
+      await sequelize.transaction(async (t) => {
+        const balanceAfter = await updateAssetTreasuryBalanceByDelta({
+          assetAddress,
+          treasuryDelta: BigInt(amount),
+          transaction: t,
+        });
+
+        await dbClient.treasuryLog.create(
+          {
+            id: idUtils.generateId(),
+            assetId: asset.id,
+            amount,
+            balanceAfter,
+            eventType: TreasuryEventType.Donate,
+            transactionHash,
+            blockNumber: BigInt(blockNumber),
+            fromAddress: donorAddress,
+            toAddress: null,
+            createdAt: new Date(),
+          },
+          { transaction: t },
+        );
+      });
+
+      logger.info("Donated processed: TX {transactionHash}", {
+        transactionHash,
+      });
+    } catch (error) {
+      logger.error("Error handling Donated event", {
+        error: (error as Error).message,
+        payload: params,
+      });
+      throw error;
+    }
+  }
+
+  async function handleTreasuryWithdrawnJob(
+    params: ITreasuryWithdrawnEventReq,
+  ) {
+    try {
+      const {
+        chainId,
+        assetAddress,
+        toAddress,
+        amount,
+        transactionHash,
+        blockNumber,
+      } = params;
+
+      logger.info(
+        "TreasuryWithdrawn event received on {chainId}: asset {assetAddress}, to {toAddress}, amount {amount}, tx {transactionHash}, block {blockNumber}",
+        {
+          chainId,
+          assetAddress,
+          toAddress,
+          amount,
+          transactionHash,
+          blockNumber,
+        },
+      );
+
+      const asset = await ensureAsset(assetAddress, chainId);
+
+      await sequelize.transaction(async (t) => {
+        const balanceAfter = await updateAssetTreasuryBalanceByDelta({
+          assetAddress,
+          treasuryDelta: -BigInt(amount),
+          transaction: t,
+        });
+
+        await dbClient.treasuryLog.create(
+          {
+            id: idUtils.generateId(),
+            assetId: asset.id,
+            amount,
+            balanceAfter,
+            eventType: TreasuryEventType.Withdraw,
+            transactionHash,
+            blockNumber: BigInt(blockNumber),
+            fromAddress: null,
+            toAddress,
+            createdAt: new Date(),
+          },
+          { transaction: t },
+        );
+      });
+
+      logger.info("TreasuryWithdrawn processed: TX {transactionHash}", {
+        transactionHash,
+      });
+    } catch (error) {
+      logger.error("Error handling TreasuryWithdrawn event", {
         error: (error as Error).message,
         payload: params,
       });
@@ -844,6 +1318,8 @@ export function createBLCWorkerHandler(deps: {
     handleRepayJob,
     handleCollateralSeizedJob,
     handleAccrueJob,
+    handleDonateJob,
+    handleTreasuryWithdrawnJob,
     handleMarketSupportedJob,
     handleMarketUnsupportedJob,
     handleCollateralFactorUpdatedJob,

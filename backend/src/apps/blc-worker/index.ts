@@ -11,10 +11,8 @@ import { createRabbitMQHelperService, IdUtils } from "../../shared/utils";
 dotenv.config();
 
 const env = validateEnv(blockchainEnvSchema);
-const { logger, dbClient, rabbitChannel, cleanup } = await setupInfrastructure(
-  env,
-  "blc-worker",
-);
+const { logger, dbClient, sequelize, rabbitChannel, redisClient, cleanup } =
+  await setupInfrastructure(env, "blc-worker");
 
 const idUtils = new IdUtils();
 const rabbitHelper = createRabbitMQHelperService({ rabbitChannel, logger });
@@ -22,6 +20,8 @@ const blcConfig = createBlockchainConfig({ env, logger });
 const blcWorkerHandler = createBLCWorkerHandler({
   logger,
   dbClient,
+  sequelize,
+  redisClient,
   idUtils,
   blcConfig,
 });

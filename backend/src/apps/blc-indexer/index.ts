@@ -1,4 +1,4 @@
-import { Baker, RedisPersistenceProvider } from "cronbake";
+import { Cron } from "croner";
 import dotenv from "dotenv";
 import { chainIds } from "src/shared/constants/blockchain.js";
 import {
@@ -43,51 +43,37 @@ const liquidatableUsersService = createLiquidatableUsersService({
 
 await blcIndexerService.initializeScannerState();
 
-const baker = Baker.create({
-  logger,
-  persistence: {
-    enabled: true,
-    strategy: "redis",
-    provider: new RedisPersistenceProvider({
-      client: redisClient,
-      key: "blc-indexer:state",
-    }),
-    autoRestore: true,
-  },
-});
-
-baker.add({
-  name: "scan-ethereum-network",
-  cron: "@every_12_seconds",
-  persist: true,
-  callback: async () => {
-    logger.info("Cron job scan Ethereum network");
+const scanEthereumCron = new Cron(
+  "*/12 * * * * *",
+  { name: "scan-ethereum-network-croner" },
+  async () => {
+    logger.info("Cron job scan Ethereum network (Croner)");
     try {
       await blcIndexerService.scanChain(chainIds.sepolia);
     } catch (error) {
       logger.error("Error scanning Ethereum network {error}", { error });
     }
   },
-});
+);
 
-baker.add({
-  name: "check-liquidatable-users",
-  cron: "@every_30_seconds",
-  persist: true,
-  callback: async () => {
-    logger.info("Cron job checking liquidatable users");
+const checkLiquidatableUsersCron = new Cron(
+  "*/30 * * * * *",
+  { name: "check-liquidatable-users-croner" },
+  async () => {
+    logger.info("Cron job checking liquidatable users (Croner)");
     try {
       await liquidatableUsersService.calculateLiquidatableUsers();
     } catch (error) {
       logger.error("Error checking liquidatable users {error}", { error });
     }
   },
-});
-
-baker.bakeAll();
+);
 
 async function shutdown() {
+  logger.info("Shutting down gracefully...");
   await cleanup();
+  scanEthereumCron.stop();
+  checkLiquidatableUsersCron.stop();
   process.exit(0);
 }
 

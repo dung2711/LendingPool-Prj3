@@ -4,14 +4,18 @@
 		// File Layout
 		"rootDir": "./src",
 		"outDir": "./dist",
-		"baseUrl": ".",
 		// Environment Settings
 		// See also https://aka.ms/tsconfig/module
 		"module": "Preserve",
 		"target": "esnext",
 		"types": [],
 		"paths": {
-			"@shared/*": ["../shared/*"]
+			"src/*": [
+				"./src/*"
+			],
+			"@shared/*": [
+				"../shared/*"
+			]
 		},
 		// For nodejs:
 		// "lib": ["esnext"],
@@ -39,8 +43,14 @@
 		"noUncheckedSideEffectImports": true,
 		"moduleDetection": "force",
 		"skipLibCheck": true,
-		"moduleResolution": "bundler"
+		"moduleResolution": "bundler",
 	},
-	"include": ["src"],
-	"exclude": ["node_modules", "dist", "packages"]
+	"include": [
+		"src"
+	],
+	"exclude": [
+		"node_modules",
+		"dist",
+		"packages"
+	]
 }

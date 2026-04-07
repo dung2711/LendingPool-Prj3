@@ -5,13 +5,16 @@ import {
   Model,
   type Sequelize,
 } from "sequelize";
+import { chainIds } from "src/shared/constants";
+import type { ChainId } from "src/shared/types";
 
 export class User extends Model<
   InferAttributes<User>,
   InferCreationAttributes<User>
 > {
-  declare id: string;
+  declare id: bigint;
   declare userAddress: string;
+  declare chainId: ChainId;
   declare joinedAt: Date;
   declare createdAt: Date;
 }
@@ -20,13 +23,20 @@ export function initUserModel(sequelize: Sequelize): typeof User {
   User.init(
     {
       id: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         primaryKey: true,
       },
       userAddress: {
         type: DataTypes.STRING,
         allowNull: false,
         unique: true,
+      },
+      chainId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        validate: {
+          isIn: [Object.values(chainIds)],
+        },
       },
       joinedAt: {
         type: DataTypes.DATE,
@@ -45,7 +55,7 @@ export function initUserModel(sequelize: Sequelize): typeof User {
       indexes: [
         {
           unique: true,
-          fields: ["userAddress"],
+          fields: ["userAddress", "chainId"],
         },
       ],
     },

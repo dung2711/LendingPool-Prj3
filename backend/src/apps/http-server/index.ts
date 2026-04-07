@@ -50,10 +50,6 @@ app.use(
 );
 app.use("/api/users", createUserController({ userService: deps.userService }));
 
-app.use(createNotFoundHandler(logger));
-
-app.use(createErrorHandler(logger));
-
 app.get("/health", (req, res, next) => {
   try {
     res.json({
@@ -64,6 +60,10 @@ app.get("/health", (req, res, next) => {
     next(error);
   }
 });
+
+app.use(createNotFoundHandler(logger));
+
+app.use(createErrorHandler(logger));
 
 // Initialize WebSocket event server (listens to Redis pub/sub)
 const wsServer = createWsServer({

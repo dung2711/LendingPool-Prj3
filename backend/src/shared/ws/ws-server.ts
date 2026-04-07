@@ -14,12 +14,13 @@ export interface WsServerDeps {
 export function createWsServer(deps: WsServerDeps) {
   const { io, redis, logger, env } = deps;
   let isSubscribed = false;
+  let subscriber: Redis | null = null;
 
   async function start(): Promise<void> {
     if (isSubscribed) return;
 
     try {
-      const subscriber = redis.duplicate();
+      subscriber = redis.duplicate();
 
       subscriber.on("message", (channel: string, message: string) => {
         if (channel !== env.WS_EVENTS_CHANNEL) return;
@@ -47,6 +48,14 @@ export function createWsServer(deps: WsServerDeps) {
       isSubscribed = true;
       logger.info("WebSocket server subscribed to Redis channel");
     } catch (err) {
+      if (subscriber) {
+        try {
+          await subscriber.quit();
+        } catch {
+          // Ignore cleanup errors on failed startup
+        }
+        subscriber = null;
+      }
       const errorMsg = err instanceof Error ? err.message : String(err);
       logger.error("Failed to start WebSocket server: {errorMsg}", {
         errorMsg,
@@ -67,16 +76,32 @@ export function createWsServer(deps: WsServerDeps) {
     if (!isSubscribed) return;
 
     try {
-      try {
-        await redis.unsubscribe(env.WS_EVENTS_CHANNEL);
-      } catch (unsubErr) {
-        logger.debug(
-          "Redis unsubscribe error (connection may be closed): {errorMsg}",
-          {
-            errorMsg:
-              unsubErr instanceof Error ? unsubErr.message : String(unsubErr),
-          },
-        );
+      if (subscriber) {
+        try {
+          await subscriber.unsubscribe(env.WS_EVENTS_CHANNEL);
+        } catch (unsubErr) {
+          logger.debug(
+            "Redis subscriber unsubscribe error (connection may be closed): {errorMsg}",
+            {
+              errorMsg:
+                unsubErr instanceof Error ? unsubErr.message : String(unsubErr),
+            },
+          );
+        }
+
+        try {
+          await subscriber.quit();
+        } catch (quitErr) {
+          logger.debug(
+            "Redis subscriber quit error (connection may be closed): {errorMsg}",
+            {
+              errorMsg:
+                quitErr instanceof Error ? quitErr.message : String(quitErr),
+            },
+          );
+        }
+
+        subscriber = null;
       }
 
       io.close();

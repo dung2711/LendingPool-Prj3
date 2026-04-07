@@ -24,3 +24,10 @@ export class AppErr extends Error {
     this.code = code;
   }
 }
+
+export class DuplicateTransactionError extends Error {
+  constructor(transactionHash: string) {
+    super(`Duplicate transaction: ${transactionHash}`);
+    this.name = "DuplicateTransactionError";
+  }
+}

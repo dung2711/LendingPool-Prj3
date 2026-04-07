@@ -57,6 +57,14 @@ export function createBLCConsumerService(deps: {
         blcWorkerHandler.handleAccrueJob,
       ),
       createQueueSetup(
+        RabbitMQQueue.BLOCKCHAIN_TREASURY_DONATE,
+        blcWorkerHandler.handleDonateJob,
+      ),
+      createQueueSetup(
+        RabbitMQQueue.BLOCKCHAIN_TREASURY_WITHDRAWN,
+        blcWorkerHandler.handleTreasuryWithdrawnJob,
+      ),
+      createQueueSetup(
         RabbitMQQueue.BLOCKCHAIN_MARKET_SUPPORTED,
         blcWorkerHandler.handleMarketSupportedJob,
       ),
