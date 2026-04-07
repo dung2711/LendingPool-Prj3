@@ -12,7 +12,7 @@ export class TreasuryLog extends Model<
   InferCreationAttributes<TreasuryLog>
 > {
   declare id: string;
-  declare assetId: string;
+  declare assetId: bigint;
   declare transactionHash: string;
   declare blockNumber: bigint;
   declare eventType: TreasuryEventType;
@@ -31,7 +31,7 @@ export function initTreasuryLogModel(sequelize: Sequelize): typeof TreasuryLog {
         primaryKey: true,
       },
       assetId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       transactionHash: {

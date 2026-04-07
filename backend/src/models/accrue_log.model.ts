@@ -11,7 +11,7 @@ export class AccrueLog extends Model<
   InferCreationAttributes<AccrueLog>
 > {
   declare id: string;
-  declare assetId: string;
+  declare assetId: bigint;
   declare transactionHash: string;
   declare blockNumber: bigint;
   declare interestAccrued: string;
@@ -32,7 +32,7 @@ export function initAccrueLogModel(sequelize: Sequelize): typeof AccrueLog {
         primaryKey: true,
       },
       assetId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       transactionHash: {

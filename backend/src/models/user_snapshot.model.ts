@@ -11,7 +11,7 @@ export class UserSnapshot extends Model<
   InferCreationAttributes<UserSnapshot>
 > {
   declare id: string;
-  declare userId: string;
+  declare userId: bigint;
   declare blockNumber: number;
   declare snapshotAt: Date;
   declare totalDepositedUSD: string;
@@ -30,15 +30,11 @@ export function initUserSnapshotModel(
         primaryKey: true,
       },
       userId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       blockNumber: {
         type: DataTypes.BIGINT,
-        allowNull: false,
-      },
-      snapshotAt: {
-        type: DataTypes.DATE,
         allowNull: false,
       },
       totalDepositedUSD: {
@@ -56,6 +52,10 @@ export function initUserSnapshotModel(
       healthFactor: {
         type: DataTypes.DECIMAL(36, 18),
         defaultValue: "0",
+      },
+      snapshotAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
       },
     },
     {

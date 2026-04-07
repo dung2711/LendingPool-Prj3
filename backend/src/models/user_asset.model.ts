@@ -10,8 +10,8 @@ export class UserAsset extends Model<
   InferAttributes<UserAsset>,
   InferCreationAttributes<UserAsset>
 > {
-  declare userId: string;
-  declare assetId: string;
+  declare userId: bigint;
+  declare assetId: bigint;
   declare depositedAmount: string;
   declare borrowedAmount: string;
   declare lastSyncedBlock: bigint;
@@ -24,11 +24,11 @@ export function initUserAssetModel(sequelize: Sequelize): typeof UserAsset {
   UserAsset.init(
     {
       userId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         primaryKey: true,
       },
       assetId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         primaryKey: true,
       },
       depositedAmount: {

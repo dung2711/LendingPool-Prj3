@@ -11,7 +11,7 @@ export class LiquidatableUser extends Model<
   InferCreationAttributes<LiquidatableUser>
 > {
   declare id: string;
-  declare userId: string;
+  declare userId: bigint;
 }
 
 export function initLiquidatableUserModel(
@@ -24,7 +24,7 @@ export function initLiquidatableUserModel(
         primaryKey: true,
       },
       userId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
     },

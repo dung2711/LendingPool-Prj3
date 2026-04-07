@@ -14,8 +14,8 @@ export class Transaction extends Model<
   declare id: bigint;
   declare transactionHash: string;
   declare chainId: string;
-  declare userId: string;
-  declare assetId: string;
+  declare userId: bigint;
+  declare assetId: bigint;
   declare type: TransactionType;
   declare amount: string;
   declare amountUSD: string;
@@ -41,21 +41,15 @@ export function initTransactionModel(sequelize: Sequelize): typeof Transaction {
         allowNull: false,
       },
       userId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       assetId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       type: {
-        type: DataTypes.ENUM(
-          TransactionType.Deposit,
-          TransactionType.Withdraw,
-          TransactionType.Borrow,
-          TransactionType.Repay,
-          TransactionType.Liquidate,
-        ),
+        type: DataTypes.ENUM(...Object.values(TransactionType)),
         allowNull: false,
       },
       amount: {

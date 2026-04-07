@@ -4,6 +4,7 @@ import {
   initAssetConfigModel,
   initAssetModel,
   initAssetSnapshotModel,
+  initCronnerStateModel,
   initLiquidatableUserModel,
   initScannerModel,
   initTransactionModel,
@@ -25,6 +26,7 @@ export function createDatabaseClient(sequelize: Sequelize) {
   const UserSnapshot = initUserSnapshotModel(sequelize);
   const TreasuryLog = initTreasuryLogModel(sequelize);
   const AccrueLog = initAccrueLogModel(sequelize);
+  const CronnerState = initCronnerStateModel(sequelize);
 
   // User <-> Asset (M:N via UserAsset)
   User.belongsToMany(Asset, {
@@ -90,6 +92,7 @@ export function createDatabaseClient(sequelize: Sequelize) {
     userSnapshot: UserSnapshot,
     treasuryLog: TreasuryLog,
     accrueLog: AccrueLog,
+    cronnerState: CronnerState,
     $sequelize: sequelize,
   };
 }

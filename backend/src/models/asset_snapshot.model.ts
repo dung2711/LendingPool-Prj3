@@ -11,7 +11,7 @@ export class AssetSnapshot extends Model<
   InferCreationAttributes<AssetSnapshot>
 > {
   declare id: string;
-  declare assetId: string;
+  declare assetId: bigint;
   declare blockNumber: number;
   declare totalDeposited: string;
   declare totalBorrowed: string;
@@ -32,7 +32,7 @@ export function initAssetSnapshotModel(
         primaryKey: true,
       },
       assetId: {
-        type: DataTypes.STRING,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       blockNumber: {
