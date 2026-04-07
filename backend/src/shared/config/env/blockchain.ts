@@ -21,7 +21,7 @@ export const blockchainEnvSchema = baseEnvSchema.extend({
   BSC_TESTNET_LIQUIDATION_ADDRESS: zEvmAddress.optional(),
   BSC_TESTNET_PRICE_ROUTER_ADDRESS: zEvmAddress.optional(),
 
-  MAX_BLOCK_RANGE: z
+  MAX_BLOCK_RANGE: z.coerce
     .number()
     .int()
     .positive()

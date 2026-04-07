@@ -12,7 +12,7 @@ import {
 import { getPrettyFormatter } from "@logtape/pretty";
 import type { BaseEnv } from "./env";
 
-export type AppName = "http-server" | "blc-indexer" | "blc-worker";
+export type AppName = "http-server" | "blc-indexer" | "blc-worker" | "croner";
 
 const logFileConfig = {
   maxSize: 10 * 1024 * 1024, // 10MB per file

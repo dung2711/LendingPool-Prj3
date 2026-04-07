@@ -21,6 +21,7 @@ export enum TransactionType {
 
 export enum RabbitMQEx {
   BLOCKCHAIN_EVENTS = "blockchain.events",
+  CRONNER_EVENTS = "cronner.events",
 }
 
 export enum RabbitMQQueue {
@@ -36,10 +37,17 @@ export enum RabbitMQQueue {
   BLOCKCHAIN_MARKET_UNSUPPORTED = "blockchain.market_unsupported",
   BLOCKCHAIN_COLLATERAL_FACTOR_UPDATED = "blockchain.collateral_factor_updated",
   BLOCKCHAIN_LIQUIDATION_PARAMS_UPDATED = "blockchain.liquidation_params_updated",
+  CRONNER_ASSET_SNAPSHOT = "cronner.asset_snapshot",
+  CRONNER_USER_SNAPSHOT = "cronner.user_snapshot",
 }
 
 export enum TreasuryEventType {
   Accrue = "accrue",
   Donate = "donate",
   Withdraw = "withdraw",
+}
+
+export enum CronnerType {
+  UserSnapshot = 0,
+  AssetSnapshot = 1,
 }

@@ -23,7 +23,7 @@ export function createAssetService(deps: {
         },
       });
       const result = assets.map((asset) => ({
-        id: asset.id,
+        id: asset.id.toString(),
         assetAddress: asset.assetAddress,
         symbol: asset.symbol,
         name: asset.name,
@@ -57,7 +57,7 @@ export function createAssetService(deps: {
         throw new AppErr(ErrCode.AssetNotFound);
       }
       return {
-        id: asset.id,
+        id: asset.id.toString(),
         assetAddress: asset.assetAddress,
         symbol: asset.symbol,
         name: asset.name,

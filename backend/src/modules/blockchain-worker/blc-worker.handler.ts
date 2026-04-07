@@ -38,8 +38,8 @@ export function createBLCWorkerHandler(deps: {
 }) {
   const { logger, dbClient, blcConfig, idUtils, sequelize, redisClient } = deps;
   function getUserAssetSyncRedisKey(params: {
-    userId: string;
-    assetId: string;
+    userId: bigint;
+    assetId: bigint;
   }) {
     const { userId, assetId } = params;
     return `blc:user-asset-sync:${userId}:${assetId}`;
@@ -73,8 +73,8 @@ export function createBLCWorkerHandler(deps: {
 
   async function readLastSyncedCursor(params: {
     redisKey: string;
-    userId: string;
-    assetId: string;
+    userId: bigint;
+    assetId: bigint;
     transaction: SequelizeTransaction;
   }): Promise<SyncCursor> {
     const { redisKey, userId, assetId, transaction } = params;
@@ -139,7 +139,7 @@ export function createBLCWorkerHandler(deps: {
     await dbClient.user.findOrCreate({
       where: { userAddress },
       defaults: {
-        id: idUtils.generateId(),
+        id: idUtils.snowflakeId(),
         userAddress,
         joinedAt: new Date(),
         createdAt: new Date(),
@@ -173,7 +173,7 @@ export function createBLCWorkerHandler(deps: {
     ]);
 
     await dbClient.asset.create({
-      id: idUtils.generateId(),
+      id: idUtils.snowflakeId(),
       assetAddress,
       name,
       symbol,
@@ -230,8 +230,8 @@ export function createBLCWorkerHandler(deps: {
   async function ensureTransaction(params: {
     transactionHash: string;
     chainId: ITransactionEventReq["chainId"];
-    userId: string;
-    assetId: string;
+    userId: bigint;
+    assetId: bigint;
     amount: string;
     amountUSD: string;
     blockNumber: number;
@@ -274,9 +274,9 @@ export function createBLCWorkerHandler(deps: {
   }
 
   async function syncUserAssetBalance(params: {
-    userId: string;
+    userId: bigint;
     userAddress: string;
-    assetId: string;
+    assetId: bigint;
     assetAddress: string;
     chainId: ITransactionEventReq["chainId"];
     blockNumber: number;
