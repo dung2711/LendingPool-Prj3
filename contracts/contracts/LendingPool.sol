@@ -245,6 +245,59 @@ contract LendingPool is
 
     // ─── Core Logic ───────────────────────────────────────────────────────────
 
+    function accrueInterest(address asset) public whenNotPaused {
+        Market storage m = markets[asset];
+        if (!m.isSupported) return;
+
+        uint timeElapsed = block.timestamp - m.lastUpdateTimestamp;
+        if (timeElapsed == 0) return;
+
+        uint utilizationRate = getUtilizationRate(asset);
+        IInterestRateModel i = IInterestRateModel(m.interestRateModel);
+        uint borrowRate = i.getBorrowRate(utilizationRate);
+        uint depositRate = i.getDepositRate(utilizationRate);
+
+        uint interestAccrued = (m.totalBorrows * borrowRate * timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
+        m.totalBorrows += interestAccrued;
+        uint borrowIndexIncrease = (m.borrowIndex * borrowRate * timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
+        m.borrowIndex += borrowIndexIncrease;
+
+        uint depositInterestAccrued = (m.totalDeposits *
+            depositRate *
+            timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
+        m.totalDeposits += depositInterestAccrued;
+        uint depositIndexIncrease = (m.depositIndex *
+            depositRate *
+            timeElapsed) /
+            SECONDS_PER_YEAR /
+            SCALE;
+        m.depositIndex += depositIndexIncrease;
+
+        uint toTreasury = interestAccrued > depositInterestAccrued
+            ? interestAccrued - depositInterestAccrued
+            : 0;
+        treasuryBalances[asset] += toTreasury;
+
+        m.lastUpdateTimestamp = block.timestamp;
+        emit Accrue(
+            asset,
+            interestAccrued,
+            depositInterestAccrued,
+            toTreasury,
+            treasuryBalances[asset],
+            m.totalBorrows,
+            m.borrowIndex,
+            m.totalDeposits,
+            m.depositIndex
+        );
+    }
+
     function deposit(
         address asset,
         uint amount
@@ -562,78 +615,19 @@ contract LendingPool is
         return (market.totalBorrows * SCALE) / market.totalDeposits; // 18 decimals
     }
 
-    function accrueInterest(address asset) public whenNotPaused {
-        Market storage m = markets[asset];
-        if (!m.isSupported) return;
-
-        uint timeElapsed = block.timestamp - m.lastUpdateTimestamp;
-        if (timeElapsed == 0) return;
-
-        uint utilizationRate = getUtilizationRate(asset);
+    function getMarketRates(
+        address asset
+    )
+        external
+        view
+        returns (uint utilizationRate, uint depositRate, uint borrowRate)
+    {
+        Market memory m = markets[asset];
+        require(m.isSupported, "Market not supported");
+        utilizationRate = getUtilizationRate(asset);
         IInterestRateModel i = IInterestRateModel(m.interestRateModel);
-        uint borrowRate = i.getBorrowRate(utilizationRate);
-        uint depositRate = i.getDepositRate(utilizationRate);
-
-        uint interestAccrued = (m.totalBorrows * borrowRate * timeElapsed) /
-            SECONDS_PER_YEAR /
-            SCALE;
-        m.totalBorrows += interestAccrued;
-        uint borrowIndexIncrease = (m.borrowIndex * borrowRate * timeElapsed) /
-            SECONDS_PER_YEAR /
-            SCALE;
-        m.borrowIndex += borrowIndexIncrease;
-
-        uint depositInterestAccrued = (m.totalDeposits *
-            depositRate *
-            timeElapsed) /
-            SECONDS_PER_YEAR /
-            SCALE;
-        m.totalDeposits += depositInterestAccrued;
-        uint depositIndexIncrease = (m.depositIndex *
-            depositRate *
-            timeElapsed) /
-            SECONDS_PER_YEAR /
-            SCALE;
-        m.depositIndex += depositIndexIncrease;
-
-        uint toTreasury = interestAccrued > depositInterestAccrued
-            ? interestAccrued - depositInterestAccrued
-            : 0;
-        treasuryBalances[asset] += toTreasury;
-
-        m.lastUpdateTimestamp = block.timestamp;
-        emit Accrue(
-            asset,
-            interestAccrued,
-            depositInterestAccrued,
-            toTreasury,
-            treasuryBalances[asset],
-            m.totalBorrows,
-            m.borrowIndex,
-            m.totalDeposits,
-            m.depositIndex
-        );
-    }
-
-    function getAccountLiquidity(
-        address user
-    ) public view returns (uint totalDepositedUSD, uint totalBorrowedUSD) {
-        IPriceRouter pr = IPriceRouter(priceRouter);
-        address[] memory assets = userMarkets[user];
-        for (uint i = 0; i < assets.length; i++) {
-            address asset = assets[i];
-            Market memory m = _previewMarketAfterAccrual(asset);
-            uint currentDeposit = _previewUserDeposit(user, asset, m);
-            uint currentBorrow = _previewUserBorrow(user, asset, m);
-            uint assetPrice = pr.getPrice(asset);
-            uint decimals = IERC20Metadata(asset).decimals();
-            // Normalize to 18 decimals: (18 decimals price * token decimals) * 10^(18 - token decimals) / 10^18
-            totalDepositedUSD +=
-                (assetPrice * currentDeposit) /
-                (10 ** decimals);
-            totalBorrowedUSD += (assetPrice * currentBorrow) / (10 ** decimals);
-        }
-        return (totalDepositedUSD, totalBorrowedUSD);
+        borrowRate = i.getBorrowRate(utilizationRate);
+        depositRate = i.getDepositRate(utilizationRate);
     }
 
     function getAllMarkets() external view returns (address[] memory) {
@@ -733,6 +727,56 @@ contract LendingPool is
         uint maxAmountTokenWithdrawable = (maxAmountUSDWithdrawable *
             (10 ** decimals)) / assetPrice; // in token decimals
         return maxAmountTokenWithdrawable;
+    }
+
+    function getAccountLiquidity(
+        address user
+    ) public view returns (uint totalDepositedUSD, uint totalBorrowedUSD) {
+        IPriceRouter pr = IPriceRouter(priceRouter);
+        address[] memory assets = userMarkets[user];
+        for (uint i = 0; i < assets.length; i++) {
+            address asset = assets[i];
+            Market memory m = _previewMarketAfterAccrual(asset);
+            uint currentDeposit = _previewUserDeposit(user, asset, m);
+            uint currentBorrow = _previewUserBorrow(user, asset, m);
+            uint assetPrice = pr.getPrice(asset);
+            uint decimals = IERC20Metadata(asset).decimals();
+            // Normalize to 18 decimals: (18 decimals price * token decimals) * 10^(18 - token decimals) / 10^18
+            totalDepositedUSD +=
+                (assetPrice * currentDeposit) /
+                (10 ** decimals);
+            totalBorrowedUSD += (assetPrice * currentBorrow) / (10 ** decimals);
+        }
+        return (totalDepositedUSD, totalBorrowedUSD);
+    }
+
+    function getAccountSnapshot(
+        address user
+    )
+        external
+        view
+        returns (
+            uint totalDepositedUSD,
+            uint totalBorrowedUSD,
+            uint netWorthUSD,
+            uint healthFactor
+        )
+    {
+        (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
+        const liquidationThreshold = ILiquidation(liquidation)
+            .liquidationThreshold();
+        if (totalBorrowedUSD == 0) {
+            healthFactor = type(uint).max;
+        } else {
+            healthFactor =
+                (totalDepositedUSD * liquidationThreshold) /
+                (totalBorrowedUSD * SCALE);
+        }
+        if (totalDepositedUSD >= totalBorrowedUSD) {
+            netWorthUSD = totalDepositedUSD - totalBorrowedUSD;
+        } else {
+            netWorthUSD = 0;
+        }
     }
 
     // ─── View: Simulation ─────────────────────────────────────────────────────
