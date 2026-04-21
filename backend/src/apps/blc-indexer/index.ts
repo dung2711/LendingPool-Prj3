@@ -7,6 +7,7 @@ import {
   createBlockchainService,
   createLiquidatableUsersService,
 } from "../../modules/blockchain";
+import { createProposalPublisherService } from "../../modules/proposals";
 import { setupInfrastructure } from "../../shared/bootstrap/common-setup.js";
 import { blockchainEnvSchema, validateEnv } from "../../shared/config/index.js";
 import { createRabbitMQHelperService, IdUtils } from "../../shared/utils";
@@ -19,7 +20,15 @@ const { logger, dbClient, rabbitChannel, redisClient, cleanup } =
   await setupInfrastructure(env, "blc-indexer");
 
 const rabbitHelper = createRabbitMQHelperService({ rabbitChannel, logger });
-const blcService = createBlockchainService({ rabbitHelper, logger });
+const proposalPublisher = createProposalPublisherService({
+  rabbitMQHelper: rabbitHelper,
+  logger,
+});
+const blcService = createBlockchainService({
+  rabbitHelper,
+  proposalPublisher,
+  logger,
+});
 const blcConfig = createBlockchainConfig({ env, logger });
 const blcIndexerService = createBLCIndexerService({
   logger,

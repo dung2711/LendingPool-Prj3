@@ -11,6 +11,9 @@ export const chainIds = {
   bscTestnet: 97,
 } as const;
 
+export const ZERO_BYTES32 =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
+
 export enum ProtocolContract {
   ERC20 = "ERC20",
   LendingPool = "LendingPool",
@@ -18,7 +21,16 @@ export enum ProtocolContract {
   MyOracle = "MyOracle",
   Liquidation = "Liquidation",
   PriceRouter = "PriceRouter",
+  Timelock = "Timelock",
 }
+
+export const timelockControllerEventsABI = [
+  "event CallScheduled(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data, bytes32 predecessor, uint256 delay)",
+  "event CallExecuted(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data)",
+  "event CallSalt(bytes32 indexed id, bytes32 salt)",
+  "event Cancelled(bytes32 indexed id)",
+  "event MinDelayChange(uint256 oldDuration, uint256 newDuration)",
+] as const;
 
 export const protocolContractABIs = {
   [ProtocolContract.LendingPool]: lendingPoolABI,
@@ -26,6 +38,7 @@ export const protocolContractABIs = {
   [ProtocolContract.MyOracle]: myOracleABI,
   [ProtocolContract.Liquidation]: liquidationABI,
   [ProtocolContract.PriceRouter]: priceRouterABI,
+  [ProtocolContract.Timelock]: timelockControllerEventsABI,
 } as const;
 
 export const erc20ABI = [

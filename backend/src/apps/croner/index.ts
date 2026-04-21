@@ -1,6 +1,14 @@
 import { Cron } from "croner";
 import dotenv from "dotenv";
 import { createBlockchainConfig } from "src/modules/blockchain";
+import {
+  createMultisigSafeProvider,
+  createMultisigService,
+} from "src/modules/multisig";
+import {
+  createProposalConsumerService,
+  createProposalPublisherService,
+} from "src/modules/proposals";
 import { setupInfrastructure } from "src/shared/bootstrap/common-setup";
 import { cronerEnvSchema, validateEnv } from "src/shared/config";
 import { chainIds } from "src/shared/constants";
@@ -38,8 +46,28 @@ const snapshotConsumerService = createSnapshotConsumerService({
 const snapshotPublisherService = createSnapshotPublisherService({
   rabbitMQHelperService,
 });
+const proposalConsumerService = createProposalConsumerService({
+  rabbitMQHelper: rabbitMQHelperService,
+  dbClient,
+  logger,
+});
+const proposalPublisherService = createProposalPublisherService({
+  rabbitMQHelper: rabbitMQHelperService,
+  logger,
+});
+const multisigSafeProvider = createMultisigSafeProvider({
+  env,
+  logger,
+});
+const multisigService = createMultisigService({
+  safeProvider: multisigSafeProvider,
+  dbClient,
+  proposalPublisher: proposalPublisherService,
+  logger,
+});
 
 await snapshotConsumerService.start();
+await proposalConsumerService.start();
 
 const snapshotSepoliaCron = new Cron(
   "0 10 0 * * *",
@@ -67,8 +95,31 @@ const snapshotSepoliaCron = new Cron(
   },
 );
 
+const scanSafeMultisigCron = new Cron(
+  "*/20 * * * * *",
+  {
+    name: "scan-safe-multisig-sepolia",
+    timezone: "UTC",
+    protect: true,
+  },
+  async () => {
+    logger.info("Scanning Safe multisig proposals for Sepolia");
+    try {
+      await multisigService.scanMultisigTransactions(chainIds.sepolia);
+    } catch (error) {
+      logger.error(
+        "Failed to scan Safe multisig proposals for Sepolia {error}",
+        {
+          error,
+        },
+      );
+    }
+  },
+);
+
 async function shutdown() {
   snapshotSepoliaCron.stop();
+  scanSafeMultisigCron.stop();
   await cleanup();
   process.exit(0);
 }

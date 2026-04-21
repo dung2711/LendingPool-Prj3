@@ -22,6 +22,8 @@ export enum TransactionType {
 export enum RabbitMQEx {
   BLOCKCHAIN_EVENTS = "blockchain.events",
   CRONNER_EVENTS = "cronner.events",
+  ADMIN_EVENTS = "admin.events",
+  NOTI_EVENTS = "notification.events",
 }
 
 export enum RabbitMQQueue {
@@ -39,6 +41,17 @@ export enum RabbitMQQueue {
   BLOCKCHAIN_LIQUIDATION_PARAMS_UPDATED = "blockchain.liquidation_params_updated",
   CRONNER_ASSET_SNAPSHOT = "cronner.asset_snapshot",
   CRONNER_USER_SNAPSHOT = "cronner.user_snapshot",
+
+  ADMIN_PROPOSAL_DB = "admin.proposal.db", // bind admin.#
+  ADMIN_PROPOSAL_NOTI = "admin.proposal.noti", // bind admin.#
+
+  NOTI_EMAIL_OTP = "noti.email.otp",
+  NOTI_EMAIL_ALERT = "noti.email.alert",
+  NOTI_TELE_ALERT = "noti.tele.alert",
+}
+
+export enum RabbitMQBindingKey {
+  ADMIN_BINDING_KEY = "admin.#",
 }
 
 export enum TreasuryEventType {
@@ -50,4 +63,22 @@ export enum TreasuryEventType {
 export enum CronnerType {
   UserSnapshot = 0,
   AssetSnapshot = 1,
+}
+
+export enum ProposalStatus {
+  Proposed = 0,
+  Scheduled = 1,
+  Executed = 2,
+  Cancelled = 3,
+}
+
+export enum AdminEventType {
+  // Safe events
+  SAFE_PROPOSED = "admin.safe.proposed",
+  SAFE_CONFIRMED = "admin.safe.confirmed",
+
+  // Timelock events
+  TIMELOCK_SCHEDULED = "admin.timelock.scheduled",
+  TIMELOCK_EXECUTED = "admin.timelock.executed",
+  TIMELOCK_CANCELLED = "admin.timelock.cancelled",
 }

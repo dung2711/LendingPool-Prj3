@@ -6,6 +6,7 @@ export enum ErrCode {
   RateLimitExceeded = "rate-limit-exceeded",
   DuplicateRequest = "duplicate-request",
   Unauthorized = "unauthorized",
+  ExternalAPIError = "external-api-error",
 
   AssetNotFound = "asset-not-found",
 

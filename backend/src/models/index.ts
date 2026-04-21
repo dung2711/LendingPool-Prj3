@@ -4,6 +4,7 @@ export * from "./asset_config.model";
 export * from "./asset_snapshot.model";
 export * from "./cronner_state.model";
 export * from "./liquidatable_user.model";
+export * from "./proposal.model";
 export * from "./scanner.model";
 export * from "./transaction.model";
 export * from "./treasury_log.model";

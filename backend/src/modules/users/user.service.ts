@@ -28,7 +28,7 @@ export function createUserService(deps: {
 
     logger.info("Fetched user detail: {userAddress}", { userAddress });
     return {
-      id: user.id,
+      id: user.id.toString(),
       userAddress: user.userAddress,
       joinedAt: user.joinedAt.toDateString(),
     };
@@ -86,7 +86,7 @@ export function createUserService(deps: {
 
     return {
       user: {
-        id: user.id,
+        id: user.id.toString(),
         userAddress: user.userAddress,
         joinedAt: user.joinedAt.toDateString(),
       },

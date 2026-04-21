@@ -1,6 +1,12 @@
 import type { Logger } from "@logtape/logtape";
 import type { EventLog } from "ethers";
-import { RabbitMQEx, RabbitMQQueue } from "src/shared/constants";
+import type { ProposalPublisherService } from "src/modules/proposals";
+import {
+  type AdminEventType,
+  RabbitMQEx,
+  RabbitMQQueue,
+  ZERO_BYTES32,
+} from "src/shared/constants";
 import type {
   ChainId,
   IAccrueEventReq,
@@ -12,13 +18,15 @@ import type {
   ITransactionEventReq,
   ITreasuryWithdrawnEventReq,
 } from "src/shared/types/blockchain";
+import type { ProposalDetails } from "src/shared/types/proposal";
 import type { RabbitMQHelperService } from "src/shared/utils";
 
 export function createBlockchainService(deps: {
   rabbitHelper: RabbitMQHelperService;
+  proposalPublisher: ProposalPublisherService;
   logger: Logger;
 }) {
-  const { rabbitHelper, logger } = deps;
+  const { rabbitHelper, proposalPublisher, logger } = deps;
 
   async function publishEvent<T>(params: {
     chainId: ChainId;
@@ -485,6 +493,174 @@ export function createBlockchainService(deps: {
     });
   }
 
+  async function handleTimelockEvents(params: {
+    chainId: ChainId;
+    events: EventLog[];
+  }) {
+    const { chainId, events } = params;
+
+    const saltByOperationId = new Map<string, string>();
+    const pendingScheduledByOperationId = new Map<
+      string,
+      Omit<ProposalDetails[AdminEventType.TIMELOCK_SCHEDULED], "salt">
+    >();
+
+    for (const event of events) {
+      if (event.eventName === "CallSalt") {
+        const { id, salt } = event.args as unknown as {
+          id: string;
+          salt: string;
+        };
+
+        const operationId = String(id);
+        const normalizedSalt = String(salt);
+        saltByOperationId.set(operationId, normalizedSalt);
+
+        const pendingScheduled = pendingScheduledByOperationId.get(operationId);
+        if (pendingScheduled) {
+          await proposalPublisher.publishTimelockScheduled({
+            ...pendingScheduled,
+            salt: normalizedSalt,
+          });
+          pendingScheduledByOperationId.delete(operationId);
+        }
+        continue;
+      }
+
+      if (event.eventName === "CallScheduled") {
+        const { id, index, target, value, data, predecessor, delay } =
+          event.args as unknown as {
+            id: string;
+            index: bigint;
+            target: string;
+            value: bigint;
+            data: string;
+            predecessor: string;
+            delay: bigint;
+          };
+
+        const operationId = String(id);
+        const txIndex = Number(index);
+        if (txIndex !== 0) {
+          logger.debug("Skip timelock CallScheduled because index is not 0", {
+            chainId,
+            operationId,
+            index: txIndex,
+            blockNumber: event.blockNumber,
+          });
+          continue;
+        }
+
+        let blockTimestampSec: number | null = null;
+        try {
+          const block = await event.getBlock();
+          blockTimestampSec = Number(block.timestamp);
+        } catch (error) {
+          logger.warn(
+            "Skip timelock CallScheduled because block timestamp is unavailable",
+            {
+              chainId,
+              operationId,
+              blockNumber: event.blockNumber,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
+        }
+
+        if (blockTimestampSec == null) {
+          continue;
+        }
+
+        const parsedDelay = Number(delay);
+        const scheduledPayload: Omit<
+          ProposalDetails[AdminEventType.TIMELOCK_SCHEDULED],
+          "salt"
+        > = {
+          chainId,
+          operationId,
+          target: String(target),
+          value: value.toString(),
+          calldata: String(data),
+          predecessors: String(predecessor),
+          delay: parsedDelay,
+          eta: new Date((blockTimestampSec + parsedDelay) * 1000),
+        };
+
+        const knownSalt = saltByOperationId.get(operationId);
+        if (knownSalt) {
+          await proposalPublisher.publishTimelockScheduled({
+            ...scheduledPayload,
+            salt: knownSalt,
+          });
+        } else {
+          pendingScheduledByOperationId.set(operationId, scheduledPayload);
+        }
+        continue;
+      }
+
+      if (event.eventName === "CallExecuted") {
+        const { id, index } = event.args as unknown as {
+          id: string;
+          index: bigint;
+        };
+
+        const operationId = String(id);
+        const txIndex = Number(index);
+        if (txIndex !== 0) {
+          logger.debug("Skip timelock CallExecuted because index is not 0", {
+            chainId,
+            operationId,
+            index: txIndex,
+            blockNumber: event.blockNumber,
+          });
+          continue;
+        }
+
+        const payload: ProposalDetails[AdminEventType.TIMELOCK_EXECUTED] = {
+          chainId,
+          operationId,
+          timelockExecutedTxHash: event.transactionHash,
+        };
+        await proposalPublisher.publishTimelockExecuted(payload);
+        continue;
+      }
+
+      if (event.eventName === "Cancelled") {
+        const { id } = event.args as unknown as {
+          id: string;
+        };
+
+        const payload: ProposalDetails[AdminEventType.TIMELOCK_CANCELLED] = {
+          chainId,
+          operationId: String(id),
+        };
+        await proposalPublisher.publishTimelockCancelled(payload);
+        continue;
+      }
+
+      if (event.eventName === "MinDelayChange") {
+        const { oldDuration, newDuration } = event.args as unknown as {
+          oldDuration: bigint;
+          newDuration: bigint;
+        };
+
+        logger.info("Timelock min delay changed", {
+          chainId,
+          oldDuration: oldDuration.toString(),
+          newDuration: newDuration.toString(),
+          blockNumber: event.blockNumber,
+        });
+      }
+    }
+
+    for (const payload of pendingScheduledByOperationId.values()) {
+      await proposalPublisher.publishTimelockScheduled({
+        ...payload,
+        salt: ZERO_BYTES32,
+      });
+    }
+  }
+
   return {
     handleDepositEvent,
     handleWithdrawEvent,
@@ -498,6 +674,7 @@ export function createBlockchainService(deps: {
     handleMarketUnsupportedEvent,
     handleCollateralFactorUpdatedEvent,
     handleLiquidationParamsUpdatedEvent,
+    handleTimelockEvents,
   };
 }
 

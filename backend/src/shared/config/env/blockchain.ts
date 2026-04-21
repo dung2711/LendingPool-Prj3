@@ -14,6 +14,9 @@ export const blockchainEnvSchema = baseEnvSchema.extend({
   SEPOLIA_MY_ORACLE_ADDRESS: zEvmAddress,
   SEPOLIA_LIQUIDATION_ADDRESS: zEvmAddress,
   SEPOLIA_PRICE_ROUTER_ADDRESS: zEvmAddress,
+  SEPOLIA_TIMELOCK_ADDRESS: zEvmAddress
+    .optional()
+    .describe("Timelock controller contract address to monitor"),
 
   BSC_TESTNET_LENDING_POOL_ADDRESS: zEvmAddress.optional(),
   BSC_TESTNET_INTEREST_RATE_MODEL_ADDRESS: zEvmAddress.optional(),

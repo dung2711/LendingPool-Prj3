@@ -13,12 +13,14 @@ export function createRabbitMQHelperService(deps: {
     mainEx,
     queueName,
     action,
+    bindingKey,
     retryDelays = RETRY_DELAYS_MS,
   }: {
     mainEx: RabbitMQEx;
     queueName: RabbitMQQueue;
     action: (event: T) => Promise<void> | void;
     retryDelays?: number[];
+    bindingKey?: string;
   }): Promise<void> {
     await rabbitChannel.addSetup(async (channel: Channel) => {
       const dlxEx = `${mainEx}.dlex`;
@@ -30,7 +32,7 @@ export function createRabbitMQHelperService(deps: {
         arguments: { "x-dead-letter-exchange": dlxEx },
       });
 
-      await channel.bindQueue(queueName, mainEx, queueName);
+      await channel.bindQueue(queueName, mainEx, bindingKey ?? queueName);
 
       for (let i = 0; i < retryDelays.length; i++) {
         const retryQueue = `${queueName}.retry.${i}`;
@@ -118,7 +120,7 @@ export function createRabbitMQHelperService(deps: {
 
   async function publishEvent<T>(params: {
     exchangeName: RabbitMQEx | string;
-    routingKey: RabbitMQQueue;
+    routingKey: RabbitMQQueue | string;
     event: T;
     options?: {
       persistent?: boolean;

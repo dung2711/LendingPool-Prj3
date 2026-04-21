@@ -60,6 +60,7 @@ export function createBlockchainContractAddresses(
       [ProtocolContract.MyOracle, env.SEPOLIA_MY_ORACLE_ADDRESS],
       [ProtocolContract.Liquidation, env.SEPOLIA_LIQUIDATION_ADDRESS],
       [ProtocolContract.PriceRouter, env.SEPOLIA_PRICE_ROUTER_ADDRESS],
+      [ProtocolContract.Timelock, env.SEPOLIA_TIMELOCK_ADDRESS],
     ]),
     [chainIds.bscTestnet]: toAddressMap([
       [ProtocolContract.LendingPool, env.BSC_TESTNET_LENDING_POOL_ADDRESS],

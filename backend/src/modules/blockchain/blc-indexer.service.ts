@@ -163,6 +163,55 @@ export function createBLCIndexerService(deps: {
     }
   }
 
+  async function scanTimelockContract(params: IScanContract) {
+    const { chainId, fromBlock, toBlock } = params;
+
+    try {
+      const timelockContract = blcConfig.getProtocolContract(
+        ProtocolContract.Timelock,
+        chainId,
+      );
+
+      logger.info("Scanning timelock contract", {
+        chainId,
+        fromBlock,
+        toBlock,
+      });
+
+      const events = await timelockContract.queryFilter(
+        "*",
+        fromBlock,
+        toBlock,
+      );
+      const parsedEvents = events.filter(
+        (event): event is EventLog => "eventName" in event,
+      );
+
+      await blcService.handleTimelockEvents({
+        chainId,
+        events: parsedEvents,
+      });
+
+      logger.info("Finished scanning timelock contract", {
+        chainId,
+        fromBlock,
+        toBlock,
+        eventCount: parsedEvents.length,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      logger.error("Failed to scan timelock contract", {
+        chainId,
+        fromBlock,
+        toBlock,
+        error: errorMessage,
+      });
+      throw error;
+    }
+  }
+
   async function scanChain(chainId: ChainId) {
     const startTime = dayjs().toDate();
     const scannerState = await dbClient.scanner.findOne({
@@ -186,6 +235,7 @@ export function createBLCIndexerService(deps: {
     await Promise.all([
       scanLendingPoolContract({ chainId, fromBlock, toBlock }),
       scanLiquidationContract({ chainId, fromBlock, toBlock }),
+      scanTimelockContract({ chainId, fromBlock, toBlock }),
     ]);
 
     await dbClient.scanner.update(
@@ -211,6 +261,7 @@ export function createBLCIndexerService(deps: {
     initializeScannerState,
     scanLendingPoolContract,
     scanLiquidationContract,
+    scanTimelockContract,
     scanChain,
   };
 }
