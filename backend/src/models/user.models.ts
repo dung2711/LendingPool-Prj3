@@ -15,6 +15,7 @@ export class User extends Model<
   declare id: bigint;
   declare userAddress: string;
   declare chainId: ChainId;
+  declare email?: string;
   declare joinedAt: Date;
   declare createdAt: Date;
 }
@@ -36,6 +37,13 @@ export function initUserModel(sequelize: Sequelize): typeof User {
         allowNull: false,
         validate: {
           isIn: [Object.values(chainIds)],
+        },
+      },
+      email: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        validate: {
+          isEmail: true,
         },
       },
       joinedAt: {

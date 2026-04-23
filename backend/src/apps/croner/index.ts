@@ -5,10 +5,7 @@ import {
   createMultisigSafeProvider,
   createMultisigService,
 } from "src/modules/multisig";
-import {
-  createProposalConsumerService,
-  createProposalPublisherService,
-} from "src/modules/proposals";
+import { createProposalPublisherService } from "src/modules/proposals";
 import { setupInfrastructure } from "src/shared/bootstrap/common-setup";
 import { cronerEnvSchema, validateEnv } from "src/shared/config";
 import { chainIds } from "src/shared/constants";
@@ -46,11 +43,6 @@ const snapshotConsumerService = createSnapshotConsumerService({
 const snapshotPublisherService = createSnapshotPublisherService({
   rabbitMQHelperService,
 });
-const proposalConsumerService = createProposalConsumerService({
-  rabbitMQHelper: rabbitMQHelperService,
-  dbClient,
-  logger,
-});
 const proposalPublisherService = createProposalPublisherService({
   rabbitMQHelper: rabbitMQHelperService,
   logger,
@@ -67,7 +59,6 @@ const multisigService = createMultisigService({
 });
 
 await snapshotConsumerService.start();
-await proposalConsumerService.start();
 
 const snapshotSepoliaCron = new Cron(
   "0 10 0 * * *",

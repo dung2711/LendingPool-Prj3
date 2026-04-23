@@ -45,9 +45,8 @@ export enum RabbitMQQueue {
   ADMIN_PROPOSAL_DB = "admin.proposal.db", // bind admin.#
   ADMIN_PROPOSAL_NOTI = "admin.proposal.noti", // bind admin.#
 
-  NOTI_EMAIL_OTP = "noti.email.otp",
-  NOTI_EMAIL_ALERT = "noti.email.alert",
-  NOTI_TELE_ALERT = "noti.tele.alert",
+  NOTI_EMAIL = "noti.email",
+  NOTI_TELE = "noti.tele",
 }
 
 export enum RabbitMQBindingKey {
@@ -70,6 +69,21 @@ export enum ProposalStatus {
   Scheduled = 1,
   Executed = 2,
   Cancelled = 3,
+}
+
+export enum OTPPurpose {
+  ADMIN_NOTI_SUBSCRIPTION = "admin-noti-subscription",
+}
+
+export enum EmailPurpose {
+  OTP = "otp",
+  AdminNotification = "admin_notification",
+}
+
+export enum AdminNotiLevel {
+  Info = "info",
+  Warning = "warning",
+  Critical = "critical",
 }
 
 export enum AdminEventType {
