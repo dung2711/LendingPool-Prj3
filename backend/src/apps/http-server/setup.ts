@@ -5,6 +5,7 @@ import {
   createTokenCacheService,
 } from "src/modules/email/services";
 import { createNotiPublisherService } from "src/modules/noti-worker/services";
+import { createProposalService } from "src/modules/proposals/services/proposal.service";
 import { createTransactionService } from "src/modules/transactions";
 import { createUserService } from "src/modules/users";
 import type { InfrastructureServices } from "src/shared/bootstrap/common-setup";
@@ -38,12 +39,15 @@ export function setupHttpServerDependencies(deps: {
     logger,
   });
 
+  const proposalService = createProposalService({ dbClient });
+
   return {
     assetService,
     transactionService,
     userService,
     otpService,
     emailRegistrationService,
+    proposalService,
   };
 }
 

@@ -24,3 +24,13 @@ const chainIdValues = (Object.values(chainIds) as ChainId[]).map(String) as [
 ];
 
 export const zChainId = z.enum(chainIdValues).describe("Chain ID");
+
+export const zPagination = z.object({
+  take: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10)
+    .describe("Items per page"),
+  skip: z.coerce.number().int().min(0).default(0).describe("Items to skip"),
+});
