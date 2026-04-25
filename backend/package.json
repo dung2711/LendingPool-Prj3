@@ -9,7 +9,7 @@
 		"dev:indexer": "tsx --watch src/apps/blc-indexer/index.ts",
 		"dev:worker": "tsx --watch src/apps/blc-worker/index.ts",
 		"dev:croner": "tsx --watch src/apps/croner/index.ts",
-		"dev:noti-worker": "tsx --watch src/apps/noti-worker/index.ts",
+		"dev:noti-worker": "tsx --watch src/apps/noti_proposal-worker/index.ts",
 		"build": "tsc",
 		"typecheck": "tsc --noEmit"
 	},

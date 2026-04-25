@@ -1,8 +1,8 @@
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
+import { createEmailService } from "src/modules/email/services/email.service";
 import { createEmailConsumerService } from "src/modules/noti-worker/consumers";
 import { createAdminNotiConsumerService } from "src/modules/noti-worker/consumers/admin-noti-consumer.service";
-import { createEmailService } from "src/modules/noti-worker/services/email.service";
 import { createNotiPublisherService } from "src/modules/noti-worker/services/noti-publisher.service";
 import { createProposalConsumerService } from "src/modules/proposals";
 import { setupInfrastructure } from "src/shared/bootstrap/common-setup";

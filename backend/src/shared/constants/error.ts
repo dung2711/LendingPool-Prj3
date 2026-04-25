@@ -13,6 +13,9 @@ export enum ErrCode {
   UserNotFound = "user-not-found",
 
   TransactionNotFound = "transaction-not-found",
+  EmailAlreadyRegistered = "email-already-registered",
+  InvalidOTP = "invalid-otp",
+  InvalidOtpToken = "invalid-otp-token",
 }
 
 export class AppErr extends Error {

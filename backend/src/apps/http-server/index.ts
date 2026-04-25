@@ -5,6 +5,7 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { createAssetController } from "../../modules/assets/asset.controller";
+import { createEmailController } from "../../modules/email/email.controller";
 import { createTransactionController } from "../../modules/transactions/transaction.controller";
 import { createUserController } from "../../modules/users/user.controller";
 import { setupInfrastructure } from "../../shared/bootstrap/common-setup.js";
@@ -49,6 +50,13 @@ app.use(
   createTransactionController({ transactionService: deps.transactionService }),
 );
 app.use("/api/users", createUserController({ userService: deps.userService }));
+app.use(
+  "/api/email",
+  createEmailController({
+    otpService: deps.otpService,
+    emailRegistrationService: deps.emailRegistrationService,
+  }),
+);
 
 app.get("/health", (req, res, next) => {
   try {
