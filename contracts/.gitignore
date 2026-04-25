@@ -21,5 +21,5 @@ node_modules
 
 # OpenZeppelin Hardhat Upgrades - proxy upgrade tracking (local only)
 .openzeppelin
-deployments
+deployments/
 ignition/deployments/*
