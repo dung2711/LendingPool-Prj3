@@ -763,7 +763,7 @@ contract LendingPool is
         )
     {
         (totalDepositedUSD, totalBorrowedUSD) = getAccountLiquidity(user);
-        const liquidationThreshold = ILiquidation(liquidation)
+        uint liquidationThreshold = ILiquidation(liquidation)
             .liquidationThreshold();
         if (totalBorrowedUSD == 0) {
             healthFactor = type(uint).max;
