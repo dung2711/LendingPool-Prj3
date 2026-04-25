@@ -2,7 +2,7 @@ import type { Logger } from "@logtape/logtape";
 import { EmailPurpose, RabbitMQEx, RabbitMQQueue } from "src/shared/constants";
 import type { EmailEvent } from "src/shared/types";
 import type { RabbitMQHelperService } from "src/shared/utils";
-import type { EmailService } from "../services/email.service";
+import type { EmailService } from "../../email/services/email.service";
 
 export function createEmailConsumerService(deps: {
   rabbitMQHelper: RabbitMQHelperService;
