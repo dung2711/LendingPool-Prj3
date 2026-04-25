@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { createProposalController } from "src/modules/proposals/proposal.controller";
 import { createAssetController } from "../../modules/assets/asset.controller";
 import { createEmailController } from "../../modules/email/email.controller";
 import { createTransactionController } from "../../modules/transactions/transaction.controller";
@@ -56,6 +57,10 @@ app.use(
     otpService: deps.otpService,
     emailRegistrationService: deps.emailRegistrationService,
   }),
+);
+app.use(
+  "/api/proposals",
+  createProposalController({ proposalService: deps.proposalService }),
 );
 
 app.get("/health", (req, res, next) => {
