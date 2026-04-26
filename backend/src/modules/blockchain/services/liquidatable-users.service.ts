@@ -3,9 +3,9 @@ import { Op } from "sequelize";
 import { chainIds, ProtocolContract } from "src/shared/constants/blockchain.js";
 import type { DatabaseClient } from "src/shared/infra/index.js";
 import type { IdUtils } from "src/shared/utils/id.js";
-import { WSEvent } from "../../shared/ws/ws.types.js";
-import type { WsEventPublisher } from "../../shared/ws/ws-publisher.js";
-import type { BlockchainConfig } from "./index.js";
+import { WSEvent } from "src/shared/ws/ws.types.js";
+import type { WsEventPublisher } from "src/shared/ws/ws-publisher.js";
+import type { BlockchainConfig } from "../index.js";
 
 export function createLiquidatableUsersService(deps: {
   logger: Logger;

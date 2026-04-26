@@ -4,6 +4,7 @@ import {
   initAssetConfigModel,
   initAssetModel,
   initAssetSnapshotModel,
+  initBlockModel,
   initCronnerStateModel,
   initLiquidatableUserModel,
   initProposalModel,
@@ -17,6 +18,7 @@ import {
 
 export function createDatabaseClient(sequelize: Sequelize) {
   const Asset = initAssetModel(sequelize);
+  const Block = initBlockModel(sequelize);
   const User = initUserModel(sequelize);
   const AssetConfig = initAssetConfigModel(sequelize);
   const LiquidatableUser = initLiquidatableUserModel(sequelize);
@@ -96,6 +98,7 @@ export function createDatabaseClient(sequelize: Sequelize) {
     accrueLog: AccrueLog,
     cronnerState: CronnerState,
     proposal: Proposal,
+    block: Block,
     $sequelize: sequelize,
   };
 }

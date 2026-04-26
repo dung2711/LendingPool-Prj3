@@ -5,6 +5,8 @@ import {
   Model,
   type Sequelize,
 } from "sequelize";
+import { chainIds } from "src/shared/constants";
+import type { ChainId } from "src/shared/types/blockchain";
 
 export class AccrueLog extends Model<
   InferAttributes<AccrueLog>,
@@ -12,6 +14,7 @@ export class AccrueLog extends Model<
 > {
   declare id: string;
   declare assetId: bigint;
+  declare chainId: ChainId;
   declare transactionHash: string;
   declare blockNumber: bigint;
   declare interestAccrued: string;
@@ -34,6 +37,13 @@ export function initAccrueLogModel(sequelize: Sequelize): typeof AccrueLog {
       assetId: {
         type: DataTypes.BIGINT,
         allowNull: false,
+      },
+      chainId: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        validate: {
+          isIn: [Object.values(chainIds)],
+        },
       },
       transactionHash: {
         type: DataTypes.STRING,
