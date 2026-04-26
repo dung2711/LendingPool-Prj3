@@ -5,7 +5,9 @@ import {
   Model,
   type Sequelize,
 } from "sequelize";
+import { chainIds } from "src/shared/constants";
 import { TreasuryEventType } from "src/shared/constants/app";
+import type { ChainId } from "src/shared/types";
 
 export class TreasuryLog extends Model<
   InferAttributes<TreasuryLog>,
@@ -13,6 +15,7 @@ export class TreasuryLog extends Model<
 > {
   declare id: string;
   declare assetId: bigint;
+  declare chainId: ChainId;
   declare transactionHash: string;
   declare blockNumber: bigint;
   declare eventType: TreasuryEventType;
@@ -33,6 +36,13 @@ export function initTreasuryLogModel(sequelize: Sequelize): typeof TreasuryLog {
       assetId: {
         type: DataTypes.BIGINT,
         allowNull: false,
+      },
+      chainId: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        validate: {
+          isIn: [Object.values(chainIds)],
+        },
       },
       transactionHash: {
         type: DataTypes.STRING,

@@ -30,6 +30,12 @@ export const blockchainEnvSchema = baseEnvSchema.extend({
     .positive()
     .default(100)
     .describe("Maximum block range to scan in one batch"),
+  MAX_BLOCK_LOOKBACK: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100)
+    .describe("Maximum number of blocks to look back when detecting reorgs"),
 });
 
 export type BlockchainEnv = z.infer<typeof blockchainEnvSchema>;

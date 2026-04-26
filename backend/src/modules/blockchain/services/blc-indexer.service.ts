@@ -1,6 +1,7 @@
 import type { Logger } from "@logtape/logtape";
 import dayjs from "dayjs";
 import type { EventLog } from "ethers";
+import type { Sequelize, Transaction } from "sequelize";
 import type { BlockchainEnv } from "src/shared/config";
 import {
   chainIds,
@@ -9,18 +10,29 @@ import {
 } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
 import type { ChainId } from "src/shared/types";
-import type { BlockchainConfig } from "./blockchain.config";
+import type { BlockchainConfig } from "../blockchain.config";
+import type { IScanContract } from "../blockchain.types";
+import type { BLCReorgService } from "./blc-reorg.service";
 import type { BlockchainService } from "./blockchain.service";
-import type { IScanContract } from "./blockchain.types";
 
 export function createBLCIndexerService(deps: {
   blcConfig: BlockchainConfig;
   blcService: BlockchainService;
+  blcReorgService: BLCReorgService;
   logger: Logger;
   dbClient: DatabaseClient;
+  sequelize: Sequelize;
   env: BlockchainEnv;
 }) {
-  const { blcConfig, logger, dbClient, blcService, env } = deps;
+  const {
+    blcConfig,
+    logger,
+    dbClient,
+    blcService,
+    sequelize,
+    env,
+    blcReorgService,
+  } = deps;
 
   async function initializeScannerState() {
     const chains = Object.values(chainIds);
@@ -232,21 +244,56 @@ export function createBLCIndexerService(deps: {
       return;
     }
 
-    await Promise.all([
-      scanLendingPoolContract({ chainId, fromBlock, toBlock }),
-      scanLiquidationContract({ chainId, fromBlock, toBlock }),
-      scanTimelockContract({ chainId, fromBlock, toBlock }),
-    ]);
+    if (fromBlock > 0) {
+      const reorgDetected = await blcReorgService.detectReorg(
+        chainId,
+        fromBlock,
+      );
+      if (reorgDetected) {
+        logger.warn("Reorg detected for chain {chainId} at block {fromBlock}", {
+          chainId,
+          fromBlock,
+        });
 
-    await dbClient.scanner.update(
-      {
-        lastScannedBlock: BigInt(toBlock),
-        lastScannedAt: dayjs().toDate(),
-      },
-      {
-        where: { chainId: chainId.toString() },
-      },
-    );
+        const forkPoint = await blcReorgService.findForkPoint(
+          chainId,
+          fromBlock,
+        );
+
+        await blcReorgService.handleReorg(chainId, forkPoint);
+
+        logger.info(
+          "Reorg handling completed, restarting scan from fork point",
+          {
+            chainId,
+            forkPoint,
+          },
+        );
+
+        return;
+      }
+    }
+
+    await sequelize.transaction(async (tx) => {
+      await Promise.all([
+        scanLendingPoolContract({ chainId, fromBlock, toBlock }),
+        scanLiquidationContract({ chainId, fromBlock, toBlock }),
+        scanTimelockContract({ chainId, fromBlock, toBlock }),
+      ]);
+
+      await saveBlockHeaders(chainId, fromBlock, toBlock, tx);
+
+      await dbClient.scanner.update(
+        {
+          lastScannedBlock: BigInt(toBlock),
+          lastScannedAt: dayjs().toDate(),
+        },
+        {
+          where: { chainId: chainId.toString() },
+          transaction: tx,
+        },
+      );
+    });
 
     const endTime = dayjs().toDate();
     logger.info("Finished scanning chain", {
@@ -257,11 +304,42 @@ export function createBLCIndexerService(deps: {
     });
   }
 
+  async function saveBlockHeaders(
+    chainId: ChainId,
+    fromBlock: number,
+    toBlock: number,
+    tx: Transaction,
+  ) {
+    const provider = blcConfig.getProvider(chainId);
+    const blockPromises = [];
+    for (let blockNumber = fromBlock; blockNumber <= toBlock; blockNumber++) {
+      blockPromises.push(provider.getBlock(blockNumber));
+    }
+    const blocks = await Promise.all(blockPromises);
+
+    await Promise.all(
+      blocks.map((block) =>
+        dbClient.block.findOrCreate({
+          where: {
+            chainId,
+            hash: block.hash!,
+          },
+          defaults: {
+            number: BigInt(block.number),
+            chainId,
+            hash: block.hash!,
+            parentHash: block.parentHash,
+            isCanonical: true,
+            indexedAt: dayjs().toDate(),
+          },
+          transaction: tx,
+        }),
+      ),
+    );
+  }
+
   return {
     initializeScannerState,
-    scanLendingPoolContract,
-    scanLiquidationContract,
-    scanTimelockContract,
     scanChain,
   };
 }

@@ -25,6 +25,7 @@ import type {
   ITreasuryWithdrawnEventReq,
   SyncCursor,
 } from "src/shared/types";
+import { getUserAssetSyncRedisKey } from "src/shared/utils";
 import type { IdUtils } from "src/shared/utils/id";
 import type { BlockchainConfig } from "../blockchain/blockchain.config";
 
@@ -37,13 +38,6 @@ export function createBLCWorkerHandler(deps: {
   redisClient: Redis;
 }) {
   const { logger, dbClient, blcConfig, idUtils, sequelize, redisClient } = deps;
-  function getUserAssetSyncRedisKey(params: {
-    userId: bigint;
-    assetId: bigint;
-  }) {
-    const { userId, assetId } = params;
-    return `blc:user-asset-sync:${userId}:${assetId}`;
-  }
 
   function isIncomingCursorStale(params: {
     current: SyncCursor;

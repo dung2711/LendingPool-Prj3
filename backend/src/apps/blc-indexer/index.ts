@@ -1,5 +1,6 @@
 import { Cron } from "croner";
 import dotenv from "dotenv";
+import { createBLCReorgService } from "src/modules/blockchain/services/blc-reorg.service";
 import { chainIds } from "src/shared/constants/blockchain.js";
 import {
   createBLCIndexerService,
@@ -16,7 +17,7 @@ import { createWsEventPublisher } from "../../shared/ws/ws-publisher.js";
 dotenv.config();
 
 const env = validateEnv(blockchainEnvSchema);
-const { logger, dbClient, rabbitChannel, redisClient, cleanup } =
+const { logger, dbClient, rabbitChannel, sequelize, redisClient, cleanup } =
   await setupInfrastructure(env, "blc-indexer");
 
 const rabbitHelper = createRabbitMQHelperService({ rabbitChannel, logger });
@@ -30,12 +31,22 @@ const blcService = createBlockchainService({
   logger,
 });
 const blcConfig = createBlockchainConfig({ env, logger });
+const blcReorgService = createBLCReorgService({
+  blcConfig,
+  dbClient,
+  env,
+  redisClient,
+  logger,
+  sequelize,
+});
 const blcIndexerService = createBLCIndexerService({
   logger,
   dbClient,
   blcConfig,
   blcService,
   env,
+  blcReorgService,
+  sequelize,
 });
 const wsPublisher = createWsEventPublisher({
   redis: redisClient,
