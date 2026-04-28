@@ -43,6 +43,48 @@ interface SelectedAsset {
   symbol: string;
 }
 
+interface LiquidatableUsersSocketPayload {
+  users?: Array<{ address?: string } | string>;
+  timestamp?: number | string | Date;
+  blockNumber?: number;
+}
+
+const LIQUIDATABLE_USERS_WS_EVENT = "ws:liquidatable:users:updated";
+
+const parseEventTimestamp = (
+  value: number | string | Date | undefined,
+): Date | null => {
+  if (value === undefined || value === null) return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === "number") {
+    // Block timestamps are usually in seconds while JS Date expects milliseconds.
+    const normalized = value < 1_000_000_000_000 ? value * 1000 : value;
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const normalizeWsUserAddresses = (
+  users: Array<{ address?: string } | string> | undefined,
+): string[] => {
+  if (!users || users.length === 0) return [];
+
+  return users
+    .map((item) => {
+      if (typeof item === "string") return item;
+      return item?.address || "";
+    })
+    .map((address) => address.trim())
+    .filter((address): address is string => Boolean(address));
+};
+
 export default function Liquidation(): ReactElement {
   const [account, setAccount] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -94,6 +136,18 @@ export default function Liquidation(): ReactElement {
       (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace("/api", ""),
     );
 
+    const handleUsersUpdated = (
+      payload: LiquidatableUsersSocketPayload,
+    ): void => {
+      console.log("📡 Received liquidatable users update:", payload);
+
+      const eventTime = parseEventTimestamp(payload?.timestamp) || new Date();
+      setLastUpdate(eventTime);
+
+      const addresses = normalizeWsUserAddresses(payload?.users);
+      fetchLiquidatableUsersDetails(addresses);
+    };
+
     socket.on("connect", () => {
       console.log("✅ WebSocket connected");
       setWsConnected(true);
@@ -104,27 +158,16 @@ export default function Liquidation(): ReactElement {
       setWsConnected(false);
     });
 
-    socket.on("liquidatableUsersUpdated", (data: any) => {
-      console.log("📡 Received liquidatable users update:", data);
-      setLastUpdate(data.timestamp ? new Date(data.timestamp) : new Date());
-      // Fetch detailed user info
-      fetchLiquidatableUsersDetails(data.users);
-    });
+    // Keep both event names for backward compatibility while backend emits WS enum names.
+    socket.on(LIQUIDATABLE_USERS_WS_EVENT, handleUsersUpdated);
+    socket.on("liquidatableUsersUpdated", handleUsersUpdated);
 
     return () => {
+      socket.off(LIQUIDATABLE_USERS_WS_EVENT, handleUsersUpdated);
+      socket.off("liquidatableUsersUpdated", handleUsersUpdated);
       socket.disconnect();
     };
   }, []);
-
-  // Fallback polling every 60 seconds (in case WebSocket fails)
-  useEffect(() => {
-    if (!account || wsConnected) return;
-
-    fetchLiquidatableUsers();
-    const interval = setInterval(fetchLiquidatableUsers, 60000); // 60 seconds
-
-    return () => clearInterval(interval);
-  }, [account, wsConnected]);
 
   const checkWalletAndFetch = async (): Promise<void> => {
     if (typeof window !== "undefined" && window.ethereum) {
@@ -192,17 +235,13 @@ export default function Liquidation(): ReactElement {
     }
   };
 
-  const fetchLiquidatableUsers = async (): Promise<void> => {
+  const refreshCurrentList = async (): Promise<void> => {
     try {
-      const response = await fetch(
-        "http://localhost:4000/api/liquidatable-users/metadata",
-      );
-      const data = await response.json();
-
-      await fetchLiquidatableUsersDetails(data.users);
-      setLastUpdate(data.lastUpdate ? new Date(data.lastUpdate) : null);
-    } catch (err) {
-      console.error("Error fetching liquidatable users:", err);
+      setLoading(true);
+      const addresses = liquidatableUsers.map((user) => user.address);
+      await fetchLiquidatableUsersDetails(addresses);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -218,9 +257,6 @@ export default function Liquidation(): ReactElement {
       ]);
       setLiquidationThreshold(threshold);
       setLiquidationIncentive(incentive);
-
-      // Fetch liquidatable users from backend
-      await fetchLiquidatableUsers();
     } catch (err) {
       console.error("Error fetching data:", err);
       setError(err instanceof Error ? err.message : String(err));
@@ -561,7 +597,7 @@ export default function Liquidation(): ReactElement {
             </Box>
             <Button
               variant="outlined"
-              onClick={fetchLiquidatableUsers}
+              onClick={refreshCurrentList}
               disabled={loading}
               size="small"
             >

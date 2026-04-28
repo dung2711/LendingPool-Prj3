@@ -7,6 +7,7 @@ import GavelIcon from "@mui/icons-material/Gavel";
 import HistoryIcon from "@mui/icons-material/History";
 import HomeIcon from "@mui/icons-material/Home";
 import MenuIcon from "@mui/icons-material/Menu";
+import PolicyIcon from "@mui/icons-material/Policy";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
@@ -40,6 +41,7 @@ const navItems: NavItem[] = [
   { title: "Borrow", path: "/borrow", icon: TrendingUpIcon },
   { title: "Liquidation", path: "/liquidation", icon: GavelIcon },
   { title: "History", path: "/history", icon: HistoryIcon },
+  { title: "Proposals", path: "/proposals", icon: PolicyIcon },
   { title: "Admin", path: "/admin", icon: AdminPanelSettingsIcon },
 ];
 
