@@ -1,14 +1,24 @@
+import { zChainId } from "src/shared/types";
 import { z } from "zod";
 
 export const ZUserAddressReq = z.object({
   userAddress: z.string().describe("The Ethereum address of the user"),
+  chainId: zChainId.describe("Blockchain ID"),
 });
 
 export type IUserAddressReq = z.infer<typeof ZUserAddressReq>;
 
+export const ZUserEmailLookupReq = z.object({
+  userAddress: z.string().describe("The Ethereum address of the user"),
+  chainId: zChainId.describe("Blockchain ID"),
+});
+
+export type IUserEmailLookupReq = z.infer<typeof ZUserEmailLookupReq>;
+
 export const ZGetUserDetailRes = z.object({
   id: z.string().describe("The unique identifier of the user"),
   userAddress: z.string().describe("The Ethereum address of the user"),
+  chainId: zChainId.describe("Blockchain ID"),
   joinedAt: z
     .string()
     .describe("Timestamp when the user first joined the protocol"),
@@ -42,3 +52,11 @@ export const ZGetDashboardDetailRes = z.object({
 });
 
 export type IGetDashboardDetailRes = z.infer<typeof ZGetDashboardDetailRes>;
+
+export const ZGetUserEmailRes = z.object({
+  success: z.literal(true),
+  email: z.string().nullable(),
+  found: z.boolean(),
+});
+
+export type IGetUserEmailRes = z.infer<typeof ZGetUserEmailRes>;

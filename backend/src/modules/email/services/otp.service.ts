@@ -9,7 +9,7 @@ import {
 } from "src/shared/constants";
 import type { IOTPCache } from "src/shared/types";
 import { maskEmail } from "src/shared/utils/log-retraction";
-import type { ISendOtpReq, IVerifyOtpReq } from "../otp.dto";
+import type { ISendOtpReq, IVerifyOtpReq } from "../email.dto";
 import type { TokenCacheService } from "./token-cache.service";
 
 export function createOTPService(deps: {
@@ -20,13 +20,22 @@ export function createOTPService(deps: {
 }) {
   const { notiPublisher, logger, redis, tokenCache } = deps;
   const OTP_TTL_SECONDS = 5 * 60; // 5 minutes
+
+  function normalizeEmail(email: string) {
+    return email.trim().toLowerCase();
+  }
+
+  function normalizeOtp(otp: string) {
+    return otp.trim();
+  }
+
   function generateOTPCode() {
     // Generate a 6-digit OTP code (000000-999999)
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
   function getOTPKey(params: ISendOtpReq) {
-    return `otp:${params.purpose}:${params.email}`;
+    return `otp:${params.purpose}:${normalizeEmail(params.email)}`;
   }
 
   async function generateOTP(params: ISendOtpReq) {
@@ -35,7 +44,7 @@ export function createOTPService(deps: {
 
     const otpData: IOTPCache = {
       otp,
-      email: params.email,
+      email: normalizeEmail(params.email),
       purpose: params.purpose,
       createdAt: Date.now(),
     };
@@ -47,10 +56,16 @@ export function createOTPService(deps: {
   }
 
   async function checkOTP(email: string, otp: string, purpose: OTPPurpose) {
-    const otpKey = getOTPKey({ email, purpose });
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedOtp = normalizeOtp(otp);
+    const otpKey = getOTPKey({ email: normalizedEmail, purpose });
     const otpData = await redis.get(otpKey);
 
     if (!otpData) {
+      logger.warn("OTP verification failed: token missing or expired", {
+        email: maskEmail(normalizedEmail),
+        purpose,
+      });
       throw new AppErr(ErrCode.InvalidOTP, {
         errors: "OTP not found or expired",
       });
@@ -58,7 +73,11 @@ export function createOTPService(deps: {
 
     const parsedOtpData: IOTPCache = JSON.parse(otpData);
 
-    if (parsedOtpData.otp !== otp) {
+    if (parsedOtpData.otp !== normalizedOtp) {
+      logger.warn("OTP verification failed: code mismatch", {
+        email: maskEmail(normalizedEmail),
+        purpose,
+      });
       throw new AppErr(ErrCode.InvalidOTP, {
         errors: "OTP does not match",
       });
@@ -66,12 +85,16 @@ export function createOTPService(deps: {
   }
 
   async function sendOTP(params: ISendOtpReq) {
-    const otp = await generateOTP(params);
+    const normalizedEmail = normalizeEmail(params.email);
+    const otp = await generateOTP({
+      ...params,
+      email: normalizedEmail,
+    });
 
     await notiPublisher.publishEmailEvent({
       type: EmailPurpose.OTP,
       payload: {
-        to: params.email,
+        to: normalizedEmail,
         otp,
         purpose: params.purpose,
         expiresInMinutes: OTP_TTL_SECONDS / 60,
@@ -80,7 +103,7 @@ export function createOTPService(deps: {
     });
 
     logger.info("OTP sent {email} {purpose}", {
-      email: maskEmail(params.email),
+      email: maskEmail(normalizedEmail),
       purpose: params.purpose,
     });
 
@@ -90,17 +113,23 @@ export function createOTPService(deps: {
   }
 
   async function verifyOtp(params: IVerifyOtpReq): Promise<{ token: string }> {
-    await checkOTP(params.email, params.otp, params.purpose);
+    const normalizedEmail = normalizeEmail(params.email);
+    const normalizedOtp = normalizeOtp(params.otp);
+
+    await checkOTP(normalizedEmail, normalizedOtp, params.purpose);
     const otpKey = getOTPKey({
-      email: params.email,
+      email: normalizedEmail,
       purpose: params.purpose,
     });
     await redis.del(otpKey);
 
-    const token = await tokenCache.generateToken(params.purpose, params.email);
+    const token = await tokenCache.generateToken(
+      params.purpose,
+      normalizedEmail,
+    );
 
     logger.info("OTP verified and token generated {purpose} {email}", {
-      email: maskEmail(params.email),
+      email: maskEmail(normalizedEmail),
       purpose: params.purpose,
     });
 

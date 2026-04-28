@@ -1,8 +1,9 @@
 import type { Logger } from "@logtape/logtape";
+import { ethers } from "ethers";
 import { AppErr, ErrCode, OTPPurpose } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
-import { maskEmail } from "src/shared/utils";
-import type { IRegisterEmailReq } from "../otp.dto";
+import { maskEmail, validateAddress } from "src/shared/utils";
+import type { IRegisterEmailReq } from "../email.dto";
 import type { TokenCacheService } from "./token-cache.service";
 
 export function createEmailRegistrationService(deps: {
@@ -14,6 +15,9 @@ export function createEmailRegistrationService(deps: {
 
   async function registerEmail(params: IRegisterEmailReq) {
     const { registerToken, address, chainId } = params;
+    validateAddress(address);
+    const checksumAddress = ethers.getAddress(address);
+
     const { email } = await tokenCache.verifyToken(
       registerToken,
       OTPPurpose.ADMIN_NOTI_SUBSCRIPTION,
@@ -21,13 +25,17 @@ export function createEmailRegistrationService(deps: {
 
     const user = await dbClient.user.findOne({
       where: {
-        userAddress: address,
+        userAddress: checksumAddress,
         chainId,
       },
       attributes: ["email"],
     });
 
     if (!user) {
+      logger.warn(
+        "Email registration failed: No user found for {address} (checksum {checksumAddress}) on chain {chainId}",
+        { address, checksumAddress, chainId },
+      );
       throw new AppErr(ErrCode.UserNotFound);
     }
 
@@ -41,7 +49,7 @@ export function createEmailRegistrationService(deps: {
       },
       {
         where: {
-          userAddress: address,
+          userAddress: checksumAddress,
           chainId,
         },
       },
@@ -49,7 +57,7 @@ export function createEmailRegistrationService(deps: {
 
     logger.info(
       `Registered email {email} for user {address} on chain {chainId}`,
-      { email: maskEmail(email), address, chainId },
+      { email: maskEmail(email), address: checksumAddress, chainId },
     );
 
     return {
