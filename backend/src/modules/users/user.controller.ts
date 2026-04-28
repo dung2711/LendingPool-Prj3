@@ -5,7 +5,7 @@ import {
   Router,
 } from "express";
 import { ZodError } from "zod";
-import { ZUserAddressReq } from "./user.dto";
+import { ZUserAddressReq, ZUserEmailLookupReq } from "./user.dto";
 import type { IUserService } from "./user.service";
 
 export function createUserController(deps: { userService: IUserService }) {
@@ -42,6 +42,24 @@ export function createUserController(deps: { userService: IUserService }) {
 
         const result = await userService.getDashboardDetail(parsed.data);
         res.status(200).json({ success: true, ...result });
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  /**
+   * GET /users/email?userAddress=&chainId=
+   */
+  router.get(
+    "/email",
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const parsed = ZUserEmailLookupReq.safeParse(req.query);
+        if (!parsed.success) throw new ZodError(parsed.error.issues);
+
+        const result = await userService.getUserEmail(parsed.data);
+        res.status(200).json(result);
       } catch (err) {
         next(err);
       }

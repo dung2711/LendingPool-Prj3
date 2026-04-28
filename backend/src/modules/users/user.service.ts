@@ -1,4 +1,5 @@
 import type { Logger } from "@logtape/logtape";
+import { ethers } from "ethers";
 import { col } from "sequelize";
 import { AppErr, ErrCode } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra/";
@@ -6,7 +7,9 @@ import { validateAddress } from "src/shared/utils";
 import type {
   IGetDashboardDetailRes,
   IGetUserDetailRes,
+  IGetUserEmailRes,
   IUserAddressReq,
+  IUserEmailLookupReq,
 } from "./user.dto";
 
 export function createUserService(deps: {
@@ -18,10 +21,12 @@ export function createUserService(deps: {
   async function getUserDetail(
     data: IUserAddressReq,
   ): Promise<IGetUserDetailRes> {
-    const { userAddress } = data;
+    const { userAddress, chainId } = data;
     validateAddress(userAddress);
 
-    const user = await dbClient.user.findOne({ where: { userAddress } });
+    const user = await dbClient.user.findOne({
+      where: { userAddress, chainId },
+    });
     if (!user) {
       throw new AppErr(ErrCode.UserNotFound);
     }
@@ -30,6 +35,7 @@ export function createUserService(deps: {
     return {
       id: user.id.toString(),
       userAddress: user.userAddress,
+      chainId: user.chainId.toString(),
       joinedAt: user.joinedAt.toDateString(),
     };
   }
@@ -37,10 +43,12 @@ export function createUserService(deps: {
   async function getDashboardDetail(
     data: IUserAddressReq,
   ): Promise<IGetDashboardDetailRes> {
-    const { userAddress } = data;
+    const { userAddress, chainId } = data;
     validateAddress(userAddress);
 
-    const user = await dbClient.user.findOne({ where: { userAddress } });
+    const user = await dbClient.user.findOne({
+      where: { userAddress, chainId },
+    });
     if (!user) {
       throw new AppErr(ErrCode.UserNotFound);
     }
@@ -88,15 +96,46 @@ export function createUserService(deps: {
       user: {
         id: user.id.toString(),
         userAddress: user.userAddress,
+        chainId: user.chainId.toString(),
         joinedAt: user.joinedAt.toDateString(),
       },
       assets,
     };
   }
 
+  async function getUserEmail(
+    data: IUserEmailLookupReq,
+  ): Promise<IGetUserEmailRes> {
+    const { userAddress, chainId } = data;
+    validateAddress(userAddress);
+    const checksumAddress = ethers.getAddress(userAddress);
+
+    const user = await dbClient.user.findOne({
+      where: { userAddress: checksumAddress, chainId },
+      attributes: ["email"],
+    });
+
+    if (!user) {
+      logger.info(
+        "Email lookup: No user found for {userAddress} on chain {chainId}",
+        {
+          userAddress: checksumAddress,
+          chainId,
+        },
+      );
+    }
+
+    return {
+      success: true,
+      email: user?.email ?? null,
+      found: Boolean(user),
+    };
+  }
+
   return {
     getUserDetail,
     getDashboardDetail,
+    getUserEmail,
   };
 }
 

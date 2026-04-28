@@ -5,7 +5,7 @@ import {
   Router,
 } from "express";
 import { ZodError } from "zod";
-import { zRegisterEmailReq, zSendOtpReq, zVerifyOtpReq } from "./otp.dto";
+import { zRegisterEmailReq, zSendOtpReq, zVerifyOtpReq } from "./email.dto";
 import type { OTPService } from "./services";
 import type { EmailRegistrationService } from "./services/email-registration.service";
 
