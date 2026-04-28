@@ -4,7 +4,9 @@ import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
@@ -16,12 +18,16 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import axios from "axios";
 import { ethers } from "ethers";
 import { type ReactElement, useEffect, useState } from "react";
+import axiosClient from "@/lib/axios";
 import { web3Service } from "@/lib/web3";
 import { assetService } from "@/services/assetService";
 import { userAssetService } from "@/services/userAssetService";
+import { userService } from "@/services/userService";
 
 interface MarketData {
   address: string;
@@ -35,6 +41,31 @@ interface MarketData {
   borrowRate: bigint;
 }
 
+const OTP_PURPOSE = "admin-noti-subscription";
+
+const normalizeChainId = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+
+  const normalized = Number(trimmed);
+  if (Number.isInteger(normalized) && normalized > 0) {
+    return String(normalized);
+  }
+
+  return trimmed;
+};
+
+const DEFAULT_CHAIN_ID = normalizeChainId(
+  process.env.NEXT_PUBLIC_CHAIN_ID || "11155111",
+);
+
+type ApiErrorResponse = {
+  success?: boolean;
+  code?: string;
+  message?: string;
+  errors?: string | { errors?: string };
+};
+
 export default function Dashboard(): ReactElement {
   const [account, setAccount] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -46,6 +77,108 @@ export default function Dashboard(): ReactElement {
   const [healthFactor, setHealthFactor] = useState(0n);
   const [netAPY, setNetAPY] = useState(0);
   const [collateralFactor, setCollateralFactor] = useState(0n);
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [registerToken, setRegisterToken] = useState("");
+  const [emailSuccess, setEmailSuccess] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [emailLookupFound, setEmailLookupFound] = useState<boolean | null>(
+    null,
+  );
+  const [emailLookupLoading, setEmailLookupLoading] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [registeringEmail, setRegisteringEmail] = useState(false);
+  const [activeChainId, setActiveChainId] = useState(DEFAULT_CHAIN_ID);
+
+  const resolveCurrentChainId = async (): Promise<string> => {
+    if (typeof window === "undefined" || !window.ethereum) {
+      return DEFAULT_CHAIN_ID;
+    }
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      const walletChainId = normalizeChainId(network.chainId.toString());
+      return walletChainId || DEFAULT_CHAIN_ID;
+    } catch (error) {
+      console.error("Error resolving wallet chainId:", error);
+      return DEFAULT_CHAIN_ID;
+    }
+  };
+
+  const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (axios.isAxiosError(error)) {
+      const payload = error.response?.data as ApiErrorResponse | undefined;
+
+      if (typeof payload?.errors === "string" && payload.errors.trim()) {
+        return payload.errors;
+      }
+
+      if (
+        payload?.errors &&
+        typeof payload.errors === "object" &&
+        typeof payload.errors.errors === "string" &&
+        payload.errors.errors.trim()
+      ) {
+        return payload.errors.errors;
+      }
+
+      if (typeof payload?.message === "string" && payload.message.trim()) {
+        return payload.message;
+      }
+
+      if (typeof payload?.code === "string" && payload.code.trim()) {
+        return payload.code;
+      }
+
+      return error.message || fallback;
+    }
+
+    if (error instanceof Error && error.message.trim()) {
+      return error.message;
+    }
+
+    return fallback;
+  };
+
+  const getBackendErrorFromPayload = (
+    payload: unknown,
+    fallback: string,
+  ): string | null => {
+    if (!payload || typeof payload !== "object") {
+      return null;
+    }
+
+    const body = payload as ApiErrorResponse;
+    if (body.success !== false) {
+      return null;
+    }
+
+    if (typeof body.errors === "string" && body.errors.trim()) {
+      return body.errors;
+    }
+
+    if (
+      body.errors &&
+      typeof body.errors === "object" &&
+      typeof body.errors.errors === "string" &&
+      body.errors.errors.trim()
+    ) {
+      return body.errors.errors;
+    }
+
+    if (typeof body.message === "string" && body.message.trim()) {
+      return body.message;
+    }
+
+    if (typeof body.code === "string" && body.code.trim()) {
+      return body.code;
+    }
+
+    return fallback;
+  };
 
   useEffect(() => {
     checkWalletAndFetch();
@@ -54,18 +187,25 @@ export default function Dashboard(): ReactElement {
       const handleAccountsChanged = (accounts: string[]): void => {
         setAccount(accounts[0] || null);
         if (accounts.length > 0) {
-          fetchData();
+          void fetchData();
         } else {
           setUserInfo(null);
           setMarkets([]);
         }
       };
+
+      const handleChainChanged = (): void => {
+        void fetchData();
+      };
+
       window.ethereum.on("accountsChanged", handleAccountsChanged);
+      window.ethereum.on("chainChanged", handleChainChanged);
       return () => {
         window.ethereum?.removeListener(
           "accountsChanged",
           handleAccountsChanged,
         );
+        window.ethereum?.removeListener("chainChanged", handleChainChanged);
       };
     }
     if (pageLoading) setPageLoading(false);
@@ -76,10 +216,12 @@ export default function Dashboard(): ReactElement {
       try {
         setPageLoading(true);
         const provider = new ethers.BrowserProvider(window.ethereum!);
+        const resolvedChainId = await resolveCurrentChainId();
+        setActiveChainId(resolvedChainId);
         const accounts = await provider.send("eth_accounts", []);
         setAccount(accounts[0] || null);
         if (accounts.length > 0) {
-          fetchData();
+          await fetchData(resolvedChainId);
         }
       } catch (err) {
         console.error("Error checking wallet:", err);
@@ -89,7 +231,7 @@ export default function Dashboard(): ReactElement {
     }
   };
 
-  const fetchData = async (): Promise<void> => {
+  const fetchData = async (chainIdOverride?: string): Promise<void> => {
     try {
       setLoading(true);
       const lendingPool = await web3Service.getLendingPoolContract();
@@ -97,10 +239,15 @@ export default function Dashboard(): ReactElement {
       const provider = new ethers.BrowserProvider(window.ethereum!);
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
+      const resolvedChainId =
+        chainIdOverride || (await resolveCurrentChainId()) || DEFAULT_CHAIN_ID;
+      setActiveChainId(resolvedChainId);
+
+      void loadEmailStatus(userAddress, resolvedChainId);
 
       // Fetch user balances and asset metadata from backend
       const [userData, allAssets] = await Promise.all([
-        userAssetService.getAssetsByUser(userAddress),
+        userAssetService.getAssetsByUser(userAddress, resolvedChainId),
         assetService.getAllAssets(),
       ]);
 
@@ -222,6 +369,140 @@ export default function Dashboard(): ReactElement {
       console.error("Error fetching data:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEmailStatus = async (
+    userAddress: string,
+    chainId: string,
+  ): Promise<void> => {
+    try {
+      setEmailLookupLoading(true);
+      const result = await userService.getEmailByAddress(userAddress, chainId);
+      setRegisteredEmail(result.email);
+      setEmailLookupFound(result.found);
+    } catch (err) {
+      console.error("Error fetching email status:", err);
+      setRegisteredEmail(null);
+      setEmailLookupFound(null);
+    } finally {
+      setEmailLookupLoading(false);
+    }
+  };
+
+  const handleSendOtp = async (): Promise<void> => {
+    if (!email) {
+      setEmailError("Please enter your email address");
+      return;
+    }
+
+    try {
+      setEmailError("");
+      setEmailSuccess("");
+      setSendingOtp(true);
+
+      const response = await axiosClient.post("/api/email/send-otp", {
+        email,
+        purpose: OTP_PURPOSE,
+      });
+
+      const backendError = getBackendErrorFromPayload(
+        response.data,
+        "Failed to send OTP",
+      );
+      if (backendError) {
+        throw new Error(backendError);
+      }
+
+      setEmailSuccess("OTP sent. Check your email inbox.");
+    } catch (err) {
+      setEmailError(
+        `Failed to send OTP: ${getErrorMessage(err, "Unknown error")}`,
+      );
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async (): Promise<void> => {
+    if (!email || !otp) {
+      setEmailError("Please enter email and OTP");
+      return;
+    }
+
+    try {
+      setEmailError("");
+      setEmailSuccess("");
+      setVerifyingOtp(true);
+
+      const response = await axiosClient.post("/api/email/verify-otp", {
+        email,
+        otp,
+        purpose: OTP_PURPOSE,
+      });
+
+      const backendError = getBackendErrorFromPayload(
+        response.data,
+        "Failed to verify OTP",
+      );
+      if (backendError) {
+        throw new Error(backendError);
+      }
+
+      setRegisterToken(response.data?.token || "");
+      setEmailSuccess("OTP verified. You can register the email now.");
+    } catch (err) {
+      setRegisterToken("");
+      setEmailError(
+        `Failed to verify OTP: ${getErrorMessage(err, "Unknown error")}`,
+      );
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleRegisterEmail = async (): Promise<void> => {
+    if (!account) {
+      setEmailError("Connect wallet before registering email");
+      return;
+    }
+
+    if (!registerToken) {
+      setEmailError("Register token not found. Verify OTP first.");
+      return;
+    }
+
+    try {
+      setEmailError("");
+      setEmailSuccess("");
+      setRegisteringEmail(true);
+      const resolvedChainId = await resolveCurrentChainId();
+      setActiveChainId(resolvedChainId);
+
+      const response = await axiosClient.post("/api/email/register", {
+        registerToken,
+        address: account,
+        chainId: resolvedChainId,
+      });
+
+      const backendError = getBackendErrorFromPayload(
+        response.data,
+        "Failed to register email",
+      );
+      if (backendError) {
+        throw new Error(backendError);
+      }
+
+      setEmailSuccess("Email registered for admin notifications.");
+      setRegisterToken("");
+      setOtp("");
+      void loadEmailStatus(account, resolvedChainId);
+    } catch (err) {
+      setEmailError(
+        `Failed to register email: ${getErrorMessage(err, "Unknown error")}`,
+      );
+    } finally {
+      setRegisteringEmail(false);
     }
   };
 
@@ -472,6 +753,143 @@ export default function Dashboard(): ReactElement {
               </Card>
             </Box>
           </Box>
+
+          <Card elevation={3} sx={{ mb: 4 }}>
+            <CardContent>
+              <Typography variant="h6" fontWeight="bold" mb={1}>
+                Email Status
+              </Typography>
+              <Typography variant="body2" color="text.secondary" mb={2}>
+                Lookup by connected wallet and chain ID {activeChainId}.
+              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Chip
+                  color={
+                    emailLookupFound === null
+                      ? "default"
+                      : registeredEmail
+                        ? "success"
+                        : "warning"
+                  }
+                  label={
+                    emailLookupLoading
+                      ? "Checking..."
+                      : emailLookupFound === null
+                        ? "Not checked"
+                        : registeredEmail
+                          ? `Registered: ${registeredEmail}`
+                          : emailLookupFound
+                            ? "No email registered"
+                            : "User record not found"
+                  }
+                />
+                {emailLookupLoading ? (
+                  <LinearProgress sx={{ flex: 1 }} />
+                ) : null}
+              </Box>
+            </CardContent>
+          </Card>
+
+          {/* Admin Email Registration */}
+          <Card elevation={3} sx={{ mb: 4 }}>
+            <CardContent>
+              <Typography variant="h6" fontWeight="bold" mb={1}>
+                Admin Email Registration
+              </Typography>
+              <Typography variant="body2" color="text.secondary" mb={2}>
+                Register your email to receive governance notifications.
+              </Typography>
+
+              {emailSuccess && (
+                <Alert severity="success" sx={{ mb: 2 }}>
+                  {emailSuccess}
+                </Alert>
+              )}
+              {emailError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {emailError}
+                </Alert>
+              )}
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" },
+                  gap: 2,
+                  mb: 2,
+                }}
+              >
+                <TextField
+                  label="Email"
+                  size="small"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  fullWidth
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleSendOtp}
+                  disabled={sendingOtp}
+                >
+                  {sendingOtp ? <CircularProgress size={20} /> : "Send OTP"}
+                </Button>
+              </Box>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" },
+                  gap: 2,
+                  mb: 2,
+                }}
+              >
+                <TextField
+                  label="OTP"
+                  size="small"
+                  value={otp}
+                  onChange={(event) => setOtp(event.target.value)}
+                  placeholder="6-digit code"
+                  fullWidth
+                />
+                <Button
+                  variant="outlined"
+                  onClick={handleVerifyOtp}
+                  disabled={verifyingOtp}
+                >
+                  {verifyingOtp ? <CircularProgress size={20} /> : "Verify OTP"}
+                </Button>
+              </Box>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  label="Register Token"
+                  size="small"
+                  value={registerToken}
+                  placeholder="Token from OTP verification"
+                  fullWidth
+                  disabled
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleRegisterEmail}
+                  disabled={registeringEmail}
+                >
+                  {registeringEmail ? (
+                    <CircularProgress size={20} />
+                  ) : (
+                    "Register Email"
+                  )}
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
 
           {/* Borrow Limit Progress */}
           {totalSuppliedUSD > 0n && (
