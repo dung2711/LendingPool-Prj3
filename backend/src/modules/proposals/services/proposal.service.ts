@@ -12,7 +12,7 @@ export function createProposalService(deps: { dbClient: DatabaseClient }) {
 
     const where: Partial<InferAttributes<Proposal>> = {};
     if (chainId) where.chainId = chainId as unknown as ChainId;
-    if (status) where.status = status;
+    if (status !== undefined) where.status = status;
 
     const proposals = await dbClient.proposal.findAll({
       where,

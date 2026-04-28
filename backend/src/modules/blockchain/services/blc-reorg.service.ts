@@ -83,7 +83,7 @@ export function createBLCReorgService(deps: {
     const [savedBlock, onChainBlock] = await Promise.all([
       dbClient.block.findOne({
         where: {
-          chainId: chainId.toString(),
+          chainId,
           number: blockNumber,
           isCanonical: true,
         },
@@ -127,7 +127,7 @@ export function createBLCReorgService(deps: {
           { isCanonical: false },
           {
             where: {
-              chainId: chainId.toString(),
+              chainId,
               number: {
                 [Op.gt]: forkPoint,
               },
@@ -136,29 +136,38 @@ export function createBLCReorgService(deps: {
           },
         );
 
-        await Promise.all([
-          dbClient.accrueLog.destroy({
-            where: {
-              blockNumber: { [Op.gt]: BigInt(forkPoint) },
-              chainId,
-            },
-            transaction: tx,
-          }),
-          dbClient.treasuryLog.destroy({
-            where: {
-              blockNumber: { [Op.gt]: BigInt(forkPoint) },
-              chainId,
-            },
-            transaction: tx,
-          }),
-          dbClient.transaction.destroy({
-            where: {
-              blockNumber: { [Op.gt]: BigInt(forkPoint) },
-              chainId,
-            },
-            transaction: tx,
-          }),
-        ]);
+        const assets = await dbClient.asset.findAll({
+          where: { chainId },
+          attributes: ["id"],
+          transaction: tx,
+        });
+        const assetIds = assets.map((asset) => asset.id);
+
+        if (assetIds.length > 0) {
+          await Promise.all([
+            dbClient.accrueLog.destroy({
+              where: {
+                blockNumber: { [Op.gt]: BigInt(forkPoint) },
+                assetId: { [Op.in]: assetIds },
+              },
+              transaction: tx,
+            }),
+            dbClient.treasuryLog.destroy({
+              where: {
+                blockNumber: { [Op.gt]: BigInt(forkPoint) },
+                assetId: { [Op.in]: assetIds },
+              },
+              transaction: tx,
+            }),
+            dbClient.transaction.destroy({
+              where: {
+                blockNumber: { [Op.gt]: BigInt(forkPoint) },
+                assetId: { [Op.in]: assetIds },
+              },
+              transaction: tx,
+            }),
+          ]);
+        }
 
         const affectedUserAssets = await dbClient.userAsset.findAll({
           where: {
@@ -270,7 +279,7 @@ export function createBLCReorgService(deps: {
             lastScannedAt: dayjs().toDate(),
           },
           {
-            where: { chainId: chainId.toString() },
+            where: { chainId },
             transaction: tx,
           },
         );

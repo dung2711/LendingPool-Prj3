@@ -5,9 +5,10 @@ import { z } from "zod";
 export const zGetListProposalsReq = z.object({
   ...zPagination.shape,
   chainId: zChainId.optional().describe("Chain ID to filter proposals"),
-  status: z
-    .enum(ProposalStatus)
-    .default(ProposalStatus.Proposed)
+  status: z.coerce
+    .number()
+    .pipe(z.enum(ProposalStatus))
+    .optional()
     .describe("Proposal status to filter"),
 });
 

@@ -28,7 +28,7 @@ export function initBlockModel(sequelize: Sequelize): typeof Block {
         allowNull: false,
       },
       chainId: {
-        type: DataTypes.STRING,
+        type: DataTypes.INTEGER,
         allowNull: false,
         validate: {
           isIn: [Object.values(chainIds)],

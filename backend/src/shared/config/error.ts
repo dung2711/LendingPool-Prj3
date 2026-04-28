@@ -25,7 +25,6 @@ export function createErrorHandler(logger: Logger) {
   ): void => {
     const requestInfo = getRequestInfo(req);
 
-    // Nhánh 1: AppErr — business error có code cụ thể
     if (err instanceof AppErr) {
       logger.error("HTTP error: {method} {path} -> {code} -> {detail}", {
         method: requestInfo.method,
@@ -37,7 +36,6 @@ export function createErrorHandler(logger: Logger) {
       return;
     }
 
-    // Nhánh 2: ZodError — validation error
     if (err instanceof ZodError) {
       logger.error(
         "Validation error: {method} {path} -> {errorCount} error(s)",
@@ -45,13 +43,13 @@ export function createErrorHandler(logger: Logger) {
           method: requestInfo.method,
           path: requestInfo.path,
           errorCount: err.issues.length,
+          errors: err.issues,
         },
       );
       res.status(200).json(makeErrBody(ErrCode.ValidationError, err.issues));
       return;
     }
 
-    // Nhánh 3: default — lỗi không mong đợi
     const errorName = err instanceof Error ? err.name : "Unknown";
     const errorMessage = err instanceof Error ? err.message : String(err);
 
@@ -71,7 +69,6 @@ export function createErrorHandler(logger: Logger) {
   };
 }
 
-// Đặt SAU tất cả routes, TRƯỚC createErrorHandler
 export function createNotFoundHandler(logger: Logger) {
   return (req: Request, res: Response): void => {
     logger.warn("Route not found: {method} {path}", {

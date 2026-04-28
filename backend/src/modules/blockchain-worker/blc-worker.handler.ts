@@ -129,18 +129,24 @@ export function createBLCWorkerHandler(deps: {
     }
   }
 
-  async function ensureUser(userAddress: string) {
+  async function ensureUser(
+    userAddress: string,
+    chainId: ITransactionEventReq["chainId"],
+  ) {
     await dbClient.user.findOrCreate({
-      where: { userAddress },
+      where: { userAddress, chainId },
       defaults: {
         id: idUtils.snowflakeId(),
         userAddress,
+        chainId,
         joinedAt: new Date(),
         createdAt: new Date(),
       },
     });
 
-    const user = await dbClient.user.findOne({ where: { userAddress } });
+    const user = await dbClient.user.findOne({
+      where: { userAddress, chainId },
+    });
     if (!user) {
       throw new Error(`User not found after creation: ${userAddress}`);
     }
@@ -153,7 +159,7 @@ export function createBLCWorkerHandler(deps: {
     chainId: ITransactionEventReq["chainId"],
   ) {
     const existingAsset = await dbClient.asset.findOne({
-      where: { assetAddress },
+      where: { assetAddress, chainId },
     });
     if (existingAsset) {
       return existingAsset;
@@ -169,6 +175,7 @@ export function createBLCWorkerHandler(deps: {
     await dbClient.asset.create({
       id: idUtils.snowflakeId(),
       assetAddress,
+      chainId,
       name,
       symbol,
       decimals: Number(decimals),
@@ -180,7 +187,7 @@ export function createBLCWorkerHandler(deps: {
     });
 
     const createdAsset = await dbClient.asset.findOne({
-      where: { assetAddress },
+      where: { assetAddress, chainId },
     });
     if (!createdAsset) {
       throw new Error(`Asset not found after creation: ${assetAddress}`);
@@ -223,7 +230,6 @@ export function createBLCWorkerHandler(deps: {
 
   async function ensureTransaction(params: {
     transactionHash: string;
-    chainId: ITransactionEventReq["chainId"];
     userId: bigint;
     assetId: bigint;
     amount: string;
@@ -234,7 +240,6 @@ export function createBLCWorkerHandler(deps: {
   }) {
     const {
       transactionHash,
-      chainId,
       userId,
       assetId,
       amount,
@@ -248,7 +253,6 @@ export function createBLCWorkerHandler(deps: {
       where: { transactionHash },
       defaults: {
         transactionHash,
-        chainId: chainId.toString(),
         userId,
         assetId,
         amount,
@@ -376,12 +380,14 @@ export function createBLCWorkerHandler(deps: {
   }
 
   async function updateAssetTotalsByDelta(params: {
+    chainId: ITransactionEventReq["chainId"];
     assetAddress: string;
     depositedDelta?: bigint;
     borrowedDelta?: bigint;
     transaction: SequelizeTransaction;
   }) {
     const {
+      chainId,
       assetAddress,
       depositedDelta = 0n,
       borrowedDelta = 0n,
@@ -391,15 +397,16 @@ export function createBLCWorkerHandler(deps: {
     const [affectedRows] = await dbClient.asset.update(
       {
         totalDeposited: literal(
-          `GREATEST((totalDeposited::NUMERIC) + (${depositedDelta.toString()})::NUMERIC, 0)`,
+          `GREATEST(("totalDeposited"::NUMERIC) + (${depositedDelta.toString()})::NUMERIC, 0)`,
         ),
         totalBorrowed: literal(
-          `GREATEST((totalBorrowed::NUMERIC) + (${borrowedDelta.toString()})::NUMERIC, 0)`,
+          `GREATEST(("totalBorrowed"::NUMERIC) + (${borrowedDelta.toString()})::NUMERIC, 0)`,
         ),
       },
       {
         where: {
           assetAddress,
+          chainId,
         },
         transaction,
       },
@@ -411,21 +418,23 @@ export function createBLCWorkerHandler(deps: {
   }
 
   async function updateAssetTreasuryBalanceByDelta(params: {
+    chainId: ITransactionEventReq["chainId"];
     assetAddress: string;
     treasuryDelta: bigint;
     transaction: SequelizeTransaction;
   }) {
-    const { assetAddress, treasuryDelta, transaction } = params;
+    const { chainId, assetAddress, treasuryDelta, transaction } = params;
 
     const [affectedRows, updatedAssets] = await dbClient.asset.update(
       {
         treasuryBalance: literal(
-          `GREATEST((treasuryBalance::NUMERIC) + (${treasuryDelta.toString()})::NUMERIC, 0)`,
+          `GREATEST(("treasuryBalance"::NUMERIC) + (${treasuryDelta.toString()})::NUMERIC, 0)`,
         ),
       },
       {
         where: {
           assetAddress,
+          chainId,
         },
         transaction,
         returning: true,
@@ -529,7 +538,7 @@ export function createBLCWorkerHandler(deps: {
       );
 
       const [user, asset, amountUSD] = await Promise.all([
-        ensureUser(userAddress),
+        ensureUser(userAddress, chainId),
         ensureAsset(assetAddress, chainId),
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
@@ -537,7 +546,6 @@ export function createBLCWorkerHandler(deps: {
       await sequelize.transaction(async (t) => {
         await ensureTransaction({
           transactionHash,
-          chainId,
           userId: user.id,
           assetId: asset.id,
           amount,
@@ -559,6 +567,7 @@ export function createBLCWorkerHandler(deps: {
         });
 
         await updateAssetTotalsByDelta({
+          chainId,
           assetAddress,
           depositedDelta: BigInt(amount),
           transaction: t,
@@ -610,7 +619,7 @@ export function createBLCWorkerHandler(deps: {
       );
 
       const [user, asset, amountUSD] = await Promise.all([
-        ensureUser(userAddress),
+        ensureUser(userAddress, chainId),
         ensureAsset(assetAddress, chainId),
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
@@ -618,7 +627,6 @@ export function createBLCWorkerHandler(deps: {
       await sequelize.transaction(async (t) => {
         await ensureTransaction({
           transactionHash,
-          chainId,
           userId: user.id,
           assetId: asset.id,
           amount,
@@ -640,6 +648,7 @@ export function createBLCWorkerHandler(deps: {
         });
 
         await updateAssetTotalsByDelta({
+          chainId,
           assetAddress,
           depositedDelta: -BigInt(amount),
           transaction: t,
@@ -691,7 +700,7 @@ export function createBLCWorkerHandler(deps: {
       );
 
       const [user, asset, amountUSD] = await Promise.all([
-        ensureUser(userAddress),
+        ensureUser(userAddress, chainId),
         ensureAsset(assetAddress, chainId),
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
@@ -699,7 +708,6 @@ export function createBLCWorkerHandler(deps: {
       await sequelize.transaction(async (t) => {
         await ensureTransaction({
           transactionHash,
-          chainId,
           userId: user.id,
           assetId: asset.id,
           amount,
@@ -721,6 +729,7 @@ export function createBLCWorkerHandler(deps: {
         });
 
         await updateAssetTotalsByDelta({
+          chainId,
           assetAddress,
           borrowedDelta: BigInt(amount),
           transaction: t,
@@ -772,7 +781,7 @@ export function createBLCWorkerHandler(deps: {
       );
 
       const [user, asset, amountUSD] = await Promise.all([
-        ensureUser(userAddress),
+        ensureUser(userAddress, chainId),
         ensureAsset(assetAddress, chainId),
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
@@ -780,7 +789,6 @@ export function createBLCWorkerHandler(deps: {
       await sequelize.transaction(async (t) => {
         await ensureTransaction({
           transactionHash,
-          chainId,
           userId: user.id,
           assetId: asset.id,
           amount,
@@ -802,6 +810,7 @@ export function createBLCWorkerHandler(deps: {
         });
 
         await updateAssetTotalsByDelta({
+          chainId,
           assetAddress,
           borrowedDelta: -BigInt(amount),
           transaction: t,
@@ -851,7 +860,7 @@ export function createBLCWorkerHandler(deps: {
       );
 
       const [user, asset, amountUSD] = await Promise.all([
-        ensureUser(userAddress),
+        ensureUser(userAddress, chainId),
         ensureAsset(assetAddress, chainId),
         calculateAmountUsd({ chainId, assetAddress, amount }),
       ]);
@@ -859,7 +868,6 @@ export function createBLCWorkerHandler(deps: {
       await sequelize.transaction(async (t) => {
         await ensureTransaction({
           transactionHash,
-          chainId,
           userId: user.id,
           assetId: asset.id,
           amount,
@@ -881,6 +889,7 @@ export function createBLCWorkerHandler(deps: {
         });
 
         await updateAssetTotalsByDelta({
+          chainId,
           assetAddress,
           depositedDelta: -BigInt(amount),
           transaction: t,
@@ -944,6 +953,7 @@ export function createBLCWorkerHandler(deps: {
 
       await sequelize.transaction(async (t) => {
         await updateAssetTotalsByDelta({
+          chainId,
           assetAddress,
           depositedDelta: BigInt(toDeposit),
           borrowedDelta: BigInt(interestAccrued),
@@ -951,6 +961,7 @@ export function createBLCWorkerHandler(deps: {
         });
 
         const balanceAfter = await updateAssetTreasuryBalanceByDelta({
+          chainId,
           assetAddress,
           treasuryDelta: BigInt(toTreasury),
           transaction: t,
@@ -1043,7 +1054,7 @@ export function createBLCWorkerHandler(deps: {
           await dbClient.asset.update(
             { isSupported: true },
             {
-              where: { assetAddress },
+              where: { assetAddress, chainId },
               transaction: t,
             },
           );
@@ -1108,6 +1119,7 @@ export function createBLCWorkerHandler(deps: {
 
       await sequelize.transaction(async (t) => {
         const balanceAfter = await updateAssetTreasuryBalanceByDelta({
+          chainId,
           assetAddress,
           treasuryDelta: BigInt(amount),
           transaction: t,
@@ -1171,6 +1183,7 @@ export function createBLCWorkerHandler(deps: {
 
       await sequelize.transaction(async (t) => {
         const balanceAfter = await updateAssetTreasuryBalanceByDelta({
+          chainId,
           assetAddress,
           treasuryDelta: -BigInt(amount),
           transaction: t,
@@ -1218,7 +1231,7 @@ export function createBLCWorkerHandler(deps: {
 
       await dbClient.asset.update(
         { isSupported: false },
-        { where: { assetAddress } },
+        { where: { assetAddress, chainId } },
       );
 
       logger.info("MarketUnsupported processed: TX {transactionHash}", {

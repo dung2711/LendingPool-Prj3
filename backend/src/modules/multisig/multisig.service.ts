@@ -45,12 +45,12 @@ export function createMultisigService(deps: {
   }): string {
     const { target, value, calldata, predecessor, salt } = params;
 
-    return ethers.keccak256(
-      ethers.solidityPacked(
-        ["address", "uint256", "bytes32", "bytes32", "bytes32"],
-        [target, value, ethers.keccak256(calldata), predecessor, salt],
-      ),
+    const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
+      ["address", "uint256", "bytes", "bytes32", "bytes32"],
+      [target, value, calldata, predecessor, salt],
     );
+
+    return ethers.keccak256(encoded);
   }
 
   function decodeTimelockCalldata(data: string): DecodedAction | null {
@@ -201,13 +201,12 @@ export function createMultisigService(deps: {
   async function scanMultisigTransactions(chainId: ChainId) {
     try {
       logger.info(`Scanning multisig transactions for chainId: ${chainId}`);
-      const [pending, recent] = await Promise.all([
+      const [pending] = await Promise.all([
         safeProvider.getPendingTransactions(chainId),
-        safeProvider.getMultisigTransactions(chainId),
       ]);
 
       const txMap = new Map<string, TransactionDetails>();
-      for (const tx of [...pending, ...recent]) {
+      for (const tx of [...pending]) {
         txMap.set(tx.safeTxHash, tx);
       }
 

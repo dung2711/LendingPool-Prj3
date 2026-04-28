@@ -1,6 +1,6 @@
 import type { Logger } from "@logtape/logtape";
 import dayjs from "dayjs";
-import type { EventLog } from "ethers";
+import type { EventLog, ethers } from "ethers";
 import type { Sequelize, Transaction } from "sequelize";
 import type { BlockchainEnv } from "src/shared/config";
 import {
@@ -48,9 +48,9 @@ export function createBLCIndexerService(deps: {
             .getBlockNumber();
 
           const [state] = await dbClient.scanner.findOrCreate({
-            where: { chainId: chainId.toString() },
+            where: { chainId },
             defaults: {
-              chainId: chainId.toString(),
+              chainId,
               lastScannedBlock: BigInt(Math.max(currentBlock - 10, 0)),
               lastScannedAt: dayjs().toDate(),
               createdAt: dayjs().toDate(),
@@ -227,7 +227,7 @@ export function createBLCIndexerService(deps: {
   async function scanChain(chainId: ChainId) {
     const startTime = dayjs().toDate();
     const scannerState = await dbClient.scanner.findOne({
-      where: { chainId: chainId.toString() },
+      where: { chainId },
     });
 
     const fromBlock = scannerState
@@ -289,7 +289,7 @@ export function createBLCIndexerService(deps: {
           lastScannedAt: dayjs().toDate(),
         },
         {
-          where: { chainId: chainId.toString() },
+          where: { chainId },
           transaction: tx,
         },
       );
@@ -311,7 +311,7 @@ export function createBLCIndexerService(deps: {
     tx: Transaction,
   ) {
     const provider = blcConfig.getProvider(chainId);
-    const blockPromises = [];
+    const blockPromises: Promise<ethers.Block>[] = [];
     for (let blockNumber = fromBlock; blockNumber <= toBlock; blockNumber++) {
       blockPromises.push(provider.getBlock(blockNumber));
     }
