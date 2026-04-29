@@ -13,7 +13,7 @@ export class UserSnapshot extends Model<
   declare id: string;
   declare userId: bigint;
   declare blockNumber: number;
-  declare snapshotAt: Date;
+  declare createdAt: Date;
   declare totalDepositedUSD: string;
   declare totalBorrowedUSD: string;
   declare netWorthUSD: string;
@@ -38,22 +38,22 @@ export function initUserSnapshotModel(
         allowNull: false,
       },
       totalDepositedUSD: {
-        type: DataTypes.DECIMAL(36, 18),
+        type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
       },
       totalBorrowedUSD: {
-        type: DataTypes.DECIMAL(36, 18),
+        type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
       },
       netWorthUSD: {
-        type: DataTypes.DECIMAL(36, 18),
+        type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
       },
       healthFactor: {
-        type: DataTypes.DECIMAL(36, 18),
+        type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
       },
-      snapshotAt: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
       },
@@ -67,10 +67,10 @@ export function initUserSnapshotModel(
           fields: ["userId"],
         },
         {
-          fields: ["snapshotAt"],
+          fields: ["createdAt"],
         },
         {
-          fields: ["userId", "snapshotAt"],
+          fields: ["userId", "createdAt"],
         },
         {
           fields: ["blockNumber"],

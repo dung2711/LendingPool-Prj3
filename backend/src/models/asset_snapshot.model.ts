@@ -19,7 +19,7 @@ export class AssetSnapshot extends Model<
   declare utilizationRate: string;
   declare depositRate: string;
   declare borrowRate: string;
-  declare snapshotAt: Date;
+  declare createdAt: Date;
 }
 
 export function initAssetSnapshotModel(
@@ -52,18 +52,18 @@ export function initAssetSnapshotModel(
         defaultValue: "0",
       },
       utilizationRate: {
-        type: DataTypes.DECIMAL(18, 16),
+        type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
       },
       depositRate: {
-        type: DataTypes.DECIMAL(18, 16),
+        type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
       },
       borrowRate: {
-        type: DataTypes.DECIMAL(18, 16),
+        type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
       },
-      snapshotAt: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
       },
@@ -77,10 +77,10 @@ export function initAssetSnapshotModel(
           fields: ["assetId"],
         },
         {
-          fields: ["snapshotAt"],
+          fields: ["createdAt"],
         },
         {
-          fields: ["assetId", "snapshotAt"],
+          fields: ["assetId", "createdAt"],
         },
         {
           fields: ["blockNumber"],

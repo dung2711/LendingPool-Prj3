@@ -10,6 +10,7 @@
 		"dev:worker": "tsx --watch src/apps/blc-worker/index.ts",
 		"dev:croner": "tsx --watch src/apps/croner/index.ts",
 		"dev:noti-worker": "tsx --watch src/apps/noti_proposal-worker/index.ts",
+		"seed": "tsx --watch src/apps/seed/index.ts",
 		"build": "tsc",
 		"typecheck": "tsc --noEmit"
 	},

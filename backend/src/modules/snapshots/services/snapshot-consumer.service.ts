@@ -1,7 +1,7 @@
 import { RabbitMQEx, RabbitMQQueue } from "src/shared/constants";
 import type { RabbitMQHelperService } from "src/shared/utils";
+import type { SnapshotTaskPayload } from "../snapshot.types";
 import type { SnapshotHandler } from "./snapshot.handler";
-import type { SnapshotTaskPayload } from "./snapshot.types";
 
 export function createSnapshotConsumerService(deps: {
   snapshotHandler: SnapshotHandler;

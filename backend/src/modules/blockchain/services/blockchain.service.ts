@@ -263,11 +263,13 @@ export function createBlockchainService(deps: {
     const {
       asset,
       interestAccrued,
-      toDeposit,
+      toDepositors,
       toTreasury,
       totalTreasury,
       newTotalBorrows,
+      newBorrowIndex,
       newTotalDeposits,
+      newDepositIndex,
     } = event.args;
     logHandleInvocation({
       handlerName: "handleAccrueEvent",
@@ -276,11 +278,13 @@ export function createBlockchainService(deps: {
       details: {
         assetAddress: asset,
         interestAccrued: interestAccrued.toString(),
-        toDeposit: toDeposit.toString(),
+        toDepositors: toDepositors.toString(),
         toTreasury: toTreasury.toString(),
         totalTreasury: totalTreasury.toString(),
         newTotalBorrows: newTotalBorrows.toString(),
+        newBorrowIndex: newBorrowIndex.toString(),
         newTotalDeposits: newTotalDeposits.toString(),
+        newDepositIndex: newDepositIndex.toString(),
       },
     });
     await publishEvent<IAccrueEventReq>({
@@ -291,11 +295,13 @@ export function createBlockchainService(deps: {
         chainId,
         assetAddress: asset,
         interestAccrued: interestAccrued.toString(),
-        toDeposit: toDeposit.toString(),
+        toDepositors: toDepositors.toString(),
         toTreasury: toTreasury.toString(),
         totalTreasury: totalTreasury.toString(),
         newTotalBorrows: newTotalBorrows.toString(),
+        newBorrowIndex: newBorrowIndex.toString(),
         newTotalDeposits: newTotalDeposits.toString(),
+        newDepositIndex: newDepositIndex.toString(),
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
       },
