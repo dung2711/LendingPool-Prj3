@@ -23,9 +23,11 @@ import Typography from "@mui/material/Typography";
 import axios from "axios";
 import { ethers } from "ethers";
 import { type ReactElement, useEffect, useState } from "react";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 import axiosClient from "@/lib/axios";
 import { web3Service } from "@/lib/web3";
 import { assetService } from "@/services/assetService";
+import { snapshotService } from "@/services/snapshotService";
 import { userAssetService } from "@/services/userAssetService";
 import { userService } from "@/services/userService";
 
@@ -39,6 +41,11 @@ interface MarketData {
   borrowedUSD: bigint;
   depositRate: bigint;
   borrowRate: bigint;
+}
+
+interface SnapshotChartPoint {
+  timestamp: string;
+  values: Record<string, number>;
 }
 
 const OTP_PURPOSE = "admin-noti-subscription";
@@ -91,6 +98,15 @@ export default function Dashboard(): ReactElement {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [registeringEmail, setRegisteringEmail] = useState(false);
   const [activeChainId, setActiveChainId] = useState(DEFAULT_CHAIN_ID);
+  const [userSnapshotPoints, setUserSnapshotPoints] = useState<
+    SnapshotChartPoint[]
+  >([]);
+  const [assetSnapshotPoints, setAssetSnapshotPoints] = useState<
+    SnapshotChartPoint[]
+  >([]);
+  const [selectedAssetSnapshotLabel, setSelectedAssetSnapshotLabel] =
+    useState("Asset snapshot");
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
 
   const resolveCurrentChainId = async (): Promise<string> => {
     if (typeof window === "undefined" || !window.ethereum) {
@@ -180,6 +196,17 @@ export default function Dashboard(): ReactElement {
     return fallback;
   };
 
+  const formatDateInput = (date: Date): string =>
+    date.toISOString().slice(0, 10);
+
+  const toSnapshotNumber = (value: string, decimals: number): number => {
+    try {
+      return Number(ethers.formatUnits(value, decimals));
+    } catch {
+      return 0;
+    }
+  };
+
   useEffect(() => {
     checkWalletAndFetch();
 
@@ -255,6 +282,7 @@ export default function Dashboard(): ReactElement {
       const assetMap: Record<string, any> = {};
       allAssets.forEach((asset) => {
         assetMap[asset.assetAddress.toLowerCase()] = {
+          id: asset.id,
           symbol: asset.symbol,
           decimals: asset.decimals,
           assetAddress: asset.assetAddress,
@@ -318,6 +346,78 @@ export default function Dashboard(): ReactElement {
 
       const validMarkets = marketData.filter((m) => m !== null) as MarketData[];
       setMarkets(validMarkets);
+
+      const portfolioAsset = validMarkets[0]
+        ? assetMap[validMarkets[0].address.toLowerCase()]
+        : null;
+
+      if (portfolioAsset) {
+        setSelectedAssetSnapshotLabel(`${portfolioAsset.symbol} snapshot`);
+      } else {
+        setSelectedAssetSnapshotLabel("Asset snapshot");
+      }
+
+      const snapshotFromDate = formatDateInput(
+        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      );
+      const snapshotToDate = formatDateInput(new Date());
+
+      setSnapshotLoading(true);
+      try {
+        const [userSnapshots, assetSnapshots] = await Promise.all([
+          snapshotService.getUserSnapshots({
+            userId: userData.user.id,
+            fromDate: snapshotFromDate,
+            toDate: snapshotToDate,
+            interval: "1d",
+          }),
+          portfolioAsset
+            ? snapshotService.getAssetSnapshots({
+                assetId: String(portfolioAsset.id),
+                fromDate: snapshotFromDate,
+                toDate: snapshotToDate,
+                interval: "1d",
+              })
+            : Promise.resolve([]),
+        ]);
+
+        setUserSnapshotPoints(
+          userSnapshots.map((item) => ({
+            timestamp: item.createdAt,
+            values: {
+              deposited: toSnapshotNumber(item.totalDepositedUSD, 18),
+              borrowed: toSnapshotNumber(item.totalBorrowedUSD, 18),
+              netWorth: toSnapshotNumber(item.netWorthUSD, 18),
+            },
+          })),
+        );
+
+        setAssetSnapshotPoints(
+          assetSnapshots.map((item) => ({
+            timestamp: item.createdAt,
+            values: {
+              deposited: toSnapshotNumber(
+                item.totalDeposited,
+                portfolioAsset?.decimals ?? 18,
+              ),
+              borrowed: toSnapshotNumber(
+                item.totalBorrowed,
+                portfolioAsset?.decimals ?? 18,
+              ),
+              treasury: toSnapshotNumber(
+                item.treasuryBalance,
+                portfolioAsset?.decimals ?? 18,
+              ),
+            },
+          })),
+        );
+      } catch (snapshotError) {
+        console.error("Error loading snapshot charts:", snapshotError);
+        setUserSnapshotPoints([]);
+        setAssetSnapshotPoints([]);
+      } finally {
+        setSnapshotLoading(false);
+      }
 
       // Calculate totals
       let totalSupplied = 0n;
@@ -789,6 +889,55 @@ export default function Dashboard(): ReactElement {
               </Box>
             </CardContent>
           </Card>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+              gap: 3,
+              mb: 4,
+            }}
+          >
+            <TimeSeriesChart
+              title="Portfolio snapshots"
+              subtitle="UserSnapshot history for the connected wallet"
+              points={userSnapshotPoints}
+              series={[
+                { key: "deposited", label: "Deposited USD", color: "#2563eb" },
+                { key: "borrowed", label: "Borrowed USD", color: "#ef4444" },
+                { key: "netWorth", label: "Net worth USD", color: "#16a34a" },
+              ]}
+              emptyLabel={
+                snapshotLoading
+                  ? "Loading snapshot data..."
+                  : "No portfolio snapshot data yet."
+              }
+            />
+
+            <TimeSeriesChart
+              title={selectedAssetSnapshotLabel}
+              subtitle="AssetSnapshot history for a representative asset"
+              points={assetSnapshotPoints}
+              series={[
+                {
+                  key: "deposited",
+                  label: "Total deposited",
+                  color: "#7c3aed",
+                },
+                { key: "borrowed", label: "Total borrowed", color: "#f97316" },
+                {
+                  key: "treasury",
+                  label: "Treasury balance",
+                  color: "#0f766e",
+                },
+              ]}
+              emptyLabel={
+                snapshotLoading
+                  ? "Loading snapshot data..."
+                  : "No asset snapshot data yet."
+              }
+            />
+          </Box>
 
           {/* Admin Email Registration */}
           <Card elevation={3} sx={{ mb: 4 }}>

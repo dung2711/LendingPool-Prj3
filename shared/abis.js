@@ -106,7 +106,19 @@ const lendingPoolABI = [
       {
         indexed: false,
         internalType: "uint256",
-        name: "depositInterestAccrued",
+        name: "toDepositors",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "toTreasury",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalTreasury",
         type: "uint256",
       },
       {
@@ -229,6 +241,31 @@ const lendingPoolABI = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "address",
+        name: "donor",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "asset",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "Donated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: false,
         internalType: "uint64",
         name: "version",
@@ -331,6 +368,56 @@ const lendingPoolABI = [
       },
     ],
     name: "RepayFromLiquidation",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "token",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "to",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "TokenRescued",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "asset",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "to",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "TreasuryWithdrawn",
     type: "event",
   },
   {
@@ -521,6 +608,24 @@ const lendingPoolABI = [
     inputs: [
       {
         internalType: "address",
+        name: "asset",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "donate",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
         name: "user",
         type: "address",
       },
@@ -535,6 +640,40 @@ const lendingPoolABI = [
       {
         internalType: "uint256",
         name: "totalBorrowedUSD",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+    ],
+    name: "getAccountSnapshot",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "totalDepositedUSD",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "totalBorrowedUSD",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "netWorthUSD",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "healthFactor",
         type: "uint256",
       },
     ],
@@ -587,6 +726,35 @@ const lendingPoolABI = [
       {
         internalType: "uint256",
         name: "utilizationRate",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "asset",
+        type: "address",
+      },
+    ],
+    name: "getMarketRates",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "utilizationRate",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "depositRate",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "borrowRate",
         type: "uint256",
       },
     ],
@@ -1088,6 +1256,29 @@ const lendingPoolABI = [
     inputs: [
       {
         internalType: "address",
+        name: "token",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "to",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "rescueToken",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
         name: "borrower",
         type: "address",
       },
@@ -1198,6 +1389,25 @@ const lendingPoolABI = [
     name: "supportMarket",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    name: "treasuryBalances",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -1339,6 +1549,29 @@ const lendingPoolABI = [
       },
     ],
     name: "withdraw",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "asset",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "to",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "withdrawTreasury",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

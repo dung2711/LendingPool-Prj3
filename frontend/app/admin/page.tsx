@@ -17,6 +17,9 @@ import Typography from "@mui/material/Typography";
 import { ethers } from "ethers";
 import Link from "next/link";
 import { type ReactElement, useEffect, useState } from "react";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { assetService } from "@/services/assetService";
+import { logService } from "@/services/logService";
 import { proposalService } from "@/services/proposalService";
 import { safeMultisigService } from "@/services/SafeMultisigService";
 import {
@@ -48,6 +51,11 @@ interface TimelockOperationUiState {
   isPending: boolean;
   isReady: boolean;
   isDone: boolean;
+}
+
+interface AdminChartPoint {
+  timestamp: string;
+  values: Record<string, number>;
 }
 
 export default function Admin(): ReactElement {
@@ -87,6 +95,14 @@ export default function Admin(): ReactElement {
     Record<string, TimelockOperationUiState>
   >({});
   const [executingOperationId, setExecutingOperationId] = useState("");
+  const [adminAccruePoints, setAdminAccruePoints] = useState<AdminChartPoint[]>(
+    [],
+  );
+  const [adminTreasuryPoints, setAdminTreasuryPoints] = useState<
+    AdminChartPoint[]
+  >([]);
+  const [adminChartLabel, setAdminChartLabel] = useState("Admin log charts");
+  const [adminChartLoading, setAdminChartLoading] = useState(false);
 
   // Form states for ProtocolController functions
   const [formData, setFormData] = useState({
@@ -151,6 +167,87 @@ export default function Admin(): ReactElement {
     }, 20000);
 
     return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    const loadAdminCharts = async (): Promise<void> => {
+      try {
+        setAdminChartLoading(true);
+
+        const assets = await assetService.getAllAssets();
+
+        const selectedAsset = assets[0];
+        if (!selectedAsset) {
+          setAdminAccruePoints([]);
+          setAdminTreasuryPoints([]);
+          setAdminChartLabel("Admin log charts");
+          return;
+        }
+
+        setAdminChartLabel(`${selectedAsset.symbol} admin logs`);
+
+        const toDate = new Date().toISOString().slice(0, 10);
+        const fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+
+        const [accrueLogs, treasuryLogs] = await Promise.all([
+          logService.getAccrueLogs({
+            assetId: selectedAsset.id,
+            fromDate,
+            toDate,
+            interval: "1d",
+            limit: 120,
+          }),
+          logService.getTreasuryLogs({
+            assetId: selectedAsset.id,
+            fromDate,
+            toDate,
+            interval: "1d",
+            limit: 120,
+          }),
+        ]);
+
+        setAdminAccruePoints(
+          accrueLogs.map((log) => ({
+            timestamp: log.createdAt,
+            values: {
+              interestAccrued: Number(
+                ethers.formatUnits(log.interestAccrued, selectedAsset.decimals),
+              ),
+              toDeposit: Number(
+                ethers.formatUnits(log.toDeposit, selectedAsset.decimals),
+              ),
+              toTreasury: Number(
+                ethers.formatUnits(log.toTreasury, selectedAsset.decimals),
+              ),
+            },
+          })),
+        );
+
+        setAdminTreasuryPoints(
+          treasuryLogs.map((log) => ({
+            timestamp: log.createdAt,
+            values: {
+              amount: Number(
+                ethers.formatUnits(log.amount, selectedAsset.decimals),
+              ),
+              balanceAfter: Number(
+                ethers.formatUnits(log.balanceAfter, selectedAsset.decimals),
+              ),
+            },
+          })),
+        );
+      } catch (error) {
+        console.error("Error loading admin charts:", error);
+        setAdminAccruePoints([]);
+        setAdminTreasuryPoints([]);
+      } finally {
+        setAdminChartLoading(false);
+      }
+    };
+
+    loadAdminCharts();
   }, []);
 
   const handleFetchTimelockInfo = async (): Promise<void> => {
@@ -953,6 +1050,50 @@ export default function Admin(): ReactElement {
           )}
         </CardContent>
       </Card>
+
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+          gap: 3,
+          mb: 4,
+        }}
+      >
+        <TimeSeriesChart
+          title="Accrue log history"
+          subtitle={adminChartLabel}
+          points={adminAccruePoints}
+          series={[
+            {
+              key: "interestAccrued",
+              label: "Interest accrued",
+              color: "#2563eb",
+            },
+            { key: "toDeposit", label: "To deposit", color: "#16a34a" },
+            { key: "toTreasury", label: "To treasury", color: "#f97316" },
+          ]}
+          emptyLabel={
+            adminChartLoading
+              ? "Loading admin log charts..."
+              : "No accrue logs available for the selected asset."
+          }
+        />
+
+        <TimeSeriesChart
+          title="Treasury log history"
+          subtitle={adminChartLabel}
+          points={adminTreasuryPoints}
+          series={[
+            { key: "amount", label: "Amount", color: "#7c3aed" },
+            { key: "balanceAfter", label: "Balance after", color: "#0f766e" },
+          ]}
+          emptyLabel={
+            adminChartLoading
+              ? "Loading admin log charts..."
+              : "No treasury logs available for the selected asset."
+          }
+        />
+      </Box>
 
       {/* Protocol Control Section */}
       <Card sx={{ mb: 4, elevation: 2 }}>
