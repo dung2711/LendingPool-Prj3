@@ -4,8 +4,10 @@ import {
   createOTPService,
   createTokenCacheService,
 } from "src/modules/email/services";
+import { createLogQueryService } from "src/modules/logs-chart";
 import { createNotiPublisherService } from "src/modules/noti-worker/services";
 import { createProposalService } from "src/modules/proposals/services/proposal.service";
+import { createSnapshotQueryService } from "src/modules/snapshots";
 import { createTransactionService } from "src/modules/transactions";
 import { createUserService } from "src/modules/users";
 import type { InfrastructureServices } from "src/shared/bootstrap/common-setup";
@@ -39,6 +41,9 @@ export function setupHttpServerDependencies(deps: {
     logger,
   });
 
+  const snapshotQueryService = createSnapshotQueryService({ dbClient });
+  const logQueryService = createLogQueryService({ dbClient });
+
   const proposalService = createProposalService({ dbClient });
 
   return {
@@ -47,6 +52,8 @@ export function setupHttpServerDependencies(deps: {
     userService,
     otpService,
     emailRegistrationService,
+    snapshotQueryService,
+    logQueryService,
     proposalService,
   };
 }

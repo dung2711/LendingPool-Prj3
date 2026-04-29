@@ -17,7 +17,8 @@ export type AppName =
   | "blc-indexer"
   | "blc-worker"
   | "croner"
-  | "noti-worker";
+  | "noti-worker"
+  | "seed";
 
 const logFileConfig = {
   maxSize: 10 * 1024 * 1024, // 10MB per file

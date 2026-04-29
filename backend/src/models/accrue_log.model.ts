@@ -15,7 +15,7 @@ export class AccrueLog extends Model<
   declare transactionHash: string;
   declare blockNumber: bigint;
   declare interestAccrued: string;
-  declare toDeposit: string;
+  declare toDepositors: string;
   declare toTreasury: string;
   declare newTotalBorrows: string;
   declare newBorrowIndex: string;
@@ -47,7 +47,7 @@ export function initAccrueLogModel(sequelize: Sequelize): typeof AccrueLog {
         type: DataTypes.DECIMAL(78, 0),
         allowNull: false,
       },
-      toDeposit: {
+      toDepositors: {
         type: DataTypes.DECIMAL(78, 0),
         allowNull: false,
       },

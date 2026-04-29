@@ -4,7 +4,9 @@ import dotenv from "dotenv";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { createLogController } from "src/modules/logs-chart";
 import { createProposalController } from "src/modules/proposals/proposal.controller";
+import { createSnapshotController } from "src/modules/snapshots";
 import { createAssetController } from "../../modules/assets/asset.controller";
 import { createEmailController } from "../../modules/email/email.controller";
 import { createTransactionController } from "../../modules/transactions/transaction.controller";
@@ -61,6 +63,14 @@ app.use(
 app.use(
   "/api/proposals",
   createProposalController({ proposalService: deps.proposalService }),
+);
+app.use(
+  "/api/snapshots",
+  createSnapshotController({ snapshotQueryService: deps.snapshotQueryService }),
+);
+app.use(
+  "/api/logs",
+  createLogController({ logQueryService: deps.logQueryService }),
 );
 
 app.get("/health", (req, res, next) => {

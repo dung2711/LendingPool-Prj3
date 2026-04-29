@@ -34,3 +34,8 @@ export const zPagination = z.object({
     .describe("Items per page"),
   skip: z.coerce.number().int().min(0).default(0).describe("Items to skip"),
 });
+
+export const zDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
+  .optional();

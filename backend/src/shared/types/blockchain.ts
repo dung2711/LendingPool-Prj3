@@ -32,11 +32,13 @@ export type IAccrueEventReq = {
   chainId: ChainId;
   assetAddress: string;
   interestAccrued: string;
-  toDeposit: string;
+  toDepositors: string;
   toTreasury: string;
   totalTreasury: string;
   newTotalBorrows: string;
+  newBorrowIndex: string;
   newTotalDeposits: string;
+  newDepositIndex: string;
   transactionHash: string;
   blockNumber: number;
 };

@@ -15,7 +15,7 @@ import { CronnerType, ProtocolContract } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
 import type { ChainId } from "src/shared/types/blockchain";
 import type { IdUtils } from "src/shared/utils";
-import type { BlockchainConfig } from "../blockchain";
+import type { BlockchainConfig } from "../../blockchain";
 
 dayjs.extend(utc);
 
@@ -76,7 +76,7 @@ export function createSnapshotHandler(deps: {
           utilizationRate: utilizationRate.toString(),
           depositRate: depositRate.toString(),
           borrowRate: borrowRate.toString(),
-          snapshotAt: dayjs().toDate(),
+          createdAt: dayjs().toDate(),
         };
       }),
     );
@@ -124,7 +124,7 @@ export function createSnapshotHandler(deps: {
           totalBorrowedUSD: totalBorrowedUSD.toString(),
           netWorthUSD: netWorthUSD.toString(),
           healthFactor: healthFactor.toString(),
-          snapshotAt: dayjs().toDate(),
+          createdAt: dayjs().toDate(),
         };
       }),
     );
@@ -138,49 +138,58 @@ export function createSnapshotHandler(deps: {
     chainId: ChainId;
     snapshotBlockNumber: number;
   }): Promise<void> {
-    const { chainId, snapshotBlockNumber } = params;
-    const lendingPool = blcConfig.getProtocolContract(
-      ProtocolContract.LendingPool,
-      chainId,
-    );
+    try {
+      const { chainId, snapshotBlockNumber } = params;
+      const lendingPool = blcConfig.getProtocolContract(
+        ProtocolContract.LendingPool,
+        chainId,
+      );
 
-    const snapshotDate = dayjs.utc().startOf("day").format("YYYY-MM-DD");
-    logger.info(
-      "Starting asset snapshot for chainId: {chainId} at {snapshotDate}",
-      { chainId, snapshotDate },
-    );
-    let hasMoreRecord = true;
-    while (hasMoreRecord) {
-      await sequelize.transaction(async (tx) => {
-        const [lastSnapshot] = await dbClient.cronnerState.findOrCreate({
-          where: { id: `asset-snapshot-${chainId}-${snapshotDate}` },
-          defaults: {
-            id: `asset-snapshot-${chainId}-${snapshotDate}`,
-            type: CronnerType.AssetSnapshot,
-            lastSnappedId: 0n,
-          },
-          attributes: ["lastSnappedId"],
-          transaction: tx,
-        });
-
-        const { hasMore, maxSnappedId } = await takeAssetSnapshot({
-          lastSnappedId: lastSnapshot.lastSnappedId,
-          chainId,
-          lendingPool,
-          snapshotBlockNumber,
-          tx,
-        });
-
-        await dbClient.cronnerState.update(
-          { lastSnappedId: maxSnappedId },
-          {
+      const snapshotDate = dayjs.utc().startOf("day").format("YYYY-MM-DD");
+      logger.info(
+        "Starting asset snapshot for chainId: {chainId} at {snapshotDate}",
+        { chainId, snapshotDate },
+      );
+      let hasMoreRecord = true;
+      while (hasMoreRecord) {
+        await sequelize.transaction(async (tx) => {
+          const [lastSnapshot] = await dbClient.cronnerState.findOrCreate({
             where: { id: `asset-snapshot-${chainId}-${snapshotDate}` },
+            defaults: {
+              id: `asset-snapshot-${chainId}-${snapshotDate}`,
+              type: CronnerType.AssetSnapshot,
+              lastSnappedId: 0n,
+            },
+            attributes: ["lastSnappedId"],
             transaction: tx,
-          },
-        );
+          });
 
-        hasMoreRecord = hasMore;
-      });
+          const { hasMore, maxSnappedId } = await takeAssetSnapshot({
+            lastSnappedId: lastSnapshot.lastSnappedId,
+            chainId,
+            lendingPool,
+            snapshotBlockNumber,
+            tx,
+          });
+
+          await dbClient.cronnerState.update(
+            { lastSnappedId: maxSnappedId },
+            {
+              where: { id: `asset-snapshot-${chainId}-${snapshotDate}` },
+              transaction: tx,
+            },
+          );
+
+          hasMoreRecord = hasMore;
+        });
+      }
+
+      logger.info(
+        "Completed asset snapshot for chainId: {chainId} at {snapshotDate}",
+        { chainId, snapshotDate },
+      );
+    } catch (error) {
+      logger.error("Failed to run batch asset snapshot: {error}", { error });
     }
   }
 
@@ -188,49 +197,58 @@ export function createSnapshotHandler(deps: {
     chainId: ChainId;
     snapshotBlockNumber: number;
   }): Promise<void> {
-    const { chainId, snapshotBlockNumber } = params;
-    const lendingPool = blcConfig.getProtocolContract(
-      ProtocolContract.LendingPool,
-      chainId,
-    );
+    try {
+      const { chainId, snapshotBlockNumber } = params;
+      const lendingPool = blcConfig.getProtocolContract(
+        ProtocolContract.LendingPool,
+        chainId,
+      );
 
-    const snapshotDate = dayjs.utc().startOf("day").format("YYYY-MM-DD");
-    logger.info(
-      "Starting user snapshot for chainId: {chainId} at {snapshotDate}",
-      { chainId, snapshotDate },
-    );
-    let hasMoreRecord = true;
-    while (hasMoreRecord) {
-      await sequelize.transaction(async (tx) => {
-        const [lastSnapshot] = await dbClient.cronnerState.findOrCreate({
-          where: { id: `user-snapshot-${chainId}-${snapshotDate}` },
-          defaults: {
-            id: `user-snapshot-${chainId}-${snapshotDate}`,
-            type: CronnerType.UserSnapshot,
-            lastSnappedId: 0n,
-          },
-          attributes: ["lastSnappedId"],
-          transaction: tx,
-        });
-
-        const { hasMore, maxSnappedId } = await takeUserSnapshot({
-          lastSnappedId: lastSnapshot.lastSnappedId,
-          chainId,
-          lendingPool,
-          snapshotBlockNumber,
-          tx,
-        });
-
-        await dbClient.cronnerState.update(
-          { lastSnappedId: maxSnappedId },
-          {
+      const snapshotDate = dayjs.utc().startOf("day").format("YYYY-MM-DD");
+      logger.info(
+        "Starting user snapshot for chainId: {chainId} at {snapshotDate}",
+        { chainId, snapshotDate },
+      );
+      let hasMoreRecord = true;
+      while (hasMoreRecord) {
+        await sequelize.transaction(async (tx) => {
+          const [lastSnapshot] = await dbClient.cronnerState.findOrCreate({
             where: { id: `user-snapshot-${chainId}-${snapshotDate}` },
+            defaults: {
+              id: `user-snapshot-${chainId}-${snapshotDate}`,
+              type: CronnerType.UserSnapshot,
+              lastSnappedId: 0n,
+            },
+            attributes: ["lastSnappedId"],
             transaction: tx,
-          },
-        );
+          });
 
-        hasMoreRecord = hasMore;
-      });
+          const { hasMore, maxSnappedId } = await takeUserSnapshot({
+            lastSnappedId: lastSnapshot.lastSnappedId,
+            chainId,
+            lendingPool,
+            snapshotBlockNumber,
+            tx,
+          });
+
+          await dbClient.cronnerState.update(
+            { lastSnappedId: maxSnappedId },
+            {
+              where: { id: `user-snapshot-${chainId}-${snapshotDate}` },
+              transaction: tx,
+            },
+          );
+
+          hasMoreRecord = hasMore;
+        });
+      }
+
+      logger.info(
+        "Completed user snapshot for chainId: {chainId} at {snapshotDate}",
+        { chainId, snapshotDate },
+      );
+    } catch (error) {
+      logger.error("Failed to run batch user snapshot: {error}", { error });
     }
   }
 

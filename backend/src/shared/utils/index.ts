@@ -1,3 +1,4 @@
+export * from "./chart-query";
 export * from "./id";
 export * from "./log-retraction";
 export * from "./rabbitmq-helpers.service";
