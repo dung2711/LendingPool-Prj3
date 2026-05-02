@@ -16,6 +16,10 @@ export enum ErrCode {
   EmailAlreadyRegistered = "email-already-registered",
   InvalidOTP = "invalid-otp",
   InvalidOtpToken = "invalid-otp-token",
+
+  SessionNotFound = "session-not-found",
+  SessionRevoked = "session-revoked",
+  SessionExpired = "session-expired",
 }
 
 export class AppErr extends Error {

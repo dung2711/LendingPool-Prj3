@@ -1,9 +1,12 @@
 import {
   type NextFunction,
   type Request,
+  type RequestHandler,
   type Response,
   Router,
 } from "express";
+import type { AuthenticatedRequest } from "src/modules/auth";
+import { requireAuthContext } from "src/modules/auth";
 import { ZodError } from "zod";
 import { zRegisterEmailReq, zSendOtpReq, zVerifyOtpReq } from "./email.dto";
 import type { OTPService } from "./services";
@@ -12,8 +15,9 @@ import type { EmailRegistrationService } from "./services/email-registration.ser
 export function createEmailController(deps: {
   emailRegistrationService: EmailRegistrationService;
   otpService: OTPService;
+  authMiddleware: RequestHandler;
 }) {
-  const { emailRegistrationService, otpService } = deps;
+  const { emailRegistrationService, otpService, authMiddleware } = deps;
 
   const router = Router();
 
@@ -57,8 +61,11 @@ export function createEmailController(deps: {
 
   router.post(
     "/register",
-    async (req: Request, res: Response, next: NextFunction) => {
+    authMiddleware,
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       try {
+        requireAuthContext(req);
+
         const parsed = zRegisterEmailReq.safeParse({
           ...req.body,
         });
@@ -66,6 +73,7 @@ export function createEmailController(deps: {
         if (!parsed.success) throw new ZodError(parsed.error.issues);
 
         const result = await emailRegistrationService.registerEmail(
+          req.currentUser,
           parsed.data,
         );
 

@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { createAuthController } from "src/modules/auth";
 import { createLogController } from "src/modules/logs-chart";
 import { createProposalController } from "src/modules/proposals/proposal.controller";
 import { createSnapshotController } from "src/modules/snapshots";
@@ -25,7 +26,7 @@ dotenv.config();
 const env = validateEnv(baseEnvSchema);
 const infrastructure = await setupInfrastructure(env, "http-server");
 const { logger, redisClient, cleanup } = infrastructure;
-const deps = setupHttpServerDependencies({ infrastructure });
+const deps = setupHttpServerDependencies({ infrastructure, env });
 
 const app = express();
 
@@ -45,19 +46,37 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(
+  "/api/auth",
+  createAuthController({
+    signatureService: deps.signatureService,
+    sessionService: deps.sessionService,
+    authMiddleware: deps.authMiddleware,
+  }),
+);
+app.use(
   "/api/assets",
   createAssetController({ assetService: deps.assetService }),
 );
 app.use(
   "/api/transactions",
-  createTransactionController({ transactionService: deps.transactionService }),
+  createTransactionController({
+    transactionService: deps.transactionService,
+    authMiddleware: deps.authMiddleware,
+  }),
 );
-app.use("/api/users", createUserController({ userService: deps.userService }));
+app.use(
+  "/api/users",
+  createUserController({
+    userService: deps.userService,
+    authMiddleware: deps.authMiddleware,
+  }),
+);
 app.use(
   "/api/email",
   createEmailController({
     otpService: deps.otpService,
     emailRegistrationService: deps.emailRegistrationService,
+    authMiddleware: deps.authMiddleware,
   }),
 );
 app.use(
@@ -66,7 +85,10 @@ app.use(
 );
 app.use(
   "/api/snapshots",
-  createSnapshotController({ snapshotQueryService: deps.snapshotQueryService }),
+  createSnapshotController({
+    snapshotQueryService: deps.snapshotQueryService,
+    authMiddleware: deps.authMiddleware,
+  }),
 );
 app.use(
   "/api/logs",

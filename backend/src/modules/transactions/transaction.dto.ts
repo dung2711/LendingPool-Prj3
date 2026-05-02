@@ -13,11 +13,6 @@ const zCursorTimestamp = z
 
 export const ZGetTransactionsDetailsReq = z
   .object({
-    userAddress: z
-      .string()
-      .describe(
-        "The address of the user whose transactions details are being requested",
-      ),
     cursorTS: zCursorTimestamp.describe(
       "Opaque cursor timestamp returned by previous API response",
     ),

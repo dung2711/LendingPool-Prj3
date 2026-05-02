@@ -1,5 +1,5 @@
 import { OTPPurpose } from "src/shared/constants";
-import { zChainId, zEmail } from "src/shared/types";
+import { zEmail } from "src/shared/types";
 import { z } from "zod";
 
 export const zVerifyOtpReq = z.object({
@@ -23,7 +23,5 @@ export const zRegisterEmailReq = z.object({
   registerToken: z
     .string()
     .describe("Token from OTP verification, used to complete registration"),
-  address: z.string().describe("Blockchain address to link with the email"),
-  chainId: zChainId.describe("Blockchain ID"),
 });
 export type IRegisterEmailReq = z.infer<typeof zRegisterEmailReq>;

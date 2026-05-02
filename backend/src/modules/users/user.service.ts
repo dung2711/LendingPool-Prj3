@@ -1,15 +1,13 @@
 import type { Logger } from "@logtape/logtape";
-import { ethers } from "ethers";
 import { col } from "sequelize";
 import { AppErr, ErrCode } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra/";
+import type { IReqUser } from "src/shared/types";
 import { validateAddress } from "src/shared/utils";
 import type {
   IGetDashboardDetailRes,
   IGetUserDetailRes,
   IGetUserEmailRes,
-  IUserAddressReq,
-  IUserEmailLookupReq,
 } from "./user.dto";
 
 export function createUserService(deps: {
@@ -19,13 +17,13 @@ export function createUserService(deps: {
   const { dbClient, logger } = deps;
 
   async function getUserDetail(
-    data: IUserAddressReq,
+    currentUser: IReqUser,
   ): Promise<IGetUserDetailRes> {
-    const { userAddress, chainId } = data;
-    validateAddress(userAddress);
+    const { userId, chainId } = currentUser;
+    const userAddress = validateAddress(currentUser.userAddress);
 
     const user = await dbClient.user.findOne({
-      where: { userAddress, chainId },
+      where: { id: userId, userAddress, chainId },
     });
     if (!user) {
       throw new AppErr(ErrCode.UserNotFound);
@@ -41,13 +39,13 @@ export function createUserService(deps: {
   }
 
   async function getDashboardDetail(
-    data: IUserAddressReq,
+    currentUser: IReqUser,
   ): Promise<IGetDashboardDetailRes> {
-    const { userAddress, chainId } = data;
-    validateAddress(userAddress);
+    const { userId, chainId } = currentUser;
+    const userAddress = validateAddress(currentUser.userAddress);
 
     const user = await dbClient.user.findOne({
-      where: { userAddress, chainId },
+      where: { id: userId, userAddress, chainId },
     });
     if (!user) {
       throw new AppErr(ErrCode.UserNotFound);
@@ -104,14 +102,13 @@ export function createUserService(deps: {
   }
 
   async function getUserEmail(
-    data: IUserEmailLookupReq,
+    currentUser: IReqUser,
   ): Promise<IGetUserEmailRes> {
-    const { userAddress, chainId } = data;
-    validateAddress(userAddress);
-    const checksumAddress = ethers.getAddress(userAddress);
+    const { userId, chainId } = currentUser;
+    const checksumAddress = validateAddress(currentUser.userAddress);
 
     const user = await dbClient.user.findOne({
-      where: { userAddress: checksumAddress, chainId },
+      where: { id: userId, userAddress: checksumAddress, chainId },
       attributes: ["email"],
     });
 

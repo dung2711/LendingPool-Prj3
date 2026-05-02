@@ -9,6 +9,7 @@ import {
   initLiquidatableUserModel,
   initProposalModel,
   initScannerModel,
+  initSessionModel,
   initTransactionModel,
   initTreasuryLogModel,
   initUserAssetModel,
@@ -31,6 +32,7 @@ export function createDatabaseClient(sequelize: Sequelize) {
   const AccrueLog = initAccrueLogModel(sequelize);
   const CronnerState = initCronnerStateModel(sequelize);
   const Proposal = initProposalModel(sequelize);
+  const Session = initSessionModel(sequelize);
 
   // User <-> Asset (M:N via UserAsset)
   User.belongsToMany(Asset, {
@@ -51,6 +53,14 @@ export function createDatabaseClient(sequelize: Sequelize) {
   // User <-> Transaction (1:N)
   User.hasMany(Transaction, { foreignKey: "userId", sourceKey: "id" });
   Transaction.belongsTo(User, { foreignKey: "userId" });
+
+  // User <-> Session (1:N)
+  User.hasMany(Session, {
+    foreignKey: "createdById",
+    sourceKey: "id",
+    as: "sessions",
+  });
+  Session.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
 
   // Asset <-> Transaction (1:N)
   Asset.hasMany(Transaction, { foreignKey: "assetId", sourceKey: "id" });
@@ -90,6 +100,7 @@ export function createDatabaseClient(sequelize: Sequelize) {
     assetConfig: AssetConfig,
     liquidatableUser: LiquidatableUser,
     scanner: Scanner,
+    session: Session,
     transaction: Transaction,
     userAsset: UserAsset,
     assetSnapshot: AssetSnapshot,

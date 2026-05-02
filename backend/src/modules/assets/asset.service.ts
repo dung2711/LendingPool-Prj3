@@ -45,8 +45,7 @@ export function createAssetService(deps: {
   async function getAssetDetails(
     data: IGetAssetReq,
   ): Promise<IGetAssetDetailRes> {
-    const { assetAddress } = data;
-    validateAddress(assetAddress);
+    const assetAddress = validateAddress(data.assetAddress);
     try {
       const asset = await dbClient.asset.findOne({
         where: {
@@ -78,8 +77,7 @@ export function createAssetService(deps: {
   async function getAssetConfig(
     data: IGetAssetReq,
   ): Promise<IGetAssetConfigRes> {
-    const { assetAddress } = data;
-    validateAddress(assetAddress);
+    const assetAddress = validateAddress(data.assetAddress);
     try {
       const assetConfig = await dbClient.assetConfig.findOne({
         include: [
