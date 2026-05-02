@@ -1,5 +1,11 @@
 import { createAssetService } from "src/modules/assets";
 import {
+  createAuthMiddleware,
+  createSessionService,
+  createSignatureService,
+  createTokenService,
+} from "src/modules/auth";
+import {
   createEmailRegistrationService,
   createOTPService,
   createTokenCacheService,
@@ -11,17 +17,40 @@ import { createSnapshotQueryService } from "src/modules/snapshots";
 import { createTransactionService } from "src/modules/transactions";
 import { createUserService } from "src/modules/users";
 import type { InfrastructureServices } from "src/shared/bootstrap/common-setup";
+import type { BaseEnv } from "src/shared/config";
 import { createRabbitMQHelperService, IdUtils } from "src/shared/utils";
 
 export function setupHttpServerDependencies(deps: {
   infrastructure: InfrastructureServices;
+  env: BaseEnv;
 }) {
   const { dbClient, logger, redisClient, rabbitChannel } = deps.infrastructure;
+  const { env } = deps;
 
   const assetService = createAssetService({ dbClient, logger });
   const transactionService = createTransactionService({ dbClient, logger });
   const userService = createUserService({ dbClient, logger });
   const idUtil = new IdUtils();
+  const tokenService = createTokenService({ env });
+  const authMiddleware = createAuthMiddleware({
+    tokenService,
+    dbClient,
+  });
+  const sessionService = createSessionService({
+    dbClient,
+    tokenService,
+    idUtil,
+    logger,
+    env,
+  });
+  const signatureService = createSignatureService({
+    redis: redisClient,
+    dbClient,
+    sessionService,
+    idUtil,
+    logger,
+    env,
+  });
   const rabbitMQHelper = createRabbitMQHelperService({ rabbitChannel, logger });
   const notiPublisher = createNotiPublisherService({ rabbitMQHelper, logger });
   const tokenCache = createTokenCacheService({
@@ -50,6 +79,10 @@ export function setupHttpServerDependencies(deps: {
     assetService,
     transactionService,
     userService,
+    tokenService,
+    authMiddleware,
+    sessionService,
+    signatureService,
     otpService,
     emailRegistrationService,
     snapshotQueryService,

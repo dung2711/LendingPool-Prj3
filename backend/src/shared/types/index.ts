@@ -15,3 +15,10 @@ export interface ITokenCache {
   purpose: OTPPurpose;
   email: string;
 }
+
+export interface IReqUser {
+  userId: string;
+  userAddress: string;
+  chainId: string;
+  sessionId: string;
+}

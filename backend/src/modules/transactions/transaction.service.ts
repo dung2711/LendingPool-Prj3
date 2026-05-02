@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import { col, Op } from "sequelize";
 import { AppErr, ErrCode } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra/";
-import { validateAddress } from "src/shared/utils";
+import type { IReqUser } from "src/shared/types";
 import type {
   IGetTransactionsDetailsReq,
   IGetTransactionsListRes,
@@ -16,14 +16,18 @@ export function createTransactionService(deps: {
   const { dbClient, logger } = deps;
 
   async function getTransactionsDetails(
+    currentUser: IReqUser,
     data: IGetTransactionsDetailsReq,
   ): Promise<IGetTransactionsListRes> {
-    const { userAddress, cursorID, cursorTS, type, limit } = data;
+    const { cursorID, cursorTS, type, limit } = data;
 
-    validateAddress(userAddress);
     try {
       const user = await dbClient.user.findOne({
-        where: { userAddress },
+        where: {
+          id: currentUser.userId,
+          userAddress: currentUser.userAddress,
+          chainId: currentUser.chainId,
+        },
       });
       if (!user) {
         throw new AppErr(ErrCode.UserNotFound, {

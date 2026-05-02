@@ -7,6 +7,7 @@ export * from "./cronner_state.model";
 export * from "./liquidatable_user.model";
 export * from "./proposal.model";
 export * from "./scanner.model";
+export * from "./session.model";
 export * from "./transaction.model";
 export * from "./treasury_log.model";
 export * from "./user.models";

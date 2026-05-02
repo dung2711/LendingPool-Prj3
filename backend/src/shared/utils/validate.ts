@@ -7,4 +7,6 @@ export function validateAddress(userAddress: string) {
       errors: "Invalid Ethereum address",
     });
   }
+
+  return ethers.getAddress(userAddress);
 }

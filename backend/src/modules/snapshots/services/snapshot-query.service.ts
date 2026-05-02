@@ -1,4 +1,5 @@
 import type { DatabaseClient } from "src/shared/infra";
+import type { IReqUser } from "src/shared/types";
 import {
   buildDateRangeWhere,
   type ChartInterval,
@@ -37,11 +38,14 @@ export function createSnapshotQueryService(deps: { dbClient: DatabaseClient }) {
     );
   }
 
-  async function getUserSnapshots(params: IUserSnapshotReq) {
-    const { userId, fromDate, toDate, interval = "1d" } = params;
+  async function getUserSnapshots(
+    currentUser: IReqUser,
+    params: IUserSnapshotReq,
+  ) {
+    const { fromDate, toDate, interval = "1d" } = params;
 
     const where = {
-      userId: BigInt(userId),
+      userId: BigInt(currentUser.userId),
       ...buildDateRangeWhere(fromDate, toDate),
     };
 

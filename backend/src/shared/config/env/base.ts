@@ -19,6 +19,34 @@ export const baseEnvSchema = z.object({
     .string()
     .default("lending-pool:ws:events")
     .describe("Redis channel for WebSocket events"),
+  AUTH_NONCE_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(300)
+    .describe("Wallet auth nonce TTL in seconds"),
+  JWT_ACCESS_TOKEN_SECRET: z
+    .string()
+    .min(32)
+    .default("dev-access-token-secret-change-this-value")
+    .describe("JWT access token secret"),
+  JWT_ACCESS_TOKEN_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(900)
+    .describe("JWT access token TTL in seconds"),
+  JWT_REFRESH_TOKEN_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60 * 60 * 24 * 30)
+    .describe("Refresh token TTL in seconds"),
+  JWT_ISSUER: z.string().default("lending-pool-prj3").describe("JWT issuer"),
+  JWT_AUDIENCE: z
+    .string()
+    .default("lending-pool-prj3-users")
+    .describe("JWT audience"),
 });
 
 export type BaseEnv = z.infer<typeof baseEnvSchema>;

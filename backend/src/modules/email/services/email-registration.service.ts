@@ -1,7 +1,7 @@
 import type { Logger } from "@logtape/logtape";
-import { ethers } from "ethers";
 import { AppErr, ErrCode, OTPPurpose } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
+import type { IReqUser } from "src/shared/types";
 import { maskEmail, validateAddress } from "src/shared/utils";
 import type { IRegisterEmailReq } from "../email.dto";
 import type { TokenCacheService } from "./token-cache.service";
@@ -13,10 +13,13 @@ export function createEmailRegistrationService(deps: {
 }) {
   const { tokenCache, dbClient, logger } = deps;
 
-  async function registerEmail(params: IRegisterEmailReq) {
-    const { registerToken, address, chainId } = params;
-    validateAddress(address);
-    const checksumAddress = ethers.getAddress(address);
+  async function registerEmail(
+    currentUser: IReqUser,
+    params: IRegisterEmailReq,
+  ) {
+    const { registerToken } = params;
+    const checksumAddress = validateAddress(currentUser.userAddress);
+    const chainId = currentUser.chainId;
 
     const { email } = await tokenCache.verifyToken(
       registerToken,
@@ -25,6 +28,7 @@ export function createEmailRegistrationService(deps: {
 
     const user = await dbClient.user.findOne({
       where: {
+        id: currentUser.userId,
         userAddress: checksumAddress,
         chainId,
       },
@@ -34,7 +38,11 @@ export function createEmailRegistrationService(deps: {
     if (!user) {
       logger.warn(
         "Email registration failed: No user found for {address} (checksum {checksumAddress}) on chain {chainId}",
-        { address, checksumAddress, chainId },
+        {
+          address: currentUser.userAddress,
+          checksumAddress,
+          chainId,
+        },
       );
       throw new AppErr(ErrCode.UserNotFound);
     }
@@ -49,6 +57,7 @@ export function createEmailRegistrationService(deps: {
       },
       {
         where: {
+          id: currentUser.userId,
           userAddress: checksumAddress,
           chainId,
         },
@@ -57,7 +66,11 @@ export function createEmailRegistrationService(deps: {
 
     logger.info(
       `Registered email {email} for user {address} on chain {chainId}`,
-      { email: maskEmail(email), address: checksumAddress, chainId },
+      {
+        email: maskEmail(email),
+        address: checksumAddress,
+        chainId,
+      },
     );
 
     return {

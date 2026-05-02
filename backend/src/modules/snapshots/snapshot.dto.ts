@@ -14,7 +14,6 @@ export const ZAssetSnapshotReq = z.object({
 export type IAssetSnapshotReq = z.infer<typeof ZAssetSnapshotReq>;
 
 export const ZUserSnapshotReq = z.object({
-  userId: z.string().describe("The ID of the user to snapshot"),
   fromDate: zDate.describe("Start date for the snapshot (YYYY-MM-DD)"),
   toDate: zDate.describe("End date for the snapshot (YYYY-MM-DD)"),
   interval: z
