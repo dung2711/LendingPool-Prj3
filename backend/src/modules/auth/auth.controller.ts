@@ -5,9 +5,16 @@ import {
   type Response,
   Router,
 } from "express";
+import { AppErr, ErrCode } from "src/shared/constants";
 import { getClientIp, getUserAgent } from "src/shared/utils";
 import { ZodError } from "zod";
-import { ZRefreshTokenReq, ZSendNonceReq, ZVerifyMessageReq } from "./auth.dto";
+import {
+  ACCESS_TOKEN_COOKIE_NAME,
+  type AuthCookieOptions,
+  getCookieValue,
+  REFRESH_TOKEN_COOKIE_NAME,
+} from "./auth.cookie";
+import { ZSendNonceReq, ZVerifyMessageReq } from "./auth.dto";
 import {
   type AuthenticatedRequest,
   requireAuthContext,
@@ -27,8 +34,10 @@ export function createAuthController(deps: {
   signatureService: ISignatureService;
   sessionService: ISessionService;
   authMiddleware: RequestHandler;
+  cookieOptions: AuthCookieOptions;
 }) {
-  const { signatureService, sessionService, authMiddleware } = deps;
+  const { signatureService, sessionService, authMiddleware, cookieOptions } =
+    deps;
   const router = Router();
 
   router.post(
@@ -68,7 +77,21 @@ export function createAuthController(deps: {
           userAgent,
         });
 
-        res.status(200).json(result);
+        res.cookie(
+          ACCESS_TOKEN_COOKIE_NAME,
+          result.accessToken,
+          cookieOptions.accessToken,
+        );
+        res.cookie(
+          REFRESH_TOKEN_COOKIE_NAME,
+          result.refreshToken,
+          cookieOptions.refreshToken,
+        );
+        res.status(200).json({
+          success: true,
+          sessionId: result.sessionId,
+          user: result.user,
+        });
       } catch (err) {
         next(err);
       }
@@ -79,11 +102,28 @@ export function createAuthController(deps: {
     "/refresh",
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const parsed = ZRefreshTokenReq.safeParse(req.body);
-        if (!parsed.success) throw new ZodError(parsed.error.issues);
+        const refreshToken = getCookieValue(
+          req.headers.cookie,
+          REFRESH_TOKEN_COOKIE_NAME,
+        );
+        if (!refreshToken) {
+          throw new AppErr(ErrCode.Unauthorized, {
+            errors: "Missing refresh token cookie",
+          });
+        }
 
-        const result = await sessionService.refreshToken(parsed.data);
-        res.status(200).json(result);
+        const result = await sessionService.refreshToken({ refreshToken });
+        res.cookie(
+          ACCESS_TOKEN_COOKIE_NAME,
+          result.accessToken,
+          cookieOptions.accessToken,
+        );
+        res.cookie(
+          REFRESH_TOKEN_COOKIE_NAME,
+          result.refreshToken,
+          cookieOptions.refreshToken,
+        );
+        res.status(200).json({ success: true });
       } catch (err) {
         next(err);
       }
@@ -98,6 +138,8 @@ export function createAuthController(deps: {
         requireAuthContext(req);
 
         const result = await sessionService.revokeSession(req.currentUser);
+        res.clearCookie(ACCESS_TOKEN_COOKIE_NAME, cookieOptions.clear);
+        res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, cookieOptions.clear);
         res.status(200).json(result);
       } catch (err) {
         next(err);
