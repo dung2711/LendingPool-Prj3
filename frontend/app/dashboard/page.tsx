@@ -27,6 +27,7 @@ import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 import axiosClient from "@/lib/axios";
 import { web3Service } from "@/lib/web3";
 import { assetService } from "@/services/assetService";
+import { authService } from "@/services/authService";
 import { snapshotService } from "@/services/snapshotService";
 import { userAssetService } from "@/services/userAssetService";
 import { userService } from "@/services/userService";
@@ -50,19 +51,7 @@ interface SnapshotChartPoint {
 
 const OTP_PURPOSE = "admin-noti-subscription";
 
-const normalizeChainId = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed) return trimmed;
-
-  const normalized = Number(trimmed);
-  if (Number.isInteger(normalized) && normalized > 0) {
-    return String(normalized);
-  }
-
-  return trimmed;
-};
-
-const DEFAULT_CHAIN_ID = normalizeChainId(
+const DEFAULT_CHAIN_ID = authService.normalizeChainId(
   process.env.NEXT_PUBLIC_CHAIN_ID || "11155111",
 );
 
@@ -75,6 +64,9 @@ type ApiErrorResponse = {
 
 export default function Dashboard(): ReactElement {
   const [account, setAccount] = useState<string | null>(null);
+  const [hasAccessToken, setHasAccessToken] = useState(false);
+  const [authInProgress, setAuthInProgress] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [_userInfo, setUserInfo] = useState<any>(null);
@@ -116,7 +108,9 @@ export default function Dashboard(): ReactElement {
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const network = await provider.getNetwork();
-      const walletChainId = normalizeChainId(network.chainId.toString());
+      const walletChainId = authService.normalizeChainId(
+        network.chainId.toString(),
+      );
       return walletChainId || DEFAULT_CHAIN_ID;
     } catch (error) {
       console.error("Error resolving wallet chainId:", error);
@@ -208,13 +202,28 @@ export default function Dashboard(): ReactElement {
   };
 
   useEffect(() => {
+    setHasAccessToken(
+      typeof window !== "undefined" && document.cookie
+        ? document.cookie.indexOf("lp_access_token=") !== -1
+        : false,
+    );
     checkWalletAndFetch();
 
     if (typeof window !== "undefined" && window.ethereum) {
       const handleAccountsChanged = (accounts: string[]): void => {
         setAccount(accounts[0] || null);
         if (accounts.length > 0) {
-          void fetchData();
+          // Only fetch data automatically when we have an access token cookie
+          if (
+            typeof window !== "undefined" &&
+            document.cookie.indexOf("lp_access_token=") !== -1
+          ) {
+            void fetchData(undefined, true);
+          } else {
+            // clear data while user hasn't verified
+            setUserInfo(null);
+            setMarkets([]);
+          }
         } else {
           setUserInfo(null);
           setMarkets([]);
@@ -222,7 +231,11 @@ export default function Dashboard(): ReactElement {
       };
 
       const handleChainChanged = (): void => {
-        void fetchData();
+        void fetchData(
+          undefined,
+          typeof window !== "undefined" &&
+            document.cookie.indexOf("lp_access_token=") !== -1,
+        );
       };
 
       window.ethereum.on("accountsChanged", handleAccountsChanged);
@@ -248,7 +261,12 @@ export default function Dashboard(): ReactElement {
         const accounts = await provider.send("eth_accounts", []);
         setAccount(accounts[0] || null);
         if (accounts.length > 0) {
-          await fetchData(resolvedChainId);
+          if (
+            typeof window !== "undefined" &&
+            document.cookie.indexOf("lp_access_token=") !== -1
+          ) {
+            await fetchData(resolvedChainId, true);
+          }
         }
       } catch (err) {
         console.error("Error checking wallet:", err);
@@ -258,7 +276,10 @@ export default function Dashboard(): ReactElement {
     }
   };
 
-  const fetchData = async (chainIdOverride?: string): Promise<void> => {
+  const fetchData = async (
+    chainIdOverride?: string,
+    skipAuth: boolean = false,
+  ): Promise<void> => {
     try {
       setLoading(true);
       const lendingPool = await web3Service.getLendingPoolContract();
@@ -269,6 +290,9 @@ export default function Dashboard(): ReactElement {
       const resolvedChainId =
         chainIdOverride || (await resolveCurrentChainId()) || DEFAULT_CHAIN_ID;
       setActiveChainId(resolvedChainId);
+      if (!skipAuth) {
+        await authService.ensureAuthenticated(userAddress, resolvedChainId);
+      }
 
       void loadEmailStatus(userAddress, resolvedChainId);
 
@@ -366,7 +390,8 @@ export default function Dashboard(): ReactElement {
       try {
         const [userSnapshots, assetSnapshots] = await Promise.all([
           snapshotService.getUserSnapshots({
-            userId: userData.user.id,
+            address: userAddress,
+            chainId: resolvedChainId,
             fromDate: snapshotFromDate,
             toDate: snapshotToDate,
             interval: "1d",
@@ -561,6 +586,30 @@ export default function Dashboard(): ReactElement {
     }
   };
 
+  const handleVerifyAddress = async (): Promise<void> => {
+    if (!account) return;
+    try {
+      setAuthError("");
+      setAuthInProgress(true);
+      const resolvedChainId = await resolveCurrentChainId();
+      setActiveChainId(resolvedChainId);
+      await authService.ensureAuthenticated(account, resolvedChainId);
+      // mark that we have access token (cookie should be set by server)
+      setHasAccessToken(
+        typeof window !== "undefined" && document.cookie
+          ? document.cookie.indexOf("lp_access_token=") !== -1
+          : false,
+      );
+      // load data skipping extra auth call
+      void fetchData(resolvedChainId, true);
+    } catch (err) {
+      console.error("Error during auth:", err);
+      setAuthError(getErrorMessage(err, "Authentication failed"));
+    } finally {
+      setAuthInProgress(false);
+    }
+  };
+
   const handleRegisterEmail = async (): Promise<void> => {
     if (!account) {
       setEmailError("Connect wallet before registering email");
@@ -578,14 +627,13 @@ export default function Dashboard(): ReactElement {
       setRegisteringEmail(true);
       const resolvedChainId = await resolveCurrentChainId();
       setActiveChainId(resolvedChainId);
+      await authService.ensureAuthenticated(account, resolvedChainId);
 
       const response = await axiosClient.post("/api/email/register", {
         registerToken,
-        address: account,
-        chainId: resolvedChainId,
       });
 
-      const backendError = getBackendErrorFromPayload(
+      const backendError = authService.getApiErrorMessage(
         response.data,
         "Failed to register email",
       );
@@ -688,6 +736,37 @@ export default function Dashboard(): ReactElement {
               Please connect MetaMask or another Web3 wallet to view your
               dashboard.
             </Typography>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  }
+
+  // If wallet connected but no access token cookie, prompt user to verify address
+  if (account && !hasAccessToken) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Card>
+          <CardContent sx={{ textAlign: "center", py: 4 }}>
+            <AccountBalanceWalletIcon sx={{ fontSize: 60, mb: 2 }} />
+            <Typography variant="h5" fontWeight="bold" gutterBottom>
+              Verify Your Address
+            </Typography>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              To view your dashboard, please verify your wallet address.
+            </Typography>
+            {authError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {authError}
+              </Alert>
+            )}
+            <Button
+              variant="contained"
+              onClick={handleVerifyAddress}
+              disabled={authInProgress}
+            >
+              {authInProgress ? <CircularProgress size={20} /> : "Verify"}
+            </Button>
           </CardContent>
         </Card>
       </Box>

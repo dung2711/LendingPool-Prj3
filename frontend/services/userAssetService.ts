@@ -1,19 +1,8 @@
+import { ethers } from "ethers";
 import axiosClient from "@/lib/axios";
-import type { Asset } from "./assetService";
-
-const DEFAULT_CHAIN_ID = process.env.NEXT_PUBLIC_CHAIN_ID || "11155111";
-
-function normalizeChainId(chainId: string): string {
-  const trimmed = chainId.trim();
-  if (!trimmed) return trimmed;
-
-  const normalized = Number(trimmed);
-  if (Number.isInteger(normalized) && normalized > 0) {
-    return String(normalized);
-  }
-
-  return trimmed;
-}
+import { web3Service } from "@/lib/web3";
+import { type Asset, assetService } from "./assetService";
+import { authService } from "./authService";
 
 export interface UserAsset extends Asset {
   depositedAmount: string;
@@ -29,17 +18,62 @@ export interface DashboardData {
   assets: UserAsset[];
 }
 
+async function getAssetsForAnyUser(address: string): Promise<DashboardData> {
+  const checksumAddress = ethers.getAddress(address);
+  const [lendingPool, allAssets] = await Promise.all([
+    web3Service.getLendingPoolContract(),
+    assetService.getAllAssets(),
+  ]);
+
+  const assetRows = await Promise.all(
+    allAssets.map(async (asset) => {
+      const [depositedAmount, borrowedAmount] = await Promise.all([
+        lendingPool.getUserCurrentDeposit(checksumAddress, asset.assetAddress),
+        lendingPool.getUserCurrentBorrow(checksumAddress, asset.assetAddress),
+      ]);
+
+      if (depositedAmount === 0n && borrowedAmount === 0n) {
+        return null;
+      }
+
+      return {
+        ...asset,
+        depositedAmount: depositedAmount.toString(),
+        borrowedAmount: borrowedAmount.toString(),
+      } satisfies UserAsset;
+    }),
+  );
+
+  return {
+    user: {
+      id: "",
+      userAddress: checksumAddress,
+      joinedAt: "",
+    },
+    assets: assetRows.filter((asset): asset is UserAsset => asset !== null),
+  };
+}
+
 export const userAssetService = {
   async getAssetsByUser(
     address: string,
-    chainId: string = DEFAULT_CHAIN_ID,
+    chainId?: string,
   ): Promise<DashboardData> {
-    const response = await axiosClient.get("/api/users/dashboard", {
-      params: {
-        userAddress: address,
-        chainId: normalizeChainId(chainId),
-      },
+    if (!chainId) {
+      return getAssetsForAnyUser(address);
+    }
+
+    const data = await authService.requestWithAuthRetry<{
+      success: true;
+      user: DashboardData["user"];
+      assets: UserAsset[];
+    }>({
+      address,
+      chainId,
+      request: () => axiosClient.get("/api/users/dashboard"),
+      fallbackErrorMessage: "Failed to fetch dashboard data",
     });
-    return response.data;
+
+    return data;
   },
 };
