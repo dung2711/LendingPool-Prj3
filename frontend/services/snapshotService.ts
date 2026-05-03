@@ -1,4 +1,5 @@
 import axiosClient from "@/lib/axios";
+import { authService } from "./authService";
 
 export interface AssetSnapshotPoint {
   assetId: string;
@@ -37,15 +38,26 @@ export const snapshotService = {
   },
 
   async getUserSnapshots(params: {
-    userId: string;
+    address: string;
+    chainId: string;
     fromDate?: string;
     toDate?: string;
     interval?: "1h" | "6h" | "1d" | "7d";
   }): Promise<UserSnapshotPoint[]> {
-    const response = await axiosClient.get("/api/snapshots/user-snapshots", {
-      params,
+    const { address, chainId, ...query } = params;
+    const data = await authService.requestWithAuthRetry<{
+      success: true;
+      snapshots: UserSnapshotPoint[];
+    }>({
+      address,
+      chainId,
+      request: () =>
+        axiosClient.get("/api/snapshots/user-snapshots", {
+          params: query,
+        }),
+      fallbackErrorMessage: "Failed to fetch user snapshots",
     });
 
-    return response.data.snapshots;
+    return data.snapshots;
   },
 };

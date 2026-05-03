@@ -7,6 +7,7 @@ import GavelIcon from "@mui/icons-material/Gavel";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -28,6 +29,7 @@ import Typography from "@mui/material/Typography";
 import { ethers } from "ethers";
 import { type ReactElement, useEffect, useState } from "react";
 import { assetService } from "@/services/assetService";
+import { authService } from "@/services/authService";
 import { transactionService } from "@/services/transactionService";
 
 interface TransactionData {
@@ -39,28 +41,43 @@ interface TransactionData {
   amountUSD: bigint | null;
   amountUSDFormatted: number | null;
   hash: string;
-  timestamp: number;
+  timestamp: number | null;
   blockNumber: number;
 }
 
 export default function History(): ReactElement {
   const [account, setAccount] = useState<string | null>(null);
+  const [hasAccessToken, setHasAccessToken] = useState(false);
+  const [authInProgress, setAuthInProgress] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionData[]>([]);
   const [filterType, setFilterType] = useState("all");
-  const [cursorTS, setCursorTS] = useState<number | null>(null);
-  const [cursorId, setCursorId] = useState<number | null>(null);
+  const [cursorTS, setCursorTS] = useState<string | null>(null);
+  const [cursorId, setCursorId] = useState<string | null>(null);
   const [hasNextPage, setHasNextPage] = useState(false);
 
   useEffect(() => {
+    setHasAccessToken(
+      typeof window !== "undefined" && document.cookie
+        ? document.cookie.indexOf("lp_access_token=") !== -1
+        : false,
+    );
     checkWalletAndFetch();
 
     if (typeof window !== "undefined" && window.ethereum) {
       const handleAccountsChanged = (accounts: string[]): void => {
         setAccount(accounts[0] || null);
         if (accounts.length > 0) {
-          fetchTransactions(null, null, "all");
+          if (
+            typeof window !== "undefined" &&
+            document.cookie.indexOf("lp_access_token=") !== -1
+          ) {
+            fetchTransactions(null, null, "all");
+          } else {
+            setTransactions([]);
+          }
         } else {
           setTransactions([]);
         }
@@ -91,7 +108,12 @@ export default function History(): ReactElement {
         const accounts = await provider.send("eth_accounts", []);
         setAccount(accounts[0] || null);
         if (accounts.length > 0) {
-          fetchTransactions(null, null, "all");
+          if (
+            typeof window !== "undefined" &&
+            document.cookie.indexOf("lp_access_token=") !== -1
+          ) {
+            fetchTransactions(null, null, "all");
+          }
         }
       } catch (err) {
         console.error("Error checking wallet:", err);
@@ -101,9 +123,37 @@ export default function History(): ReactElement {
     }
   };
 
+  const handleVerifyAddress = async (): Promise<void> => {
+    if (!account) return;
+    try {
+      setAuthError("");
+      setAuthInProgress(true);
+      const provider = new ethers.BrowserProvider(window.ethereum!);
+      const network = await provider.getNetwork();
+      const chainId = authService.normalizeChainId(network.chainId.toString());
+      await authService.ensureAuthenticated(account, chainId);
+      setHasAccessToken(
+        typeof window !== "undefined" && document.cookie
+          ? document.cookie.indexOf("lp_access_token=") !== -1
+          : false,
+      );
+      // load transactions after auth
+      fetchTransactions(null, null, "all");
+    } catch (err) {
+      console.error("Auth error:", err);
+      setAuthError(
+        typeof err === "object" && err && "message" in err
+          ? (err as Error).message
+          : "Authentication failed",
+      );
+    } finally {
+      setAuthInProgress(false);
+    }
+  };
+
   const fetchTransactions = async (
-    cursorTimestamp: number | null = null,
-    cursorTransactionId: number | null = null,
+    cursorTimestamp: string | null = null,
+    cursorTransactionId: string | null = null,
     type: string = "all",
   ): Promise<void> => {
     try {
@@ -111,17 +161,17 @@ export default function History(): ReactElement {
       const provider = new ethers.BrowserProvider(window.ethereum!);
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
+      const network = await provider.getNetwork();
+      const chainId = authService.normalizeChainId(network.chainId.toString());
 
       // Fetch transactions from backend API
       const filterTypeParam = type === "all" ? undefined : type;
       const [txData, assetsData] = await Promise.all([
         transactionService.getTransactionsByUserAddress({
           userAddress,
+          chainId,
           cursorTS: cursorTimestamp ?? undefined,
-          cursorId:
-            cursorTransactionId !== null
-              ? String(cursorTransactionId)
-              : undefined,
+          cursorId: cursorTransactionId ?? undefined,
           type: filterTypeParam,
         }),
         assetService.getAllAssets(),
@@ -129,9 +179,7 @@ export default function History(): ReactElement {
 
       setHasNextPage(txData.hasMore);
       setCursorTS(txData.nextCursorTS || null);
-      setCursorId(
-        txData.nextCursorID ? parseInt(txData.nextCursorID, 10) : null,
-      );
+      setCursorId(txData.nextCursorID || null);
 
       // Create asset lookup map for quick access
       const assetMap: Record<string, any> = {};
@@ -188,8 +236,10 @@ export default function History(): ReactElement {
     await fetchTransactions(cursorTS, cursorId, filterType);
   };
 
-  const formatDate = (timestamp: number): string =>
-    new Date(timestamp * 1000).toLocaleString();
+  const formatDate = (timestamp: number | null): string =>
+    timestamp === null
+      ? "Unavailable"
+      : new Date(timestamp * 1000).toLocaleString();
 
   const getTypeIcon = (type: string): ReactElement | undefined => {
     switch (type) {
@@ -253,6 +303,38 @@ export default function History(): ReactElement {
             <Typography variant="body1" sx={{ mb: 2 }}>
               Please connect MetaMask to view your transaction history.
             </Typography>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  }
+
+  // If wallet connected but no access token cookie, prompt user to verify address
+  if (account && !hasAccessToken) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Card>
+          <CardContent sx={{ textAlign: "center", py: 4 }}>
+            <AccountBalanceWalletIcon sx={{ fontSize: 60, mb: 2 }} />
+            <Typography variant="h5" fontWeight="bold" gutterBottom>
+              Verify Your Address
+            </Typography>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              To view your transaction history, please verify your wallet
+              address.
+            </Typography>
+            {authError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {authError}
+              </Alert>
+            )}
+            <Button
+              variant="contained"
+              onClick={handleVerifyAddress}
+              disabled={authInProgress}
+            >
+              {authInProgress ? <CircularProgress size={20} /> : "Verify"}
+            </Button>
           </CardContent>
         </Card>
       </Box>

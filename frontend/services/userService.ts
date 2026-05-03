@@ -1,18 +1,7 @@
 import axiosClient from "@/lib/axios";
+import { authService } from "./authService";
 
 const DEFAULT_CHAIN_ID = process.env.NEXT_PUBLIC_CHAIN_ID || "11155111";
-
-function normalizeChainId(chainId: string): string {
-  const trimmed = chainId.trim();
-  if (!trimmed) return trimmed;
-
-  const normalized = Number(trimmed);
-  if (Number.isInteger(normalized) && normalized > 0) {
-    return String(normalized);
-  }
-
-  return trimmed;
-}
 
 export interface User {
   id: string;
@@ -31,24 +20,29 @@ export const userService = {
     address: string,
     chainId: string = DEFAULT_CHAIN_ID,
   ): Promise<User> {
-    const response = await axiosClient.get("/api/users/detail", {
-      params: {
-        userAddress: address,
-        chainId: normalizeChainId(chainId),
-      },
+    const data = await authService.requestWithAuthRetry<{
+      success: true;
+      user: User;
+    }>({
+      address,
+      chainId,
+      request: () => axiosClient.get("/api/users/detail"),
+      fallbackErrorMessage: "Failed to fetch user details",
     });
-    return response.data.user;
+
+    return data.user;
   },
   async getEmailByAddress(
     address: string,
     chainId: string,
   ): Promise<UserEmailLookup> {
-    const response = await axiosClient.get("/api/users/email", {
-      params: {
-        userAddress: address,
-        chainId: normalizeChainId(chainId),
-      },
+    const data = await authService.requestWithAuthRetry<UserEmailLookup>({
+      address,
+      chainId,
+      request: () => axiosClient.get("/api/users/email"),
+      fallbackErrorMessage: "Failed to fetch user email",
     });
-    return response.data;
+
+    return data;
   },
 };

@@ -2,23 +2,18 @@ import type { NextFunction, Request, Response } from "express";
 import { AppErr, ErrCode } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
 import type { IReqUser } from "src/shared/types";
+import { ACCESS_TOKEN_COOKIE_NAME, getCookieValue } from "./auth.cookie";
 import type { ITokenService } from "./services";
 
 export interface AuthenticatedRequest extends Request {
   currentUser?: IReqUser;
 }
 
-function getBearerToken(authorization: string | undefined): string {
-  if (!authorization) {
+function getAccessTokenFromCookie(cookieHeader: string | undefined): string {
+  const token = getCookieValue(cookieHeader, ACCESS_TOKEN_COOKIE_NAME);
+  if (!token) {
     throw new AppErr(ErrCode.Unauthorized, {
-      errors: "Missing Authorization header",
-    });
-  }
-
-  const [scheme, token] = authorization.split(" ");
-  if (scheme !== "Bearer" || !token) {
-    throw new AppErr(ErrCode.Unauthorized, {
-      errors: "Authorization header must use Bearer token",
+      errors: "Missing access token cookie",
     });
   }
 
@@ -47,7 +42,7 @@ export function createAuthMiddleware(deps: {
     next: NextFunction,
   ) => {
     try {
-      const token = getBearerToken(req.headers.authorization);
+      const token = getAccessTokenFromCookie(req.headers.cookie);
       const auth = await tokenService.verifyAccessToken(token);
 
       const session = await dbClient.session.findOne({

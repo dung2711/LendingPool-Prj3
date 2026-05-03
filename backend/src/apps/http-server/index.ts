@@ -4,7 +4,10 @@ import dotenv from "dotenv";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { createAuthController } from "src/modules/auth";
+import {
+  createAuthController,
+  createAuthCookieOptions,
+} from "src/modules/auth";
 import { createLogController } from "src/modules/logs-chart";
 import { createProposalController } from "src/modules/proposals/proposal.controller";
 import { createSnapshotController } from "src/modules/snapshots";
@@ -27,20 +30,23 @@ const env = validateEnv(baseEnvSchema);
 const infrastructure = await setupInfrastructure(env, "http-server");
 const { logger, redisClient, cleanup } = infrastructure;
 const deps = setupHttpServerDependencies({ infrastructure, env });
+const authCookieOptions = createAuthCookieOptions(env);
+const corsOptions = {
+  origin: ["http://localhost:3000", "https://lending-pool-prj3.vercel.app"],
+  methods: ["GET", "POST"],
+  credentials: true,
+};
 
 const app = express();
 
 // Create HTTP server and Socket.io
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: {
-    origin: ["http://localhost:3000", "https://lending-pool-prj3.vercel.app"],
-    methods: ["GET", "POST"],
-  },
+  cors: corsOptions,
 });
 
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -51,6 +57,7 @@ app.use(
     signatureService: deps.signatureService,
     sessionService: deps.sessionService,
     authMiddleware: deps.authMiddleware,
+    cookieOptions: authCookieOptions,
   }),
 );
 app.use(
