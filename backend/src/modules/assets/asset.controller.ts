@@ -5,7 +5,7 @@ import {
   Router,
 } from "express";
 import { ZodError } from "zod";
-import { ZGetAssetReq } from "./asset.dto";
+import { ZGetAssetReq, ZGetAssetsListReq } from "./asset.dto";
 import type { IAssetService } from "./asset.service";
 
 export function createAssetController(deps: { assetService: IAssetService }) {
@@ -16,7 +16,10 @@ export function createAssetController(deps: { assetService: IAssetService }) {
     "/list",
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const result = await assetService.getAssetsList();
+        const parsed = ZGetAssetsListReq.safeParse(req.query);
+        if (!parsed.success) throw new ZodError(parsed.error.issues);
+
+        const result = await assetService.getAssetsList(parsed.data);
         res.status(200).json({
           success: true,
           assets: result,

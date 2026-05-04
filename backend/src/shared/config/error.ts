@@ -3,6 +3,36 @@ import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { AppErr, ErrCode } from "../constants/error";
 
+function getHttpStatus(code: ErrCode): number {
+  switch (code) {
+    case ErrCode.ValidationError:
+    case ErrCode.BadRequest:
+    case ErrCode.InvalidOTP:
+    case ErrCode.InvalidOtpToken:
+      return 400;
+    case ErrCode.Unauthorized:
+    case ErrCode.SessionNotFound:
+    case ErrCode.SessionRevoked:
+    case ErrCode.SessionExpired:
+      return 401;
+    case ErrCode.NotFound:
+    case ErrCode.AssetNotFound:
+    case ErrCode.UserNotFound:
+    case ErrCode.TransactionNotFound:
+      return 404;
+    case ErrCode.DuplicateRequest:
+    case ErrCode.EmailAlreadyRegistered:
+      return 409;
+    case ErrCode.RateLimitExceeded:
+      return 429;
+    case ErrCode.ExternalAPIError:
+      return 502;
+    case ErrCode.InternalError:
+    default:
+      return 500;
+  }
+}
+
 const makeErrBody = (code: ErrCode, errors?: unknown) => ({
   success: false as const,
   code,
@@ -15,7 +45,13 @@ const getRequestInfo = (req: Request) => ({
   path: req.path,
 });
 
-export function createErrorHandler(logger: Logger) {
+export function createErrorHandler(
+  logger: Logger,
+  options?: { exposeInternalErrors?: boolean },
+) {
+  const exposeInternalErrors =
+    options?.exposeInternalErrors ?? process.env.NODE_ENV !== "production";
+
   // Express requires exactly 4 params to detect error middleware
   return (
     err: unknown,
@@ -32,7 +68,9 @@ export function createErrorHandler(logger: Logger) {
         code: err.code,
         detail: err.detail?.errors ?? "",
       });
-      res.status(200).json(makeErrBody(err.code, err.detail?.errors));
+      res
+        .status(getHttpStatus(err.code))
+        .json(makeErrBody(err.code, err.detail?.errors));
       return;
     }
 
@@ -46,12 +84,20 @@ export function createErrorHandler(logger: Logger) {
           errors: err.issues,
         },
       );
-      res.status(200).json(makeErrBody(ErrCode.ValidationError, err.issues));
+      res
+        .status(getHttpStatus(ErrCode.ValidationError))
+        .json(makeErrBody(ErrCode.ValidationError, err.issues));
       return;
     }
 
     const errorName = err instanceof Error ? err.name : "Unknown";
     const errorMessage = err instanceof Error ? err.message : String(err);
+    const clientError = exposeInternalErrors
+      ? { errorName, errorMessage }
+      : {
+          errorName: "InternalError",
+          errorMessage: "An internal server error occurred",
+        };
 
     logger.error(
       "Unhandled error: {method} {path} -> {errorName}: {errorMessage}",
@@ -64,8 +110,8 @@ export function createErrorHandler(logger: Logger) {
     );
 
     res
-      .status(200)
-      .json(makeErrBody(ErrCode.InternalError, { errorName, errorMessage }));
+      .status(getHttpStatus(ErrCode.InternalError))
+      .json(makeErrBody(ErrCode.InternalError, clientError));
   };
 }
 
@@ -75,6 +121,8 @@ export function createNotFoundHandler(logger: Logger) {
       method: req.method,
       path: req.path,
     });
-    res.status(200).json(makeErrBody(ErrCode.NotFound, { path: req.url }));
+    res
+      .status(getHttpStatus(ErrCode.NotFound))
+      .json(makeErrBody(ErrCode.NotFound, { path: req.url }));
   };
 }

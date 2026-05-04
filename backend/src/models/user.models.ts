@@ -30,7 +30,6 @@ export function initUserModel(sequelize: Sequelize): typeof User {
       userAddress: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true,
       },
       chainId: {
         type: DataTypes.INTEGER,

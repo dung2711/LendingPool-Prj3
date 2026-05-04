@@ -1,4 +1,8 @@
+import { zPagination } from "src/shared/types";
 import { z } from "zod";
+
+export const ZGetAssetsListReq = zPagination;
+export type IGetAssetsListReq = z.infer<typeof ZGetAssetsListReq>;
 
 export const ZGetAssetDetailBody = z.object({
   id: z.string().describe("The unique identifier of the asset"),

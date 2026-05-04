@@ -28,7 +28,6 @@ export const baseEnvSchema = z.object({
   JWT_ACCESS_TOKEN_SECRET: z
     .string()
     .min(32)
-    .default("dev-access-token-secret-change-this-value")
     .describe("JWT access token secret"),
   JWT_ACCESS_TOKEN_TTL_SECONDS: z.coerce
     .number()

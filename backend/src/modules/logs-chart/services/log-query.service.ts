@@ -10,7 +10,7 @@ export function createLogQueryService(deps: { dbClient: DatabaseClient }) {
   const { dbClient } = deps;
 
   async function listAccrueLogs(params: IAccrueLogReq) {
-    const { assetId, fromDate, toDate, limit, interval = "1d" } = params;
+    const { assetId, fromDate, toDate, take, skip, interval = "1d" } = params;
 
     const where = {
       ...(assetId ? { assetId: BigInt(assetId) } : {}),
@@ -27,7 +27,8 @@ export function createLogQueryService(deps: { dbClient: DatabaseClient }) {
         },
       ],
       order: [["createdAt", "DESC"]],
-      limit,
+      limit: take,
+      offset: skip,
     });
 
     return downsampleByInterval(rows.reverse(), interval as ChartInterval).map(
@@ -60,7 +61,7 @@ export function createLogQueryService(deps: { dbClient: DatabaseClient }) {
   }
 
   async function listTreasuryLogs(params: ITreasuryLogReq) {
-    const { assetId, fromDate, toDate, limit, interval = "1d" } = params;
+    const { assetId, fromDate, toDate, take, skip, interval = "1d" } = params;
 
     const where = {
       ...(assetId ? { assetId: BigInt(assetId) } : {}),
@@ -77,7 +78,8 @@ export function createLogQueryService(deps: { dbClient: DatabaseClient }) {
         },
       ],
       order: [["createdAt", "DESC"]],
-      limit,
+      limit: take,
+      offset: skip,
     });
 
     return downsampleByInterval(rows.reverse(), interval as ChartInterval).map(

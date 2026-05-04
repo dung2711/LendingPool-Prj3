@@ -6,7 +6,10 @@ import type { BlockchainEnv } from "src/shared/config";
 import { ProtocolContract } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
 import type { ChainId } from "src/shared/types";
-import { getUserAssetSyncRedisKey } from "src/shared/utils";
+import {
+  getReorgLockRedisKey,
+  getUserAssetSyncRedisKey,
+} from "src/shared/utils";
 import type { BlockchainConfig } from "../blockchain.config";
 
 enum CompareMatchResult {
@@ -46,6 +49,24 @@ export function createBLCReorgService(deps: {
   logger: Logger;
 }) {
   const { blcConfig, dbClient, env, redisClient, sequelize, logger } = deps;
+
+  async function setReorgLock(chainId: ChainId, forkPoint: number) {
+    const key = getReorgLockRedisKey(chainId);
+    const payload = {
+      forkPoint,
+      startedAt: Date.now(),
+    };
+
+    try {
+      await redisClient.set(key, JSON.stringify(payload));
+    } catch (error) {
+      logger.warn("Failed to set reorg lock", {
+        chainId,
+        forkPoint,
+        error: (error as Error).message,
+      });
+    }
+  }
 
   async function detectReorg(
     chainId: ChainId,
@@ -122,6 +143,8 @@ export function createBLCReorgService(deps: {
     );
 
     try {
+      await setReorgLock(chainId, forkPoint);
+
       await sequelize.transaction(async (tx) => {
         await dbClient.block.update(
           { isCanonical: false },

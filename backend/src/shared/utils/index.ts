@@ -12,6 +12,10 @@ export function getUserAssetSyncRedisKey(params: {
   return `blc:user-asset-sync:${userId}:${assetId}`;
 }
 
+export function getReorgLockRedisKey(chainId: number | string) {
+  return `blc:reorg:lock:${chainId}`;
+}
+
 export function getClientIp(
   headers: Record<string, string | undefined>,
 ): string {

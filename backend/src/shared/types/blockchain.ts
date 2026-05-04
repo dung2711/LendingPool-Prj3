@@ -96,3 +96,8 @@ export type SyncCursor = {
   blockNumber: number;
   logIndex: number;
 };
+
+export type ReorgLockPayload = {
+  forkPoint: number;
+  startedAt: number;
+};

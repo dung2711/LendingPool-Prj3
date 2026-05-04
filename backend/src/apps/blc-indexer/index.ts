@@ -47,6 +47,7 @@ const blcIndexerService = createBLCIndexerService({
   env,
   blcReorgService,
   sequelize,
+  redisClient,
 });
 const wsPublisher = createWsEventPublisher({
   redis: redisClient,
