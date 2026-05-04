@@ -139,9 +139,13 @@ export function initProposalModel(sequelize: Sequelize): typeof Proposal {
           fields: ["status"],
         },
         {
-          fields: ["safeTxHash"],
+          unique: true,
+          fields: ["operationId", "chainId"],
         },
-        { fields: ["operationId"] },
+        {
+          unique: true,
+          fields: ["safeTxHash", "chainId"],
+        },
       ],
     },
   );

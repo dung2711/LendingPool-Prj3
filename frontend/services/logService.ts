@@ -39,10 +39,22 @@ export const logService = {
     assetId?: string;
     fromDate?: string;
     toDate?: string;
+    take?: number;
+    skip?: number;
     limit?: number;
     interval?: "1h" | "6h" | "1d" | "7d";
   }): Promise<AccrueLogPoint[]> {
-    const response = await axiosClient.get("/api/logs/accrue", { params });
+    const { limit, take, skip, assetId, fromDate, toDate, interval } = params;
+    const response = await axiosClient.get("/api/logs/accrue", {
+      params: {
+        assetId,
+        fromDate,
+        toDate,
+        interval,
+        take: take ?? limit,
+        skip,
+      },
+    });
     return response.data.logs;
   },
 
@@ -50,10 +62,22 @@ export const logService = {
     assetId?: string;
     fromDate?: string;
     toDate?: string;
+    take?: number;
+    skip?: number;
     limit?: number;
     interval?: "1h" | "6h" | "1d" | "7d";
   }): Promise<TreasuryLogPoint[]> {
-    const response = await axiosClient.get("/api/logs/treasury", { params });
+    const { limit, take, skip, assetId, fromDate, toDate, interval } = params;
+    const response = await axiosClient.get("/api/logs/treasury", {
+      params: {
+        assetId,
+        fromDate,
+        toDate,
+        interval,
+        take: take ?? limit,
+        skip,
+      },
+    });
     return response.data.logs;
   },
 };

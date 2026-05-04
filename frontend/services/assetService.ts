@@ -27,8 +27,14 @@ export interface AssetConfig {
 }
 
 export const assetService = {
-  async getAllAssets(): Promise<Asset[]> {
-    const response = await axiosClient.get("/api/assets/list");
+  async getAllAssets(params?: {
+    take?: number;
+    skip?: number;
+  }): Promise<Asset[]> {
+    const { take = 1000, skip = 0 } = params ?? {};
+    const response = await axiosClient.get("/api/assets/list", {
+      params: { take, skip },
+    });
     return response.data.assets;
   },
 

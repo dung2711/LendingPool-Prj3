@@ -46,6 +46,7 @@ export function createSignatureService(deps: {
 }) {
   const { redis, dbClient, sessionService, idUtil, logger, env } = deps;
 
+  // TODO: Rate limit
   async function sendNonce(data: ISendNonceReq): Promise<ISendNonceRes> {
     const { userAddress, chainId } = data;
     const checksumAddress = validateAddress(userAddress);
@@ -110,8 +111,6 @@ export function createSignatureService(deps: {
       });
     }
 
-    await redis.del(redisKey);
-
     const [user] = await dbClient.user.findOrCreate({
       where: {
         userAddress: checksumAddress,
@@ -131,6 +130,8 @@ export function createSignatureService(deps: {
       clientIp,
       userAgent,
     });
+
+    await redis.del(redisKey);
 
     logger.info(
       "Verified wallet signature for {userAddress} and create session {sessionId}",

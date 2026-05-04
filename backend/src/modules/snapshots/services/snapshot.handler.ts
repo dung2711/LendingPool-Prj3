@@ -152,15 +152,20 @@ export function createSnapshotHandler(deps: {
       );
       let hasMoreRecord = true;
       while (hasMoreRecord) {
-        await sequelize.transaction(async (tx) => {
-          const [lastSnapshot] = await dbClient.cronnerState.findOrCreate({
+        hasMoreRecord = await sequelize.transaction(async (tx) => {
+          await dbClient.cronnerState.findOrCreate({
             where: { id: `asset-snapshot-${chainId}-${snapshotDate}` },
             defaults: {
               id: `asset-snapshot-${chainId}-${snapshotDate}`,
               type: CronnerType.AssetSnapshot,
               lastSnappedId: 0n,
             },
-            attributes: ["lastSnappedId"],
+            transaction: tx,
+          });
+
+          const lastSnapshot = await dbClient.cronnerState.findOne({
+            where: { id: `asset-snapshot-${chainId}-${snapshotDate}` },
+            lock: tx.LOCK.UPDATE, // SELECT FOR UPDATE
             transaction: tx,
           });
 
@@ -180,7 +185,7 @@ export function createSnapshotHandler(deps: {
             },
           );
 
-          hasMoreRecord = hasMore;
+          return hasMore;
         });
       }
 

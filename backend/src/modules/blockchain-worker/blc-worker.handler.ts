@@ -3,6 +3,8 @@ import { Contract } from "ethers";
 import type Redis from "ioredis";
 import {
   literal,
+  Op,
+  QueryTypes,
   type Sequelize,
   type Transaction as SequelizeTransaction,
 } from "sequelize";
@@ -15,6 +17,7 @@ import {
 } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
 import type {
+  ChainId,
   IAccrueEventReq,
   ICollateralFactorUpdatedEventReq,
   IDonatedEventReq,
@@ -23,9 +26,13 @@ import type {
   IMarketUnsupportedEventReq,
   ITransactionEventReq,
   ITreasuryWithdrawnEventReq,
+  ReorgLockPayload,
   SyncCursor,
 } from "src/shared/types";
-import { getUserAssetSyncRedisKey } from "src/shared/utils";
+import {
+  getReorgLockRedisKey,
+  getUserAssetSyncRedisKey,
+} from "src/shared/utils";
 import type { IdUtils } from "src/shared/utils/id";
 import type { BlockchainConfig } from "../blockchain/blockchain.config";
 
@@ -63,6 +70,50 @@ export function createBLCWorkerHandler(deps: {
         `Invalid logIndex for tx ${transactionHash} at block ${blockNumber}`,
       );
     }
+  }
+
+  async function readReorgLock(
+    chainId: ChainId,
+  ): Promise<ReorgLockPayload | null> {
+    const redisKey = getReorgLockRedisKey(chainId);
+    try {
+      const cached = await redisClient.get(redisKey);
+      if (!cached) return null;
+      const parsed = JSON.parse(cached) as ReorgLockPayload;
+      if (!Number.isFinite(parsed.forkPoint)) return null;
+      return {
+        forkPoint: Number(parsed.forkPoint),
+        startedAt: Number(parsed.startedAt),
+      };
+    } catch (error) {
+      logger.warn("Failed to read reorg lock from Redis", {
+        redisKey,
+        error: (error as Error).message,
+      });
+      return null;
+    }
+  }
+
+  async function shouldSkipDueToReorg(params: {
+    chainId: ChainId;
+    blockNumber: number;
+    eventName: string;
+  }): Promise<boolean> {
+    const { chainId, blockNumber, eventName } = params;
+    const lock = await readReorgLock(chainId);
+    if (!lock) return false;
+
+    if (blockNumber > lock.forkPoint) {
+      logger.warn("Skipping event during reorg", {
+        chainId,
+        eventName,
+        blockNumber,
+        forkPoint: lock.forkPoint,
+      });
+      return true;
+    }
+
+    return false;
   }
 
   async function readLastSyncedCursor(params: {
@@ -133,7 +184,7 @@ export function createBLCWorkerHandler(deps: {
     userAddress: string,
     chainId: ITransactionEventReq["chainId"],
   ) {
-    await dbClient.user.findOrCreate({
+    const [user] = await dbClient.user.findOrCreate({
       where: { userAddress, chainId },
       defaults: {
         id: idUtils.snowflakeId(),
@@ -143,13 +194,6 @@ export function createBLCWorkerHandler(deps: {
         createdAt: new Date(),
       },
     });
-
-    const user = await dbClient.user.findOne({
-      where: { userAddress, chainId },
-    });
-    if (!user) {
-      throw new Error(`User not found after creation: ${userAddress}`);
-    }
 
     return user;
   }
@@ -172,28 +216,29 @@ export function createBLCWorkerHandler(deps: {
       erc20Contract.decimals(),
     ]);
 
-    await dbClient.asset.create({
-      id: idUtils.snowflakeId(),
-      assetAddress,
-      chainId,
-      name,
-      symbol,
-      decimals: Number(decimals),
-      isSupported: true,
-      totalDeposited: "0",
-      totalBorrowed: "0",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    await dbClient.$sequelize.query(
+      `INSERT INTO "assets" ("id", "assetAddress", "chainId", "name", "symbol", "decimals", "isSupported", "totalDeposited", "totalBorrowed", "createdAt", "updatedAt")
+   VALUES (:id, :assetAddress, :chainId, :name, :symbol, :decimals, :isSupported, :totalDeposited, :totalBorrowed, :createdAt, :updatedAt)
+   ON CONFLICT ("assetAddress", "chainId") DO NOTHING`,
+      {
+        replacements: {
+          id: idUtils.snowflakeId(),
+          assetAddress,
+          chainId,
+          name,
+          symbol,
+          decimals: Number(decimals),
+          isSupported: true,
+          totalDeposited: "0",
+          totalBorrowed: "0",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        type: QueryTypes.INSERT,
+      },
+    );
 
-    const createdAsset = await dbClient.asset.findOne({
-      where: { assetAddress, chainId },
-    });
-    if (!createdAsset) {
-      throw new Error(`Asset not found after creation: ${assetAddress}`);
-    }
-
-    return createdAsset;
+    return await dbClient.asset.findOne({ where: { assetAddress, chainId } });
   }
 
   async function calculateAmountUsd(params: {
@@ -294,6 +339,8 @@ export function createBLCWorkerHandler(deps: {
 
     const redisKey = getUserAssetSyncRedisKey({ userId, assetId });
     const incomingCursor: SyncCursor = { blockNumber, logIndex };
+    const incomingBlock = BigInt(blockNumber);
+    const incomingLogIndex = logIndex;
 
     const currentCursor = await readLastSyncedCursor({
       redisKey,
@@ -341,42 +388,65 @@ export function createBLCWorkerHandler(deps: {
         assetId,
         depositedAmount,
         borrowedAmount,
-        lastSyncedBlock: BigInt(blockNumber),
-        lastSyncedLogIndex: logIndex,
+        lastSyncedBlock: incomingBlock,
+        lastSyncedLogIndex: incomingLogIndex,
       },
       transaction,
     });
+
+    let didPersist = created;
 
     if (!created) {
       const [updatedRows] = await dbClient.userAsset.update(
         {
           depositedAmount,
           borrowedAmount,
-          lastSyncedBlock: BigInt(blockNumber),
-          lastSyncedLogIndex: logIndex,
+          lastSyncedBlock: incomingBlock,
+          lastSyncedLogIndex: incomingLogIndex,
         },
         {
           where: {
             userId,
             assetId,
+            [Op.or]: [
+              {
+                lastSyncedBlock: {
+                  [Op.lt]: incomingBlock,
+                },
+              },
+              {
+                lastSyncedBlock: incomingBlock,
+                lastSyncedLogIndex: {
+                  [Op.lt]: incomingLogIndex,
+                },
+              },
+            ],
           },
           transaction,
         },
       );
 
       if (updatedRows === 0) {
-        throw new Error(
-          `Failed to update userAsset for ${userId}:${assetId} at ${blockNumber}:${logIndex}`,
-        );
+        logger.debug("Skip user-asset update due to newer cursor", {
+          userId,
+          assetId,
+          blockNumber,
+          logIndex,
+        });
+        return;
       }
+
+      didPersist = true;
     }
 
-    transaction.afterCommit(() =>
-      writeLastSyncedCursor({
-        redisKey,
-        cursor: incomingCursor,
-      }),
-    );
+    if (didPersist) {
+      transaction.afterCommit(() =>
+        writeLastSyncedCursor({
+          redisKey,
+          cursor: incomingCursor,
+        }),
+      );
+    }
   }
 
   async function updateAssetTotalsByDelta(params: {
@@ -523,6 +593,16 @@ export function createBLCWorkerHandler(deps: {
         logIndex,
       } = params;
 
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "Deposit",
+        })
+      ) {
+        return;
+      }
+
       assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
       logger.info(
@@ -603,6 +683,16 @@ export function createBLCWorkerHandler(deps: {
         blockNumber,
         logIndex,
       } = params;
+
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "Withdraw",
+        })
+      ) {
+        return;
+      }
 
       assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
@@ -685,6 +775,16 @@ export function createBLCWorkerHandler(deps: {
         logIndex,
       } = params;
 
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "Borrow",
+        })
+      ) {
+        return;
+      }
+
       assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
       logger.info(
@@ -766,6 +866,16 @@ export function createBLCWorkerHandler(deps: {
         logIndex,
       } = params;
 
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "Repay",
+        })
+      ) {
+        return;
+      }
+
       assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
       logger.info(
@@ -844,6 +954,16 @@ export function createBLCWorkerHandler(deps: {
         blockNumber,
         logIndex,
       } = params;
+
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "CollateralSeized",
+        })
+      ) {
+        return;
+      }
 
       assertValidLogIndex({ logIndex, transactionHash, blockNumber });
 
@@ -931,6 +1051,16 @@ export function createBLCWorkerHandler(deps: {
         blockNumber,
       } = params;
 
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "Accrue",
+        })
+      ) {
+        return;
+      }
+
       logger.info(
         "Accrue event received on {chainId}: asset {assetAddress}, tx {transactionHash}, block {blockNumber}",
         {
@@ -982,8 +1112,9 @@ export function createBLCWorkerHandler(deps: {
         }
 
         await Promise.all([
-          dbClient.accrueLog.create(
-            {
+          dbClient.accrueLog.findOrCreate({
+            where: { transactionHash, blockNumber, assetId },
+            defaults: {
               id: idUtils.generateId(),
               assetId,
               interestAccrued,
@@ -997,10 +1128,11 @@ export function createBLCWorkerHandler(deps: {
               blockNumber: BigInt(blockNumber),
               createdAt: new Date(),
             },
-            { transaction: t },
-          ),
-          dbClient.treasuryLog.create(
-            {
+            transaction: t,
+          }),
+          dbClient.treasuryLog.findOrCreate({
+            where: { transactionHash, blockNumber, assetId },
+            defaults: {
               id: idUtils.generateId(),
               assetId,
               amount: toTreasury,
@@ -1010,8 +1142,8 @@ export function createBLCWorkerHandler(deps: {
               blockNumber: BigInt(blockNumber),
               createdAt: new Date(),
             },
-            { transaction: t },
-          ),
+            transaction: t,
+          }),
         ]);
       });
 
@@ -1036,6 +1168,16 @@ export function createBLCWorkerHandler(deps: {
         transactionHash,
         blockNumber,
       } = params;
+
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "MarketSupported",
+        })
+      ) {
+        return;
+      }
 
       logger.info(
         "MarketSupported event received on {chainId}: asset {assetAddress}, interestRateModel {interestRateModelAddress}, tx {transactionHash}, block {blockNumber}",
@@ -1109,6 +1251,16 @@ export function createBLCWorkerHandler(deps: {
         blockNumber,
       } = params;
 
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "Donated",
+        })
+      ) {
+        return;
+      }
+
       logger.info(
         "Donated event received on {chainId}: donor {donorAddress}, asset {assetAddress}, amount {amount}, tx {transactionHash}, block {blockNumber}",
         {
@@ -1173,6 +1325,16 @@ export function createBLCWorkerHandler(deps: {
         blockNumber,
       } = params;
 
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "TreasuryWithdrawn",
+        })
+      ) {
+        return;
+      }
+
       logger.info(
         "TreasuryWithdrawn event received on {chainId}: asset {assetAddress}, to {toAddress}, amount {amount}, tx {transactionHash}, block {blockNumber}",
         {
@@ -1230,6 +1392,16 @@ export function createBLCWorkerHandler(deps: {
     try {
       const { chainId, assetAddress, transactionHash, blockNumber } = params;
 
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "MarketUnsupported",
+        })
+      ) {
+        return;
+      }
+
       logger.info(
         "MarketUnsupported event received on {chainId}: asset {assetAddress}, tx {transactionHash}, block {blockNumber}",
         { chainId, assetAddress, transactionHash, blockNumber },
@@ -1259,12 +1431,25 @@ export function createBLCWorkerHandler(deps: {
       const { chainId, collateralFactor, transactionHash, blockNumber } =
         params;
 
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "CollateralFactorUpdated",
+        })
+      ) {
+        return;
+      }
+
       logger.info(
         "CollateralFactorUpdated event received on {chainId}: collateralFactor {collateralFactor}, tx {transactionHash}, block {blockNumber}",
         { chainId, collateralFactor, transactionHash, blockNumber },
       );
 
-      await dbClient.assetConfig.update({ collateralFactor }, { where: {} });
+      await dbClient.assetConfig.update(
+        { collateralFactor },
+        { where: { chainId } },
+      );
 
       logger.info("CollateralFactorUpdated processed: TX {transactionHash}", {
         transactionHash,
@@ -1291,6 +1476,16 @@ export function createBLCWorkerHandler(deps: {
         blockNumber,
       } = params;
 
+      if (
+        await shouldSkipDueToReorg({
+          chainId,
+          blockNumber,
+          eventName: "LiquidationParamsUpdated",
+        })
+      ) {
+        return;
+      }
+
       logger.info(
         "LiquidationParamsUpdated event received on {chainId}: closeFactor {closeFactor}, liquidationIncentive {liquidationIncentive}, liquidationThreshold {liquidationThreshold}, tx {transactionHash}, block {blockNumber}",
         {
@@ -1309,7 +1504,7 @@ export function createBLCWorkerHandler(deps: {
           liquidationIncentive,
           liquidationThreshold,
         },
-        { where: {} },
+        { where: { chainId } },
       );
 
       logger.info("LiquidationParamsUpdated processed: TX {transactionHash}", {

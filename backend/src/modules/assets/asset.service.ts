@@ -6,6 +6,7 @@ import type {
   IGetAssetConfigRes,
   IGetAssetDetailRes,
   IGetAssetReq,
+  IGetAssetsListReq,
   IGetAssetsListRes,
 } from "./asset.dto";
 
@@ -15,12 +16,18 @@ export function createAssetService(deps: {
 }) {
   const { dbClient, logger } = deps;
 
-  async function getAssetsList(): Promise<IGetAssetsListRes> {
+  async function getAssetsList(
+    params: IGetAssetsListReq,
+  ): Promise<IGetAssetsListRes> {
     try {
+      const { take, skip } = params;
       const assets = await dbClient.asset.findAll({
         where: {
           isSupported: true,
         },
+        order: [["id", "ASC"]],
+        limit: take,
+        offset: skip,
       });
       const result = assets.map((asset) => ({
         id: asset.id.toString(),

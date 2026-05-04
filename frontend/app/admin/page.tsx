@@ -197,14 +197,16 @@ export default function Admin(): ReactElement {
             fromDate,
             toDate,
             interval: "1d",
-            limit: 120,
+            take: 120,
+            skip: 0,
           }),
           logService.getTreasuryLogs({
             assetId: selectedAsset.id,
             fromDate,
             toDate,
             interval: "1d",
-            limit: 120,
+            take: 120,
+            skip: 0,
           }),
         ]);
 

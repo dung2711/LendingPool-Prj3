@@ -1,6 +1,7 @@
 import type { Logger } from "@logtape/logtape";
 import dayjs from "dayjs";
 import type { EventLog, ethers } from "ethers";
+import type Redis from "ioredis";
 import type { Sequelize, Transaction } from "sequelize";
 import type { BlockchainEnv } from "src/shared/config";
 import {
@@ -10,6 +11,7 @@ import {
 } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
 import type { ChainId } from "src/shared/types";
+import { getReorgLockRedisKey } from "src/shared/utils";
 import type { BlockchainConfig } from "../blockchain.config";
 import type { IScanContract } from "../blockchain.types";
 import type { BLCReorgService } from "./blc-reorg.service";
@@ -23,6 +25,7 @@ export function createBLCIndexerService(deps: {
   dbClient: DatabaseClient;
   sequelize: Sequelize;
   env: BlockchainEnv;
+  redisClient: Redis;
 }) {
   const {
     blcConfig,
@@ -32,7 +35,40 @@ export function createBLCIndexerService(deps: {
     sequelize,
     env,
     blcReorgService,
+    redisClient,
   } = deps;
+
+  async function clearReorgLockIfCaughtUp(params: {
+    chainId: ChainId;
+    toBlock: number;
+  }) {
+    const { chainId, toBlock } = params;
+    const redisKey = getReorgLockRedisKey(chainId);
+
+    try {
+      const cached = await redisClient.get(redisKey);
+      if (!cached) return;
+
+      const parsed = JSON.parse(cached) as { forkPoint?: number };
+      const forkPoint = Number(parsed.forkPoint);
+      if (!Number.isFinite(forkPoint)) return;
+
+      if (toBlock >= forkPoint) {
+        await redisClient.del(redisKey);
+        logger.info("Cleared reorg lock after rescan", {
+          chainId,
+          forkPoint,
+          toBlock,
+        });
+      }
+    } catch (error) {
+      logger.warn("Failed to clear reorg lock", {
+        chainId,
+        toBlock,
+        error: (error as Error).message,
+      });
+    }
+  }
 
   async function initializeScannerState() {
     const chains = Object.values(chainIds);
@@ -233,16 +269,6 @@ export function createBLCIndexerService(deps: {
     const fromBlock = scannerState
       ? Number(scannerState.lastScannedBlock) + 1
       : 0;
-    const currentBlock = await blcConfig.getProvider(chainId).getBlockNumber();
-    const toBlock = Math.min(currentBlock, fromBlock + env.MAX_BLOCK_RANGE - 1);
-
-    if (fromBlock > currentBlock) {
-      logger.info("Scanner is already up-to-date for chain", {
-        chainId,
-        currentBlock,
-      });
-      return;
-    }
 
     if (fromBlock > 0) {
       const reorgDetected = await blcReorgService.detectReorg(
@@ -274,6 +300,17 @@ export function createBLCIndexerService(deps: {
       }
     }
 
+    const currentBlock = await blcConfig.getProvider(chainId).getBlockNumber();
+    const toBlock = Math.min(currentBlock, fromBlock + env.MAX_BLOCK_RANGE - 1);
+
+    if (fromBlock > currentBlock) {
+      logger.info("Scanner is already up-to-date for chain", {
+        chainId,
+        currentBlock,
+      });
+      return;
+    }
+
     await sequelize.transaction(async (tx) => {
       await Promise.all([
         scanLendingPoolContract({ chainId, fromBlock, toBlock }),
@@ -294,6 +331,8 @@ export function createBLCIndexerService(deps: {
         },
       );
     });
+
+    await clearReorgLockIfCaughtUp({ chainId, toBlock });
 
     const endTime = dayjs().toDate();
     logger.info("Finished scanning chain", {
