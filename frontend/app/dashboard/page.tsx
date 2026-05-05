@@ -11,6 +11,10 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import LinearProgress from "@mui/material/LinearProgress";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -78,7 +82,7 @@ export default function Dashboard(): ReactElement {
   const [collateralFactor, setCollateralFactor] = useState(0n);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [registerToken, setRegisterToken] = useState("");
+  const [otpDialogOpen, setOtpDialogOpen] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState("");
   const [emailError, setEmailError] = useState("");
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
@@ -118,75 +122,27 @@ export default function Dashboard(): ReactElement {
     }
   };
 
+  // Extract the human-readable message from a BE error response.
+  // BE always sends 4xx with { success: false, code, errors: string }.
   const getErrorMessage = (error: unknown, fallback: string): string => {
     if (axios.isAxiosError(error)) {
       const payload = error.response?.data as ApiErrorResponse | undefined;
-
-      if (typeof payload?.errors === "string" && payload.errors.trim()) {
+      if (typeof payload?.errors === "string" && payload.errors.trim())
         return payload.errors;
-      }
-
       if (
         payload?.errors &&
         typeof payload.errors === "object" &&
         typeof payload.errors.errors === "string" &&
         payload.errors.errors.trim()
-      ) {
+      )
         return payload.errors.errors;
-      }
-
-      if (typeof payload?.message === "string" && payload.message.trim()) {
+      if (typeof payload?.message === "string" && payload.message.trim())
         return payload.message;
-      }
-
-      if (typeof payload?.code === "string" && payload.code.trim()) {
+      if (typeof payload?.code === "string" && payload.code.trim())
         return payload.code;
-      }
-
       return error.message || fallback;
     }
-
-    if (error instanceof Error && error.message.trim()) {
-      return error.message;
-    }
-
-    return fallback;
-  };
-
-  const getBackendErrorFromPayload = (
-    payload: unknown,
-    fallback: string,
-  ): string | null => {
-    if (!payload || typeof payload !== "object") {
-      return null;
-    }
-
-    const body = payload as ApiErrorResponse;
-    if (body.success !== false) {
-      return null;
-    }
-
-    if (typeof body.errors === "string" && body.errors.trim()) {
-      return body.errors;
-    }
-
-    if (
-      body.errors &&
-      typeof body.errors === "object" &&
-      typeof body.errors.errors === "string" &&
-      body.errors.errors.trim()
-    ) {
-      return body.errors.errors;
-    }
-
-    if (typeof body.message === "string" && body.message.trim()) {
-      return body.message;
-    }
-
-    if (typeof body.code === "string" && body.code.trim()) {
-      return body.code;
-    }
-
+    if (error instanceof Error && error.message.trim()) return error.message;
     return fallback;
   };
 
@@ -520,69 +476,60 @@ export default function Dashboard(): ReactElement {
       setEmailError("Please enter your email address");
       return;
     }
-
     try {
       setEmailError("");
       setEmailSuccess("");
       setSendingOtp(true);
-
-      const response = await axiosClient.post("/api/email/send-otp", {
+      await axiosClient.post("/api/email/send-otp", {
         email,
         purpose: OTP_PURPOSE,
       });
-
-      const backendError = getBackendErrorFromPayload(
-        response.data,
-        "Failed to send OTP",
-      );
-      if (backendError) {
-        throw new Error(backendError);
-      }
-
-      setEmailSuccess("OTP sent. Check your email inbox.");
+      setOtp("");
+      setOtpDialogOpen(true);
     } catch (err) {
-      setEmailError(
-        `Failed to send OTP: ${getErrorMessage(err, "Unknown error")}`,
-      );
+      setEmailError(getErrorMessage(err, "Failed to send OTP"));
     } finally {
       setSendingOtp(false);
     }
   };
 
-  const handleVerifyOtp = async (): Promise<void> => {
-    if (!email || !otp) {
-      setEmailError("Please enter email and OTP");
+  // Called from dialog — verifies OTP then immediately registers the email.
+  const handleVerifyAndRegister = async (): Promise<void> => {
+    if (!otp) {
+      setEmailError("Please enter the OTP code");
       return;
     }
-
     try {
       setEmailError("");
-      setEmailSuccess("");
       setVerifyingOtp(true);
 
-      const response = await axiosClient.post("/api/email/verify-otp", {
+      // Step 1: verify OTP → get register token
+      const verifyRes = await axiosClient.post("/api/email/verify-otp", {
         email,
         otp,
         purpose: OTP_PURPOSE,
       });
+      const token: string = verifyRes.data?.token ?? "";
+      if (!token)
+        throw new Error("Verification succeeded but no token returned");
 
-      const backendError = getBackendErrorFromPayload(
-        response.data,
-        "Failed to verify OTP",
-      );
-      if (backendError) {
-        throw new Error(backendError);
-      }
+      // Step 2: immediately register with the token
+      setRegisteringEmail(true);
+      if (!account) throw new Error("Wallet not connected");
+      const resolvedChainId = await resolveCurrentChainId();
+      setActiveChainId(resolvedChainId);
+      await authService.ensureAuthenticated(account, resolvedChainId);
+      await axiosClient.post("/api/email/register", { registerToken: token });
 
-      setRegisterToken(response.data?.token || "");
-      setEmailSuccess("OTP verified. You can register the email now.");
+      setOtpDialogOpen(false);
+      setOtp("");
+      setEmailSuccess("Email registered successfully for admin notifications.");
+      void loadEmailStatus(account, resolvedChainId);
     } catch (err) {
-      setRegisterToken("");
-      setEmailError(
-        `Failed to verify OTP: ${getErrorMessage(err, "Unknown error")}`,
-      );
+      setEmailError(getErrorMessage(err, "Failed to verify or register email"));
     } finally {
       setVerifyingOtp(false);
+      setRegisteringEmail(false);
     }
   };
 
@@ -607,50 +554,6 @@ export default function Dashboard(): ReactElement {
       setAuthError(getErrorMessage(err, "Authentication failed"));
     } finally {
       setAuthInProgress(false);
-    }
-  };
-
-  const handleRegisterEmail = async (): Promise<void> => {
-    if (!account) {
-      setEmailError("Connect wallet before registering email");
-      return;
-    }
-
-    if (!registerToken) {
-      setEmailError("Register token not found. Verify OTP first.");
-      return;
-    }
-
-    try {
-      setEmailError("");
-      setEmailSuccess("");
-      setRegisteringEmail(true);
-      const resolvedChainId = await resolveCurrentChainId();
-      setActiveChainId(resolvedChainId);
-      await authService.ensureAuthenticated(account, resolvedChainId);
-
-      const response = await axiosClient.post("/api/email/register", {
-        registerToken,
-      });
-
-      const backendError = authService.getApiErrorMessage(
-        response.data,
-        "Failed to register email",
-      );
-      if (backendError) {
-        throw new Error(backendError);
-      }
-
-      setEmailSuccess("Email registered for admin notifications.");
-      setRegisterToken("");
-      setOtp("");
-      void loadEmailStatus(account, resolvedChainId);
-    } catch (err) {
-      setEmailError(
-        `Failed to register email: ${getErrorMessage(err, "Unknown error")}`,
-      );
-    } finally {
-      setRegisteringEmail(false);
     }
   };
 
@@ -1025,7 +928,8 @@ export default function Dashboard(): ReactElement {
                 Admin Email Registration
               </Typography>
               <Typography variant="body2" color="text.secondary" mb={2}>
-                Register your email to receive governance notifications.
+                Enter your email and click Send OTP. A verification code will be
+                sent to your inbox — confirm it to complete registration.
               </Typography>
 
               {emailSuccess && (
@@ -1041,83 +945,95 @@ export default function Dashboard(): ReactElement {
 
               <Box
                 sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" },
+                  display: "flex",
                   gap: 2,
-                  mb: 2,
+                  alignItems: "flex-start",
+                  flexWrap: "wrap",
                 }}
               >
                 <TextField
                   label="Email"
                   size="small"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void handleSendOtp()}
                   placeholder="you@example.com"
-                  fullWidth
+                  sx={{ flex: 1, minWidth: 220 }}
                 />
                 <Button
                   variant="contained"
                   onClick={handleSendOtp}
                   disabled={sendingOtp}
+                  sx={{ whiteSpace: "nowrap" }}
                 >
                   {sendingOtp ? <CircularProgress size={20} /> : "Send OTP"}
                 </Button>
               </Box>
-
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" },
-                  gap: 2,
-                  mb: 2,
-                }}
-              >
-                <TextField
-                  label="OTP"
-                  size="small"
-                  value={otp}
-                  onChange={(event) => setOtp(event.target.value)}
-                  placeholder="6-digit code"
-                  fullWidth
-                />
-                <Button
-                  variant="outlined"
-                  onClick={handleVerifyOtp}
-                  disabled={verifyingOtp}
-                >
-                  {verifyingOtp ? <CircularProgress size={20} /> : "Verify OTP"}
-                </Button>
-              </Box>
-
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" },
-                  gap: 2,
-                }}
-              >
-                <TextField
-                  label="Register Token"
-                  size="small"
-                  value={registerToken}
-                  placeholder="Token from OTP verification"
-                  fullWidth
-                  disabled
-                />
-                <Button
-                  variant="contained"
-                  onClick={handleRegisterEmail}
-                  disabled={registeringEmail}
-                >
-                  {registeringEmail ? (
-                    <CircularProgress size={20} />
-                  ) : (
-                    "Register Email"
-                  )}
-                </Button>
-              </Box>
             </CardContent>
           </Card>
+
+          {/* OTP Verification Dialog */}
+          <Dialog
+            open={otpDialogOpen}
+            onClose={() => {
+              if (!verifyingOtp && !registeringEmail) {
+                setOtpDialogOpen(false);
+                setOtp("");
+                setEmailError("");
+              }
+            }}
+            maxWidth="xs"
+            fullWidth
+          >
+            <DialogTitle>Verify your email</DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" color="text.secondary" mb={2}>
+                A 6-digit code was sent to <strong>{email}</strong>. Enter it
+                below to complete registration.
+              </Typography>
+              {emailError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {emailError}
+                </Alert>
+              )}
+              <TextField
+                autoFocus
+                label="OTP code"
+                size="small"
+                fullWidth
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && void handleVerifyAndRegister()
+                }
+                placeholder="000000"
+                inputProps={{ maxLength: 6 }}
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+              <Button
+                onClick={() => {
+                  setOtpDialogOpen(false);
+                  setOtp("");
+                  setEmailError("");
+                }}
+                disabled={verifyingOtp || registeringEmail}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleVerifyAndRegister}
+                disabled={verifyingOtp || registeringEmail || !otp}
+              >
+                {verifyingOtp || registeringEmail ? (
+                  <CircularProgress size={20} />
+                ) : (
+                  "Confirm & Register"
+                )}
+              </Button>
+            </DialogActions>
+          </Dialog>
 
           {/* Borrow Limit Progress */}
           {totalSuppliedUSD > 0n && (
