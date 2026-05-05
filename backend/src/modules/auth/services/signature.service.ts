@@ -6,6 +6,7 @@ import { AppErr, ErrCode } from "src/shared/constants";
 import type { DatabaseClient } from "src/shared/infra";
 import type { ChainId } from "src/shared/types";
 import { type IdUtils, validateAddress } from "src/shared/utils";
+import type { RateLimitService } from "src/shared/utils/rate-limit.service";
 import type {
   IAuthSessionRes,
   ISendNonceReq,
@@ -42,14 +43,23 @@ export function createSignatureService(deps: {
   sessionService: ISessionService;
   idUtil: IdUtils;
   logger: Logger;
+  rateLimit: RateLimitService;
   env: Pick<BaseEnv, "AUTH_NONCE_TTL_SECONDS">;
 }) {
-  const { redis, dbClient, sessionService, idUtil, logger, env } = deps;
+  const { redis, dbClient, sessionService, idUtil, logger, rateLimit, env } =
+    deps;
+  const NONCE_RATE_LIMIT_SECONDS = 30;
 
-  // TODO: Rate limit
   async function sendNonce(data: ISendNonceReq): Promise<ISendNonceRes> {
     const { userAddress, chainId } = data;
     const checksumAddress = validateAddress(userAddress);
+
+    await rateLimit.ensureCooldown({
+      key: `nonce:${chainId}:${checksumAddress}`,
+      cooldownSeconds: NONCE_RATE_LIMIT_SECONDS,
+      message: "Too many nonce requests. Please wait before requesting again.",
+    });
+
     const nonce = idUtil.generateId();
     const redisKey = getNonceRedisKey({
       userAddress: checksumAddress,

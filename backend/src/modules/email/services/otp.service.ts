@@ -42,8 +42,8 @@ export function createOTPService(deps: {
     return `otp:${params.purpose}:${normalizeEmail(params.email)}`;
   }
 
-  function buildAttemptKey(otp: string) {
-    return `att:${otp}`;
+  function buildAttemptKey(email: string, purpose: OTPPurpose, otp: string) {
+    return `att:${email}:${purpose}:${otp}`;
   }
 
   async function generateOTP(params: ISendOtpReq) {
@@ -75,7 +75,7 @@ export function createOTPService(deps: {
     const otpKey = getOTPKey({ email: normalizedEmail, purpose });
 
     await rateLimit.ensureAttemptLimit({
-      key: buildAttemptKey(normalizedOtp),
+      key: buildAttemptKey(normalizedEmail, purpose, normalizedOtp),
       maxAttempts: MAX_OTP_ATTEMPTS,
       cooldownSeconds: OTP_TTL_SECONDS,
       message: "Too many OTP attempts. Please try again later.",
@@ -105,7 +105,9 @@ export function createOTPService(deps: {
       });
     }
 
-    await redis.del(buildAttemptKey(normalizedOtp));
+    await redis.del(
+      buildAttemptKey(normalizedEmail, parsedOtpData.purpose, normalizedOtp),
+    );
   }
 
   async function sendOTP(params: ISendOtpReq) {

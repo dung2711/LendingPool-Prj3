@@ -295,7 +295,7 @@ export function createBLCWorkerHandler(deps: {
     } = params;
 
     const [tx, created] = await dbClient.transaction.findOrCreate({
-      where: { transactionHash },
+      where: { transactionHash, type },
       defaults: {
         transactionHash,
         userId,
@@ -1086,6 +1086,20 @@ export function createBLCWorkerHandler(deps: {
       const assetId = asset.id;
 
       await sequelize.transaction(async (t) => {
+        const existingAccrueLog = await dbClient.accrueLog.findOne({
+          where: { transactionHash, blockNumber, assetId },
+          transaction: t,
+        });
+
+        if (existingAccrueLog) {
+          logger.warn("Skip duplicate Accrue event", {
+            transactionHash,
+            blockNumber,
+            assetId,
+          });
+          return;
+        }
+
         await updateAssetTotalsByDelta({
           chainId,
           assetAddress,
@@ -1112,9 +1126,8 @@ export function createBLCWorkerHandler(deps: {
         }
 
         await Promise.all([
-          dbClient.accrueLog.findOrCreate({
-            where: { transactionHash, blockNumber, assetId },
-            defaults: {
+          dbClient.accrueLog.create(
+            {
               id: idUtils.generateId(),
               assetId,
               interestAccrued,
@@ -1128,11 +1141,10 @@ export function createBLCWorkerHandler(deps: {
               blockNumber: BigInt(blockNumber),
               createdAt: new Date(),
             },
-            transaction: t,
-          }),
-          dbClient.treasuryLog.findOrCreate({
-            where: { transactionHash, blockNumber, assetId },
-            defaults: {
+            { transaction: t },
+          ),
+          dbClient.treasuryLog.create(
+            {
               id: idUtils.generateId(),
               assetId,
               amount: toTreasury,
@@ -1142,8 +1154,8 @@ export function createBLCWorkerHandler(deps: {
               blockNumber: BigInt(blockNumber),
               createdAt: new Date(),
             },
-            transaction: t,
-          }),
+            { transaction: t },
+          ),
         ]);
       });
 

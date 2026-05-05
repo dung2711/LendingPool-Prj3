@@ -196,6 +196,14 @@ export function createBLCReorgService(deps: {
           where: {
             lastSyncedBlock: { [Op.gt]: BigInt(forkPoint) },
           },
+          include: [
+            {
+              model: dbClient.asset,
+              where: { chainId },
+              required: true,
+              attributes: [],
+            },
+          ],
           transaction: tx,
         });
 

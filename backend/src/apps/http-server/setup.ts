@@ -48,12 +48,14 @@ export function setupHttpServerDependencies(deps: {
     logger,
     env,
   });
+  const rateLimit = createRateLimitService({ redis: redisClient });
   const signatureService = createSignatureService({
     redis: redisClient,
     dbClient,
     sessionService,
     idUtil,
     logger,
+    rateLimit,
     env,
   });
   const rabbitMQHelper = createRabbitMQHelperService({ rabbitChannel, logger });
@@ -63,7 +65,7 @@ export function setupHttpServerDependencies(deps: {
     idUtil,
     logger,
   });
-  const rateLimit = createRateLimitService({ redis: redisClient });
+
   const otpService = createOTPService({
     notiPublisher,
     logger,

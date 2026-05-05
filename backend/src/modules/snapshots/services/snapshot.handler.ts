@@ -217,14 +217,19 @@ export function createSnapshotHandler(deps: {
       let hasMoreRecord = true;
       while (hasMoreRecord) {
         await sequelize.transaction(async (tx) => {
-          const [lastSnapshot] = await dbClient.cronnerState.findOrCreate({
+          await dbClient.cronnerState.findOrCreate({
             where: { id: `user-snapshot-${chainId}-${snapshotDate}` },
             defaults: {
               id: `user-snapshot-${chainId}-${snapshotDate}`,
               type: CronnerType.UserSnapshot,
               lastSnappedId: 0n,
             },
-            attributes: ["lastSnappedId"],
+            transaction: tx,
+          });
+
+          const lastSnapshot = await dbClient.cronnerState.findOne({
+            where: { id: `user-snapshot-${chainId}-${snapshotDate}` },
+            lock: tx.LOCK.UPDATE,
             transaction: tx,
           });
 

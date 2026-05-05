@@ -37,6 +37,7 @@ export function createBLCIndexerService(deps: {
     blcReorgService,
     redisClient,
   } = deps;
+  const BLOCK_FETCH_BATCH_SIZE = 20;
 
   async function clearReorgLockIfCaughtUp(params: {
     chainId: ChainId;
@@ -350,14 +351,24 @@ export function createBLCIndexerService(deps: {
     tx: Transaction,
   ) {
     const provider = blcConfig.getProvider(chainId);
-    const blockPromises: Promise<ethers.Block>[] = [];
-    for (let blockNumber = fromBlock; blockNumber <= toBlock; blockNumber++) {
-      blockPromises.push(provider.getBlock(blockNumber));
+    const allBlocks: ethers.Block[] = [];
+
+    for (
+      let start = fromBlock;
+      start <= toBlock;
+      start += BLOCK_FETCH_BATCH_SIZE
+    ) {
+      const end = Math.min(start + BLOCK_FETCH_BATCH_SIZE - 1, toBlock);
+      const batchPromises: Promise<ethers.Block>[] = [];
+      for (let blockNumber = start; blockNumber <= end; blockNumber++) {
+        batchPromises.push(provider.getBlock(blockNumber));
+      }
+      const batchBlocks = await Promise.all(batchPromises);
+      allBlocks.push(...batchBlocks);
     }
-    const blocks = await Promise.all(blockPromises);
 
     await Promise.all(
-      blocks.map((block) =>
+      allBlocks.map((block) =>
         dbClient.block.findOrCreate({
           where: {
             chainId,

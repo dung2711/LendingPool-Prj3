@@ -86,17 +86,16 @@ export function createAssetService(deps: {
   ): Promise<IGetAssetConfigRes> {
     const assetAddress = validateAddress(data.assetAddress);
     try {
+      const asset = await dbClient.asset.findOne({
+        where: { assetAddress },
+        attributes: ["id"],
+      });
+      if (!asset) {
+        throw new AppErr(ErrCode.AssetNotFound);
+      }
+
       const assetConfig = await dbClient.assetConfig.findOne({
-        include: [
-          {
-            model: dbClient.asset,
-            attributes: [],
-            required: true,
-          },
-        ],
-        where: {
-          "$Asset.assetAddress$": assetAddress,
-        },
+        where: { assetId: asset.id },
       });
       if (!assetConfig) {
         throw new AppErr(ErrCode.AssetNotFound);

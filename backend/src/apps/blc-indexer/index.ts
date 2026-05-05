@@ -82,10 +82,15 @@ const checkLiquidatableUsersCron = new Cron(
   { name: "check-liquidatable-users-croner" },
   async () => {
     logger.info("Cron job checking liquidatable users (Croner)");
-    try {
-      await liquidatableUsersService.calculateLiquidatableUsers();
-    } catch (error) {
-      logger.error("Error checking liquidatable users {error}", { error });
+    for (const chainId of Object.values(chainIds)) {
+      try {
+        await liquidatableUsersService.calculateLiquidatableUsers(chainId);
+      } catch (error) {
+        logger.error(
+          "Error checking liquidatable users for chainId {chainId}: {error}",
+          { chainId, error },
+        );
+      }
     }
   },
 );

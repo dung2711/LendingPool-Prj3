@@ -12,6 +12,10 @@ export function createTokenCacheService(deps: {
   const { redis, idUtil, logger } = deps;
   const TOKEN_CACHE_TTL_SECONDS = 60 * 3; // 3 minutes
 
+  function buildTokenCacheKey(token: string) {
+    return `token_cache:${token}`;
+  }
+
   async function generateToken(purpose: OTPPurpose, email: string) {
     const token = idUtil.generateId();
     const tokenData: ITokenCache = {
@@ -19,8 +23,11 @@ export function createTokenCacheService(deps: {
       email,
     };
 
+    // L-2: Prefix the key so token cache entries are namespaced away from
+    // all other Redis keys (rate-limit counters, nonces, OTPs, etc.).
+    const redisKey = buildTokenCacheKey(token);
     await redis.set(
-      token,
+      redisKey,
       JSON.stringify(tokenData),
       "EX",
       TOKEN_CACHE_TTL_SECONDS,
@@ -33,7 +40,8 @@ export function createTokenCacheService(deps: {
   }
 
   async function verifyToken(token: string, expectedPurpose: OTPPurpose) {
-    const tokenDataStr = await redis.get(token);
+    const redisKey = buildTokenCacheKey(token);
+    const tokenDataStr = await redis.get(redisKey);
     if (!tokenDataStr) {
       throw new AppErr(ErrCode.InvalidOtpToken, {
         errors: "OTP token not found or expired",
@@ -47,7 +55,7 @@ export function createTokenCacheService(deps: {
       });
     }
 
-    await redis.del(token);
+    await redis.del(redisKey);
     return tokenData;
   }
 

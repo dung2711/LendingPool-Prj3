@@ -1,7 +1,8 @@
 import type { Logger } from "@logtape/logtape";
 import { Op } from "sequelize";
-import { chainIds, ProtocolContract } from "src/shared/constants/blockchain.js";
+import { ProtocolContract } from "src/shared/constants/blockchain.js";
 import type { DatabaseClient } from "src/shared/infra/index.js";
+import type { ChainId } from "src/shared/types/blockchain.js";
 import type { IdUtils } from "src/shared/utils/id.js";
 import { WSEvent } from "src/shared/ws/ws.types.js";
 import type { WsEventPublisher } from "src/shared/ws/ws-publisher.js";
@@ -15,131 +16,140 @@ export function createLiquidatableUsersService(deps: {
   idUtils: IdUtils;
 }) {
   const { logger, wsPublisher, dbClient, blcConfig, idUtils } = deps;
-  const provider = blcConfig.getProvider(chainIds.sepolia);
-  const liquidationContract = blcConfig.getProtocolContract(
-    ProtocolContract.Liquidation,
-    chainIds.sepolia,
-  );
+  const LIQUIDATABLE_BATCH_SIZE = 100;
 
-  async function calculateLiquidatableUsers(): Promise<void> {
+  async function calculateLiquidatableUsers(chainId: ChainId): Promise<void> {
+    const provider = blcConfig.getProvider(chainId);
+    const liquidationContract = blcConfig.getProtocolContract(
+      ProtocolContract.Liquidation,
+      chainId,
+    );
+
     const blockNumber = await provider.getBlockNumber();
     const block = await provider.getBlock(blockNumber);
     const blockTimestamp = block.timestamp;
-    try {
-      const allUsers = await dbClient.userAsset.findAll();
-      const activeUsers = allUsers.filter(
-        (ua) => BigInt(ua.borrowedAmount) > 0n,
-      );
-      const activeUserIds = [...new Set(activeUsers.map((ua) => ua.userId))];
-      const users = await dbClient.user.findAll({
+
+    logger.info(
+      "Starting liquidatable-user scan for chainId {chainId} at block {blockNumber}",
+      { chainId, blockNumber },
+    );
+
+    const currentLiquidatableAddresses: string[] = [];
+
+    // Cursor-paginated scan over users with an active borrow on this chain.
+    // We paginate by userId (bigint cursor) to avoid loading all rows at once.
+    let cursor = 0n;
+
+    while (true) {
+      // Fetch the next page of unique userIds with borrowedAmount > 0
+      // on this chain (joined through the asset table for the chain filter).
+      const batch = await dbClient.userAsset.findAll({
         where: {
-          id: {
-            [Op.in]: activeUserIds,
-          },
+          borrowedAmount: { [Op.gt]: "0" },
+          userId: { [Op.gt]: cursor },
         },
+        include: [
+          {
+            model: dbClient.asset,
+            where: { chainId },
+            required: true,
+            attributes: [],
+          },
+        ],
+        attributes: ["userId"],
+        order: [["userId", "ASC"]],
+        limit: LIQUIDATABLE_BATCH_SIZE,
+      });
+
+      if (batch.length === 0) break;
+
+      // Deduplicate userIds within this page (one user may borrow multiple assets).
+      const userIds = [...new Set(batch.map((ua) => ua.userId))];
+
+      // Fetch wallet addresses for this batch.
+      const users = await dbClient.user.findAll({
+        where: { id: { [Op.in]: userIds } },
         attributes: ["id", "userAddress"],
       });
-      const userAddressMap = new Map(
-        users.map((user) => [user.id, user.userAddress]),
-      );
+      const userAddressMap = new Map(users.map((u) => [u.id, u.userAddress]));
 
-      logger.info("Checking liquidatable status for {count} active users", {
-        count: activeUserIds.length,
-      });
+      for (const userId of userIds) {
+        const userAddress = userAddressMap.get(userId);
+        if (!userAddress) {
+          logger.warn(
+            "Skip liquidatable check: user not found for userId {userId}",
+            { userId },
+          );
+          continue;
+        }
 
-      // Get current liquidatable users from database
-      const existingLiquidatable = await dbClient.liquidatableUser.findAll();
-      const existingUserIds = new Set(
-        existingLiquidatable.map((u) => u.userId),
-      );
-
-      const currentLiquidatableAddresses = [];
-
-      // Check each active user
-      for (const userId of activeUserIds) {
         try {
-          const userAddress = userAddressMap.get(userId);
-          if (!userAddress) {
-            logger.warn(
-              "Skip liquidatable check: user not found for userId {userId}",
-              {
-                userId,
-              },
-            );
-            continue;
-          }
-
           const isLiquidatable =
             await liquidationContract.isAccountLiquidatable(userAddress);
 
           if (isLiquidatable) {
             currentLiquidatableAddresses.push(userAddress);
 
-            // Only add if not already in database
-            if (!existingUserIds.has(userId)) {
-              await dbClient.liquidatableUser.create({
+            await dbClient.liquidatableUser.findOrCreate({
+              where: { userId },
+              defaults: {
                 id: idUtils.generateId(),
                 userId,
-              });
-              logger.info("User marked liquidatable: {userId}", {
-                userId: userId,
-              });
-            }
+              },
+            });
+            logger.info("User marked liquidatable: {userId}", { userId });
           } else {
-            // User is no longer liquidatable, remove if exists
-            if (existingUserIds.has(userId)) {
-              await dbClient.liquidatableUser.destroy({
-                where: {
-                  userId: userId,
-                },
-              });
-              logger.info("User unmarked liquidatable (recovered): {userId}", {
-                userId: userId,
-              });
-            }
+            await dbClient.liquidatableUser.destroy({ where: { userId } });
           }
         } catch (error) {
           logger.warn("Failed to check liquidatability for {userId}: {error}", {
-            userId: userId,
+            userId,
             error,
           });
         }
       }
 
-      // Remove users that are no longer active (fully repaid/withdrawn)
-      const currentActiveSet = new Set(activeUserIds);
-      for (const existingUser of existingLiquidatable) {
-        if (!currentActiveSet.has(existingUser.userId)) {
-          await dbClient.liquidatableUser.destroy({
-            where: {
-              userId: existingUser.userId,
-            },
-          });
-          logger.info(
-            "User removed from liquidatable (fully repaid/withdrawn): {userId}",
-            { userId: existingUser.userId },
-          );
-        }
-      }
+      // Advance cursor to the last userId in this page.
+      cursor = userIds[userIds.length - 1];
 
-      logger.info("Liquidatable users calculation completed: {count} users", {
-        count: currentLiquidatableAddresses.length,
-      });
-
-      // Publish WebSocket event if publisher is available
-      if (wsPublisher) {
-        await wsPublisher.publish(WSEvent.LiquidatableUsersUpdated, {
-          users: currentLiquidatableAddresses.map((address) => ({ address })),
-          blockNumber: blockNumber || 0,
-          timestamp: blockTimestamp || new Date(),
-        });
-      }
-
-      return;
-    } catch (error) {
-      logger.error("Error calculating liquidatable users: {error}", { error });
-      throw error;
+      if (batch.length < LIQUIDATABLE_BATCH_SIZE) break;
     }
+
+    // Cleanup: remove liquidatableUser records for users who no longer
+    // have any active borrow on this chain (fully repaid / withdrawn).
+    await dbClient.liquidatableUser.destroy({
+      where: {
+        userId: {
+          [Op.notIn]: await dbClient.userAsset
+            .findAll({
+              where: { borrowedAmount: { [Op.gt]: "0" } },
+              include: [
+                {
+                  model: dbClient.asset,
+                  where: { chainId },
+                  required: true,
+                  attributes: [],
+                },
+              ],
+              attributes: ["userId"],
+            })
+            .then((rows) => [...new Set(rows.map((r) => r.userId))]),
+        },
+      },
+    });
+
+    logger.info(
+      "Liquidatable-user scan completed for chainId {chainId}: {count} liquidatable user(s)",
+      { chainId, count: currentLiquidatableAddresses.length },
+    );
+
+    // Publish WebSocket event with the current liquidatable set.
+    await wsPublisher.publish(WSEvent.LiquidatableUsersUpdated, {
+      users: currentLiquidatableAddresses.map((address) => ({ address })),
+      blockNumber,
+      // blockTimestamp is Unix seconds; convert to ms for JS Date consumers.
+      timestamp: blockTimestamp * 1000,
+    });
   }
 
   return {
