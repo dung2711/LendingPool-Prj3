@@ -52,6 +52,15 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(
+  deps.ipRateLimit({
+    limit: 60,
+    windowMs: 60_000,
+    message: "Too many requests. Please slow down.",
+    keyPrefix: "ip_rl:global",
+  }),
+);
+
+app.use(
   "/api/auth",
   createAuthController({
     signatureService: deps.signatureService,
@@ -84,6 +93,7 @@ app.use(
     otpService: deps.otpService,
     emailRegistrationService: deps.emailRegistrationService,
     authMiddleware: deps.authMiddleware,
+    ipRateLimit: deps.ipRateLimit,
   }),
 );
 app.use(

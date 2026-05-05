@@ -77,3 +77,5 @@ export function createAuthMiddleware(deps: {
     }
   };
 }
+
+export type AuthMiddleware = ReturnType<typeof createAuthMiddleware>;

@@ -19,6 +19,10 @@ import { createUserService } from "src/modules/users";
 import type { InfrastructureServices } from "src/shared/bootstrap/common-setup";
 import type { BaseEnv } from "src/shared/config";
 import { createRabbitMQHelperService, IdUtils } from "src/shared/utils";
+import {
+  createIpRateLimitMiddleware,
+  createRateLimitService,
+} from "src/shared/utils/rate-limit.service";
 
 export function setupHttpServerDependencies(deps: {
   infrastructure: InfrastructureServices;
@@ -36,6 +40,7 @@ export function setupHttpServerDependencies(deps: {
     tokenService,
     dbClient,
   });
+  const ipRateLimit = createIpRateLimitMiddleware({ redis: redisClient });
   const sessionService = createSessionService({
     dbClient,
     tokenService,
@@ -58,11 +63,13 @@ export function setupHttpServerDependencies(deps: {
     idUtil,
     logger,
   });
+  const rateLimit = createRateLimitService({ redis: redisClient });
   const otpService = createOTPService({
     notiPublisher,
     logger,
     redis: redisClient,
     tokenCache,
+    rateLimit,
   });
   const emailRegistrationService = createEmailRegistrationService({
     tokenCache,
@@ -81,6 +88,7 @@ export function setupHttpServerDependencies(deps: {
     userService,
     tokenService,
     authMiddleware,
+    ipRateLimit,
     sessionService,
     signatureService,
     otpService,

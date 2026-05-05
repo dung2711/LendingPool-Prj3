@@ -1,12 +1,12 @@
 import {
   type NextFunction,
   type Request,
-  type RequestHandler,
   type Response,
   Router,
 } from "express";
-import type { AuthenticatedRequest } from "src/modules/auth";
+import type { AuthenticatedRequest, AuthMiddleware } from "src/modules/auth";
 import { requireAuthContext } from "src/modules/auth";
+import type { IpRateLimitMiddleware } from "src/shared/utils/rate-limit.service";
 import { ZodError } from "zod";
 import { zRegisterEmailReq, zSendOtpReq, zVerifyOtpReq } from "./email.dto";
 import type { OTPService } from "./services";
@@ -15,14 +15,22 @@ import type { EmailRegistrationService } from "./services/email-registration.ser
 export function createEmailController(deps: {
   emailRegistrationService: EmailRegistrationService;
   otpService: OTPService;
-  authMiddleware: RequestHandler;
+  authMiddleware: AuthMiddleware;
+  ipRateLimit: IpRateLimitMiddleware;
 }) {
-  const { emailRegistrationService, otpService, authMiddleware } = deps;
+  const { emailRegistrationService, otpService, authMiddleware, ipRateLimit } =
+    deps;
 
   const router = Router();
 
   router.post(
     "/send-otp",
+    ipRateLimit({
+      limit: 10,
+      windowMs: 60_000,
+      message: "Too many OTP requests. Please try again in a minute.",
+      keyPrefix: "ip_rl:email",
+    }),
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         const parsed = zSendOtpReq.safeParse({
