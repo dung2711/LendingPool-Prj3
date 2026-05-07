@@ -145,26 +145,84 @@ export function createBLCReorgService(deps: {
     try {
       await setReorgLock(chainId, forkPoint);
 
+      const [affectedUserAssets, assets] = await Promise.all([
+        dbClient.userAsset.findAll({
+          where: { lastSyncedBlock: { [Op.gt]: BigInt(forkPoint) } },
+          include: [
+            {
+              model: dbClient.asset,
+              where: { chainId },
+              required: true,
+              attributes: [],
+            },
+          ],
+        }),
+        dbClient.asset.findAll({
+          where: { chainId },
+          attributes: ["id", "assetAddress"],
+        }),
+      ]);
+
+      const assetIds = assets.map((a) => a.id);
+      const affectedAssetIds = [
+        ...new Set(affectedUserAssets.map((ua) => ua.assetId)),
+      ];
+
+      const userAssetDetails = await Promise.all(
+        affectedUserAssets.map(async (ua) => {
+          const [user, asset] = await Promise.all([
+            dbClient.user.findByPk(ua.userId),
+            dbClient.asset.findByPk(ua.assetId),
+          ]);
+          return { ua, user, asset };
+        }),
+      );
+
+      const [
+        userBalances,
+        assetMarkets,
+        collateralFactor,
+        liquidationThreshold,
+        closeFactor,
+        liquidationIncentive,
+      ] = await Promise.all([
+        Promise.all(
+          userAssetDetails.map(({ user, asset }) => {
+            if (!user || !asset) return Promise.resolve(null);
+            return lendingPool.userBalances(
+              user.userAddress,
+              asset.assetAddress,
+              { blockTag: forkPoint },
+            );
+          }),
+        ),
+        Promise.all(
+          affectedAssetIds.map(async (assetId) => {
+            const asset = assets.find((a) => a.id === assetId);
+            if (!asset) return null;
+            const [market, treasuryBalance] = await Promise.all([
+              lendingPool.markets(asset.assetAddress, { blockTag: forkPoint }),
+              lendingPool.treasuryBalances(asset.assetAddress, {
+                blockTag: forkPoint,
+              }),
+            ]);
+            return { assetId, market, treasuryBalance };
+          }),
+        ),
+        lendingPool.collateralFactor({ blockTag: forkPoint }),
+        liquidation.liquidationThreshold({ blockTag: forkPoint }),
+        liquidation.closeFactor({ blockTag: forkPoint }),
+        liquidation.liquidationIncentive({ blockTag: forkPoint }),
+      ]);
+
       await sequelize.transaction(async (tx) => {
         await dbClient.block.update(
           { isCanonical: false },
           {
-            where: {
-              chainId,
-              number: {
-                [Op.gt]: forkPoint,
-              },
-            },
+            where: { chainId, number: { [Op.gt]: forkPoint } },
             transaction: tx,
           },
         );
-
-        const assets = await dbClient.asset.findAll({
-          where: { chainId },
-          attributes: ["id"],
-          transaction: tx,
-        });
-        const assetIds = assets.map((asset) => asset.id);
 
         if (assetIds.length > 0) {
           await Promise.all([
@@ -192,35 +250,10 @@ export function createBLCReorgService(deps: {
           ]);
         }
 
-        const affectedUserAssets = await dbClient.userAsset.findAll({
-          where: {
-            lastSyncedBlock: { [Op.gt]: BigInt(forkPoint) },
-          },
-          include: [
-            {
-              model: dbClient.asset,
-              where: { chainId },
-              required: true,
-              attributes: [],
-            },
-          ],
-          transaction: tx,
-        });
-
         await Promise.all(
-          affectedUserAssets.map(async (ua) => {
-            const [user, asset] = await Promise.all([
-              dbClient.user.findByPk(ua.userId),
-              dbClient.asset.findByPk(ua.assetId),
-            ]);
-
-            if (!user || !asset) return;
-
-            const balance = await lendingPool.userBalances(
-              user.userAddress,
-              asset.assetAddress,
-              { blockTag: forkPoint },
-            );
+          userAssetDetails.map(async ({ ua }, i) => {
+            const balance = userBalances[i];
+            if (!balance) return;
 
             await dbClient.userAsset.update(
               {
@@ -230,10 +263,7 @@ export function createBLCReorgService(deps: {
                 lastSyncedLogIndex: 0,
               },
               {
-                where: {
-                  userId: ua.userId,
-                  assetId: ua.assetId,
-                },
+                where: { userId: ua.userId, assetId: ua.assetId },
                 transaction: tx,
               },
             );
@@ -246,50 +276,20 @@ export function createBLCReorgService(deps: {
             tx.afterCommit(() => void redisClient.del(redisKey));
           }),
         );
-
-        const affectedAssetIds = [
-          ...new Set(affectedUserAssets.map((ua) => ua.assetId)),
-        ];
-
         await Promise.all(
-          affectedAssetIds.map(async (assetId) => {
-            const asset = await dbClient.asset.findByPk(assetId, {
-              transaction: tx,
-            });
-            if (!asset) return;
-
-            const [market, treasuryBalance] = await Promise.all([
-              lendingPool.markets(asset.assetAddress, { blockTag: forkPoint }),
-              lendingPool.treasuryBalances(asset.assetAddress, {
-                blockTag: forkPoint,
-              }),
-            ]);
-
+          assetMarkets.map(async (entry) => {
+            if (!entry) return;
+            const { assetId, market, treasuryBalance } = entry;
             await dbClient.asset.update(
               {
                 totalDeposited: market.totalDeposits.toString(),
                 totalBorrowed: market.totalBorrows.toString(),
                 treasuryBalance: treasuryBalance.toString(),
               },
-              {
-                where: { id: assetId },
-                transaction: tx,
-              },
+              { where: { id: assetId }, transaction: tx },
             );
           }),
         );
-
-        const [
-          collateralFactor,
-          liquidationThreshold,
-          closeFactor,
-          liquidationIncentive,
-        ] = await Promise.all([
-          lendingPool.collateralFactor({ blockTag: forkPoint }),
-          liquidation.liquidationThreshold({ blockTag: forkPoint }),
-          liquidation.closeFactor({ blockTag: forkPoint }),
-          liquidation.liquidationIncentive({ blockTag: forkPoint }),
-        ]);
 
         await dbClient.assetConfig.update(
           {
@@ -298,10 +298,7 @@ export function createBLCReorgService(deps: {
             closeFactor: closeFactor.toString(),
             liquidationIncentive: liquidationIncentive.toString(),
           },
-          {
-            where: {},
-            transaction: tx,
-          },
+          { where: { chainId }, transaction: tx },
         );
 
         await dbClient.scanner.update(
@@ -309,10 +306,7 @@ export function createBLCReorgService(deps: {
             lastScannedBlock: BigInt(forkPoint),
             lastScannedAt: dayjs().toDate(),
           },
-          {
-            where: { chainId },
-            transaction: tx,
-          },
+          { where: { chainId }, transaction: tx },
         );
       });
     } catch (error) {
