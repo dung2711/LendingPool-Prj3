@@ -17,7 +17,10 @@ export function createTokenService(deps: {
   >;
 }) {
   const { env } = deps;
-  const secret = new TextEncoder().encode(env.JWT_ACCESS_TOKEN_SECRET);
+
+  function encodeSecret(secret: string): Uint8Array {
+    return new TextEncoder().encode(secret);
+  }
 
   function generateAccessToken(payload: IReqUser): Promise<string> {
     return new SignJWT({
@@ -30,14 +33,14 @@ export function createTokenService(deps: {
       .setAudience(env.JWT_AUDIENCE)
       .setIssuedAt()
       .setExpirationTime(`${env.JWT_ACCESS_TOKEN_TTL_SECONDS}s`)
-      .sign(secret);
+      .sign(encodeSecret(env.JWT_ACCESS_TOKEN_SECRET));
   }
 
   async function verifyAccessToken(token: string): Promise<IReqUser> {
     try {
       const { payload } = await jwtVerify<AccessTokenJWTPayload>(
         token,
-        secret,
+        encodeSecret(env.JWT_ACCESS_TOKEN_SECRET),
         {
           issuer: env.JWT_ISSUER,
           audience: env.JWT_AUDIENCE,
