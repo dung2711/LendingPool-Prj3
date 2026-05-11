@@ -131,6 +131,10 @@ contract LendingPool is
         controller = _controller;
     }
 
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyController {}
+
     function pause() external onlyController {
         _pause();
     }
@@ -519,10 +523,6 @@ contract LendingPool is
     }
 
     // ─── Internal Helpers ─────────────────────────────────────────────────────
-
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyController {}
 
     function _currentUserDeposit(
         address user,

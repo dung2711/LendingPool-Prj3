@@ -123,7 +123,7 @@ contract Liquidation is ReentrancyGuard {
             return false;
         }
         return
-            (totalBorrowedUSD * SCALE) / totalDepositedUSD >=
+            (totalBorrowedUSD * SCALE) / totalDepositedUSD >
             liquidationThreshold;
     }
 
@@ -131,7 +131,7 @@ contract Liquidation is ReentrancyGuard {
     function calculateSeizeAmount(
         address repayAsset,
         address collateralAsset,
-        uint repayAmount // token decimals của repayAsset
+        uint repayAmount // token decimals of repayAsset
     ) public view returns (uint seizeAmount) {
         IPriceRouter pr = IPriceRouter(priceRouter);
         uint priceBorrowed = pr.getPrice(repayAsset);
@@ -143,17 +143,17 @@ contract Liquidation is ReentrancyGuard {
         uint repayDecimals = IERC20Metadata(repayAsset).decimals();
         uint collateralDecimals = IERC20Metadata(collateralAsset).decimals();
 
-        // normalize repayAmount lên 18 decimals
+        // normalize repayAmount to 18 decimals
         uint repayAmount18 = repayDecimals <= 18
             ? repayAmount * (10 ** (18 - repayDecimals))
             : repayAmount / (10 ** (repayDecimals - 18));
 
-        // tính ở 18 decimals — lúc này price ratio triệt tiêu đúng
+        // compute at 18 decimals
         uint seizeAmount18 = (repayAmount18 *
             (SCALE + liquidationIncentive) *
             priceBorrowed) / (priceCollateral * SCALE);
 
-        // convert về collateral token decimals
+        // convert to collateral token decimals
         seizeAmount = collateralDecimals <= 18
             ? seizeAmount18 / (10 ** (18 - collateralDecimals))
             : seizeAmount18 * (10 ** (collateralDecimals - 18));
