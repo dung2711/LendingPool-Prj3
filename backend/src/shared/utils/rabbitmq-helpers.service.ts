@@ -31,8 +31,8 @@ export function createRabbitMQHelperService(deps: {
         durable: true,
         arguments: { "x-dead-letter-exchange": dlxEx },
       });
-
-      await channel.bindQueue(queueName, mainEx, bindingKey ?? queueName);
+      const mainRoutingKey = bindingKey ?? queueName;
+      await channel.bindQueue(queueName, mainEx, mainRoutingKey);
 
       for (let i = 0; i < retryDelays.length; i++) {
         const retryQueue = `${queueName}.retry.${i}`;
@@ -42,7 +42,7 @@ export function createRabbitMQHelperService(deps: {
           arguments: {
             "x-message-ttl": retryDelays[i],
             "x-dead-letter-exchange": mainEx,
-            "x-dead-letter-routing-key": queueName,
+            "x-dead-letter-routing-key": mainRoutingKey,
           },
         });
 
