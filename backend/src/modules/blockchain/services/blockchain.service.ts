@@ -73,6 +73,7 @@ export function createBlockchainService(deps: {
       transactionHash: event.transactionHash,
       blockNumber: event.blockNumber,
       logIndex: event.index,
+      publishedAt: Date.now(),
     };
   }
 
@@ -304,6 +305,7 @@ export function createBlockchainService(deps: {
         newDepositIndex: newDepositIndex.toString(),
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
+        publishedAt: Date.now(),
       },
     });
   }
@@ -338,6 +340,7 @@ export function createBlockchainService(deps: {
         amount: amount.toString(),
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
+        publishedAt: Date.now(),
       },
     });
   }
@@ -372,6 +375,7 @@ export function createBlockchainService(deps: {
         amount: amount.toString(),
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
+        publishedAt: Date.now(),
       },
     });
   }
@@ -403,6 +407,7 @@ export function createBlockchainService(deps: {
         interestRateModelAddress: interestRateModel,
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
+        publishedAt: Date.now(),
       },
     });
   }
@@ -432,6 +437,7 @@ export function createBlockchainService(deps: {
         assetAddress: asset,
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
+        publishedAt: Date.now(),
       },
     });
   }
@@ -461,6 +467,7 @@ export function createBlockchainService(deps: {
         collateralFactor: newCollateralFactor.toString(),
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
+        publishedAt: Date.now(),
       },
     });
   }
@@ -495,6 +502,7 @@ export function createBlockchainService(deps: {
         liquidationThreshold: liquidationThreshold.toString(),
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
+        publishedAt: Date.now(),
       },
     });
   }

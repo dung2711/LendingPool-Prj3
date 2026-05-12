@@ -26,6 +26,7 @@ export type ITransactionEventReq = {
   transactionHash: string;
   blockNumber: number;
   logIndex: number;
+  publishedAt: number;
 };
 
 export type IAccrueEventReq = {
@@ -41,6 +42,7 @@ export type IAccrueEventReq = {
   newDepositIndex: string;
   transactionHash: string;
   blockNumber: number;
+  publishedAt: number;
 };
 
 export type IDonatedEventReq = {
@@ -50,6 +52,7 @@ export type IDonatedEventReq = {
   amount: string;
   transactionHash: string;
   blockNumber: number;
+  publishedAt: number;
 };
 
 export type ITreasuryWithdrawnEventReq = {
@@ -59,6 +62,7 @@ export type ITreasuryWithdrawnEventReq = {
   amount: string;
   transactionHash: string;
   blockNumber: number;
+  publishedAt: number;
 };
 
 export type IMarketSupportedEventReq = {
@@ -67,6 +71,7 @@ export type IMarketSupportedEventReq = {
   interestRateModelAddress: string;
   transactionHash: string;
   blockNumber: number;
+  publishedAt: number;
 };
 
 export type IMarketUnsupportedEventReq = {
@@ -74,6 +79,7 @@ export type IMarketUnsupportedEventReq = {
   assetAddress: string;
   transactionHash: string;
   blockNumber: number;
+  publishedAt: number;
 };
 
 export type ICollateralFactorUpdatedEventReq = {
@@ -81,6 +87,7 @@ export type ICollateralFactorUpdatedEventReq = {
   collateralFactor: string;
   transactionHash: string;
   blockNumber: number;
+  publishedAt: number;
 };
 
 export type ILiquidationParamsUpdatedEventReq = {
@@ -90,6 +97,7 @@ export type ILiquidationParamsUpdatedEventReq = {
   liquidationThreshold: string;
   transactionHash: string;
   blockNumber: number;
+  publishedAt: number;
 };
 
 export type SyncCursor = {

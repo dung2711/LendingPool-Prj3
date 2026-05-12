@@ -98,17 +98,26 @@ export function createBLCWorkerHandler(deps: {
     chainId: ChainId;
     blockNumber: number;
     eventName: string;
+    publishedAt?: number;
   }): Promise<boolean> {
     const { chainId, blockNumber, eventName } = params;
     const lock = await readReorgLock(chainId);
     if (!lock) return false;
 
-    if (blockNumber > lock.forkPoint) {
+    const publishedAt = Number(params.publishedAt);
+    const hasPublishedAt = Number.isFinite(publishedAt);
+
+    if (
+      blockNumber > lock.forkPoint &&
+      (!hasPublishedAt || publishedAt < lock.startedAt)
+    ) {
       logger.warn("Skipping event during reorg", {
         chainId,
         eventName,
         blockNumber,
         forkPoint: lock.forkPoint,
+        publishedAt: hasPublishedAt ? publishedAt : null,
+        lockStartedAt: lock.startedAt,
       });
       return true;
     }
@@ -591,12 +600,14 @@ export function createBLCWorkerHandler(deps: {
         transactionHash,
         blockNumber,
         logIndex,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "Deposit",
         })
       ) {
@@ -682,12 +693,14 @@ export function createBLCWorkerHandler(deps: {
         transactionHash,
         blockNumber,
         logIndex,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "Withdraw",
         })
       ) {
@@ -773,12 +786,14 @@ export function createBLCWorkerHandler(deps: {
         transactionHash,
         blockNumber,
         logIndex,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "Borrow",
         })
       ) {
@@ -864,12 +879,14 @@ export function createBLCWorkerHandler(deps: {
         transactionHash,
         blockNumber,
         logIndex,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "Repay",
         })
       ) {
@@ -953,12 +970,14 @@ export function createBLCWorkerHandler(deps: {
         transactionHash,
         blockNumber,
         logIndex,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "CollateralSeized",
         })
       ) {
@@ -1049,12 +1068,14 @@ export function createBLCWorkerHandler(deps: {
         newDepositIndex,
         transactionHash,
         blockNumber,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "Accrue",
         })
       ) {
@@ -1179,12 +1200,14 @@ export function createBLCWorkerHandler(deps: {
         interestRateModelAddress,
         transactionHash,
         blockNumber,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "MarketSupported",
         })
       ) {
@@ -1261,12 +1284,14 @@ export function createBLCWorkerHandler(deps: {
         amount,
         transactionHash,
         blockNumber,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "Donated",
         })
       ) {
@@ -1335,12 +1360,14 @@ export function createBLCWorkerHandler(deps: {
         amount,
         transactionHash,
         blockNumber,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "TreasuryWithdrawn",
         })
       ) {
@@ -1402,12 +1429,19 @@ export function createBLCWorkerHandler(deps: {
     params: IMarketUnsupportedEventReq,
   ) {
     try {
-      const { chainId, assetAddress, transactionHash, blockNumber } = params;
+      const {
+        chainId,
+        assetAddress,
+        transactionHash,
+        blockNumber,
+        publishedAt,
+      } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "MarketUnsupported",
         })
       ) {
@@ -1440,13 +1474,19 @@ export function createBLCWorkerHandler(deps: {
     params: ICollateralFactorUpdatedEventReq,
   ) {
     try {
-      const { chainId, collateralFactor, transactionHash, blockNumber } =
-        params;
+      const {
+        chainId,
+        collateralFactor,
+        transactionHash,
+        blockNumber,
+        publishedAt,
+      } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "CollateralFactorUpdated",
         })
       ) {
@@ -1486,12 +1526,14 @@ export function createBLCWorkerHandler(deps: {
         liquidationThreshold,
         transactionHash,
         blockNumber,
+        publishedAt,
       } = params;
 
       if (
         await shouldSkipDueToReorg({
           chainId,
           blockNumber,
+          publishedAt,
           eventName: "LiquidationParamsUpdated",
         })
       ) {

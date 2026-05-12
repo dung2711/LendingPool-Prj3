@@ -42,8 +42,9 @@ export function createBLCIndexerService(deps: {
   async function clearReorgLockIfCaughtUp(params: {
     chainId: ChainId;
     toBlock: number;
+    currentBlock: number;
   }) {
-    const { chainId, toBlock } = params;
+    const { chainId, toBlock, currentBlock } = params;
     const redisKey = getReorgLockRedisKey(chainId);
 
     try {
@@ -54,12 +55,13 @@ export function createBLCIndexerService(deps: {
       const forkPoint = Number(parsed.forkPoint);
       if (!Number.isFinite(forkPoint)) return;
 
-      if (toBlock >= forkPoint) {
+      if (toBlock >= currentBlock && toBlock >= forkPoint) {
         await redisClient.del(redisKey);
         logger.info("Cleared reorg lock after rescan", {
           chainId,
           forkPoint,
           toBlock,
+          currentBlock,
         });
       }
     } catch (error) {
@@ -333,7 +335,7 @@ export function createBLCIndexerService(deps: {
       );
     });
 
-    await clearReorgLockIfCaughtUp({ chainId, toBlock });
+    await clearReorgLockIfCaughtUp({ chainId, toBlock, currentBlock });
 
     const endTime = dayjs().toDate();
     logger.info("Finished scanning chain", {
