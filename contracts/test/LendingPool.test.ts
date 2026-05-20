@@ -729,7 +729,7 @@ describe("LendingPool", function () {
         .to.emit(lendingPool, "Accrue")
         .withArgs(
           usdcAddress,
-          ...Array(7)
+          ...Array(8)
             .fill(undefined)
             .map(
               async () =>

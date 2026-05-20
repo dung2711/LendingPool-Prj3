@@ -23,8 +23,6 @@ export function createTokenCacheService(deps: {
       email,
     };
 
-    // L-2: Prefix the key so token cache entries are namespaced away from
-    // all other Redis keys (rate-limit counters, nonces, OTPs, etc.).
     const redisKey = buildTokenCacheKey(token);
     await redis.set(
       redisKey,

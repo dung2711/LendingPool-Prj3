@@ -12,7 +12,11 @@
 		"dev:noti-worker": "tsx --watch src/apps/noti_proposal-worker/index.ts",
 		"seed": "tsx --watch src/apps/seed/index.ts",
 		"build": "tsc",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest --watch",
+		"test:coverage": "vitest run --coverage",
+		"test:unit": "vitest run test/unit"
 	},
 	"keywords": [],
 	"author": "",
@@ -55,6 +59,8 @@
 		"@types/nodemailer": "^8.0.0",
 		"@types/swagger-ui-express": "^4.1.8",
 		"@types/uuid": "^10.0.0",
-		"pg": "^8.20.0"
+		"@vitest/coverage-v8": "^4.1.7",
+		"pg": "^8.20.0",
+		"vitest": "^4.1.7"
 	}
 }
