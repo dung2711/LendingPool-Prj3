@@ -181,6 +181,45 @@ async function requestWithAuthRetry<T>(params: {
   return retryResponse.data as T;
 }
 
+async function checkSession(expectedAddress?: string): Promise<boolean> {
+  try {
+    const response = await axiosClient.get("/api/users/detail");
+    if (response.data?.success !== true) return false;
+    const sessionAddress = response.data?.user?.userAddress;
+    if (typeof sessionAddress !== "string" || !sessionAddress.trim())
+      return false;
+    if (!expectedAddress) return true;
+    try {
+      return (
+        ethers.getAddress(sessionAddress) === ethers.getAddress(expectedAddress)
+      );
+    } catch {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+}
+
+async function refreshSession(): Promise<boolean> {
+  try {
+    const response = await axiosClient.post("/api/auth/refresh");
+    return response.data?.success === true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureSession(expectedAddress?: string): Promise<boolean> {
+  const active = await checkSession(expectedAddress);
+  if (active) return true;
+
+  const refreshed = await refreshSession();
+  if (!refreshed) return false;
+
+  return checkSession(expectedAddress);
+}
+
 function clearAuthCache(): void {
   authenticatedKey = null;
   inFlightAuthKey = null;
@@ -191,6 +230,9 @@ export const authService = {
   normalizeChainId,
   ensureAuthenticated,
   requestWithAuthRetry,
+  checkSession,
+  refreshSession,
+  ensureSession,
   clearAuthCache,
   getApiErrorMessage,
 };

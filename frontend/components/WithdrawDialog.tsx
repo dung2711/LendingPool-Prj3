@@ -86,7 +86,7 @@ export default function WithdrawDialog({
             totalBorrowedUSD,
             newDepositedUSD,
             newHealthFactor,
-          ] = (await lendingPool.preViewWithdraw(
+          ] = (await lendingPool.previewWithdraw(
             userAddress,
             selectedAsset.address,
             amountInWei,

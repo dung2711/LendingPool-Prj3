@@ -9,7 +9,7 @@ export interface AccrueLogPoint {
   transactionHash: string;
   blockNumber: string;
   interestAccrued: string;
-  toDeposit: string;
+  toDepositors: string;
   toTreasury: string;
   newTotalBorrows: string;
   newBorrowIndex: string;

@@ -217,8 +217,8 @@ export default function Admin(): ReactElement {
               interestAccrued: Number(
                 ethers.formatUnits(log.interestAccrued, selectedAsset.decimals),
               ),
-              toDeposit: Number(
-                ethers.formatUnits(log.toDeposit, selectedAsset.decimals),
+              toDepositors: Number(
+                ethers.formatUnits(log.toDepositors, selectedAsset.decimals),
               ),
               toTreasury: Number(
                 ethers.formatUnits(log.toTreasury, selectedAsset.decimals),
@@ -1071,7 +1071,7 @@ export default function Admin(): ReactElement {
               label: "Interest accrued",
               color: "#2563eb",
             },
-            { key: "toDeposit", label: "To deposit", color: "#16a34a" },
+            { key: "toDepositors", label: "To depositors", color: "#16a34a" },
             { key: "toTreasury", label: "To treasury", color: "#f97316" },
           ]}
           emptyLabel={

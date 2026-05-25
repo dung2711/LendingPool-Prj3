@@ -75,7 +75,7 @@ export default function RepayDialog({
           const userAddress = await signer.getAddress();
 
           const [totalBorrowedUSD, newBorrowedUSD] =
-            (await lendingPool.preViewRepay(
+            (await lendingPool.previewRepay(
               userAddress,
               selectedAsset.address,
               amountInWei,

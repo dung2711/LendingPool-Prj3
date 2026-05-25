@@ -30,7 +30,6 @@ import { type ReactElement, useEffect, useState } from "react";
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 import axiosClient from "@/lib/axios";
 import { web3Service } from "@/lib/web3";
-import { assetService } from "@/services/assetService";
 import { authService } from "@/services/authService";
 import { snapshotService } from "@/services/snapshotService";
 import { userAssetService } from "@/services/userAssetService";
@@ -158,22 +157,18 @@ export default function Dashboard(): ReactElement {
   };
 
   useEffect(() => {
-    setHasAccessToken(
-      typeof window !== "undefined" && document.cookie
-        ? document.cookie.indexOf("lp_access_token=") !== -1
-        : false,
-    );
     checkWalletAndFetch();
 
     if (typeof window !== "undefined" && window.ethereum) {
-      const handleAccountsChanged = (accounts: string[]): void => {
-        setAccount(accounts[0] || null);
-        if (accounts.length > 0) {
-          // Only fetch data automatically when we have an access token cookie
-          if (
-            typeof window !== "undefined" &&
-            document.cookie.indexOf("lp_access_token=") !== -1
-          ) {
+      const handleAccountsChanged = async (
+        accounts: string[],
+      ): Promise<void> => {
+        const nextAccount = accounts[0] || null;
+        setAccount(nextAccount);
+        if (nextAccount) {
+          const sessionActive = await authService.ensureSession(nextAccount);
+          setHasAccessToken(sessionActive);
+          if (sessionActive) {
             void fetchData(undefined, true);
           } else {
             // clear data while user hasn't verified
@@ -181,17 +176,36 @@ export default function Dashboard(): ReactElement {
             setMarkets([]);
           }
         } else {
+          setHasAccessToken(false);
           setUserInfo(null);
           setMarkets([]);
         }
       };
 
-      const handleChainChanged = (): void => {
-        void fetchData(
-          undefined,
-          typeof window !== "undefined" &&
-            document.cookie.indexOf("lp_access_token=") !== -1,
-        );
+      const handleChainChanged = async (): Promise<void> => {
+        if (typeof window === "undefined" || !window.ethereum) return;
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const accounts = await provider.send("eth_accounts", []);
+          const nextAccount = accounts[0] || null;
+          setAccount(nextAccount);
+          if (!nextAccount) {
+            setHasAccessToken(false);
+            setUserInfo(null);
+            setMarkets([]);
+            return;
+          }
+          const sessionActive = await authService.ensureSession(nextAccount);
+          setHasAccessToken(sessionActive);
+          if (sessionActive) {
+            void fetchData(undefined, true);
+          } else {
+            setUserInfo(null);
+            setMarkets([]);
+          }
+        } catch (error) {
+          console.error("Error handling chain change:", error);
+        }
       };
 
       window.ethereum.on("accountsChanged", handleAccountsChanged);
@@ -215,14 +229,19 @@ export default function Dashboard(): ReactElement {
         const resolvedChainId = await resolveCurrentChainId();
         setActiveChainId(resolvedChainId);
         const accounts = await provider.send("eth_accounts", []);
-        setAccount(accounts[0] || null);
-        if (accounts.length > 0) {
-          if (
-            typeof window !== "undefined" &&
-            document.cookie.indexOf("lp_access_token=") !== -1
-          ) {
+        const nextAccount = accounts[0] || null;
+        setAccount(nextAccount);
+        if (nextAccount) {
+          const sessionActive = await authService.ensureSession(nextAccount);
+          setHasAccessToken(sessionActive);
+          if (sessionActive) {
             await fetchData(resolvedChainId, true);
+          } else {
+            setUserInfo(null);
+            setMarkets([]);
           }
+        } else {
+          setHasAccessToken(false);
         }
       } catch (err) {
         console.error("Error checking wallet:", err);
@@ -253,16 +272,26 @@ export default function Dashboard(): ReactElement {
       void loadEmailStatus(userAddress, resolvedChainId);
 
       // Fetch user balances and asset metadata from backend
-      const [userData, allAssets] = await Promise.all([
-        userAssetService.getAssetsByUser(userAddress, resolvedChainId),
-        assetService.getAllAssets(),
-      ]);
+      const userData = await userAssetService.getAssetsByUser(
+        userAddress,
+        resolvedChainId,
+      );
+      setHasAccessToken(true);
 
-      // Create asset lookup map
-      const assetMap: Record<string, any> = {};
-      allAssets.forEach((asset) => {
+      // Create asset lookup map from dashboard payload
+      const assetMap: Record<
+        string,
+        { id: string; symbol: string; decimals: number; assetAddress: string }
+      > = {};
+      (userData.assets || []).forEach((asset) => {
+        const assetId =
+          "assetId" in asset && typeof asset.assetId === "string"
+            ? asset.assetId
+            : "id" in asset && typeof asset.id === "string"
+              ? asset.id
+              : "";
         assetMap[asset.assetAddress.toLowerCase()] = {
-          id: asset.id,
+          id: assetId,
           symbol: asset.symbol,
           decimals: asset.decimals,
           assetAddress: asset.assetAddress,
@@ -273,42 +302,56 @@ export default function Dashboard(): ReactElement {
       const collateralFactorValue = await lendingPool.collateralFactor();
       setCollateralFactor(collateralFactorValue);
 
+      const normalizeTo18 = (amount: bigint, decimals: number): bigint => {
+        if (decimals === 18) return amount;
+        if (decimals < 18) return amount * 10n ** BigInt(18 - decimals);
+        return amount / 10n ** BigInt(decimals - 18);
+      };
+
       // Fetch prices and rates from blockchain for user's assets
       const marketData =
         !userData?.assets || userData.assets.length === 0
           ? []
           : await Promise.all(
               userData.assets.map(async (userAsset) => {
-                try {
-                  const asset = assetMap[userAsset.assetAddress.toLowerCase()];
-                  if (!asset) return null;
+                const asset = assetMap[
+                  userAsset.assetAddress.toLowerCase()
+                ] ?? {
+                  id: "",
+                  symbol: userAsset.symbol,
+                  decimals: userAsset.decimals,
+                  assetAddress: userAsset.assetAddress,
+                };
+                const decimals = Number.isFinite(asset.decimals)
+                  ? Math.trunc(asset.decimals)
+                  : 18;
 
+                // Convert backend string amounts to BigInt
+                const depositedAmount = BigInt(userAsset.depositedAmount); // Already in token decimals
+                const borrowedAmount = BigInt(userAsset.borrowedAmount); // Already in token decimals
+
+                const deposited = normalizeTo18(depositedAmount, decimals);
+                const borrowed = normalizeTo18(borrowedAmount, decimals);
+
+                try {
                   const [assetPrice, marketInfo] = await Promise.all([
                     priceRouter.getPrice(userAsset.assetAddress),
                     lendingPool.getMarketInfo(userAsset.assetAddress),
                   ]);
 
-                  // Convert backend string amounts to BigInt
-                  const depositedAmount = BigInt(userAsset.depositedAmount); // Already in token decimals
-                  const borrowedAmount = BigInt(userAsset.borrowedAmount); // Already in token decimals
-
                   // assetPrice is 18 decimals, amounts are in token decimals
                   // Normalize to 18 decimal USD
                   const depositedUSD =
-                    (assetPrice * depositedAmount) /
-                    10n ** BigInt(asset.decimals);
+                    (assetPrice * depositedAmount) / 10n ** BigInt(decimals);
                   const borrowedUSD =
-                    (assetPrice * borrowedAmount) /
-                    10n ** BigInt(asset.decimals);
+                    (assetPrice * borrowedAmount) / 10n ** BigInt(decimals);
 
                   return {
                     address: userAsset.assetAddress,
                     symbol: asset.symbol,
-                    decimals: asset.decimals,
-                    deposited:
-                      depositedAmount * 10n ** (18n - BigInt(asset.decimals)), // normalize to 18 decimals for display
-                    borrowed:
-                      borrowedAmount * 10n ** (18n - BigInt(asset.decimals)), // normalize to 18 decimals for display
+                    decimals,
+                    deposited,
+                    borrowed,
                     depositedUSD,
                     borrowedUSD,
                     depositRate: marketInfo.depositRate,
@@ -319,12 +362,24 @@ export default function Dashboard(): ReactElement {
                     `Error fetching data for ${userAsset.assetAddress}:`,
                     err,
                   );
-                  return null;
+                  return {
+                    address: userAsset.assetAddress,
+                    symbol: asset.symbol,
+                    decimals,
+                    deposited,
+                    borrowed,
+                    depositedUSD: 0n,
+                    borrowedUSD: 0n,
+                    depositRate: 0n,
+                    borrowRate: 0n,
+                  };
                 }
               }),
             );
 
-      const validMarkets = marketData.filter((m) => m !== null) as MarketData[];
+      const validMarkets = marketData.filter(
+        (m): m is MarketData => m !== null,
+      );
       setMarkets(validMarkets);
 
       const portfolioAsset = validMarkets[0]
@@ -541,12 +596,8 @@ export default function Dashboard(): ReactElement {
       const resolvedChainId = await resolveCurrentChainId();
       setActiveChainId(resolvedChainId);
       await authService.ensureAuthenticated(account, resolvedChainId);
-      // mark that we have access token (cookie should be set by server)
-      setHasAccessToken(
-        typeof window !== "undefined" && document.cookie
-          ? document.cookie.indexOf("lp_access_token=") !== -1
-          : false,
-      );
+      // Mark authenticated even if cookie is HttpOnly and not visible to JS.
+      setHasAccessToken(true);
       // load data skipping extra auth call
       void fetchData(resolvedChainId, true);
     } catch (err) {

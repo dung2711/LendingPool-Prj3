@@ -41,7 +41,6 @@ interface TransactionData {
   amountUSD: bigint | null;
   amountUSDFormatted: number | null;
   hash: string;
-  timestamp: number | null;
   blockNumber: number;
 }
 
@@ -59,27 +58,31 @@ export default function History(): ReactElement {
   const [hasNextPage, setHasNextPage] = useState(false);
 
   useEffect(() => {
-    setHasAccessToken(
-      typeof window !== "undefined" && document.cookie
-        ? document.cookie.indexOf("lp_access_token=") !== -1
-        : false,
-    );
     checkWalletAndFetch();
 
     if (typeof window !== "undefined" && window.ethereum) {
-      const handleAccountsChanged = (accounts: string[]): void => {
-        setAccount(accounts[0] || null);
-        if (accounts.length > 0) {
-          if (
-            typeof window !== "undefined" &&
-            document.cookie.indexOf("lp_access_token=") !== -1
-          ) {
+      const handleAccountsChanged = async (
+        accounts: string[],
+      ): Promise<void> => {
+        const nextAccount = accounts[0] || null;
+        setAccount(nextAccount);
+        if (nextAccount) {
+          const sessionActive = await authService.ensureSession(nextAccount);
+          setHasAccessToken(sessionActive);
+          if (sessionActive) {
             fetchTransactions(null, null, "all");
           } else {
             setTransactions([]);
+            setCursorTS(null);
+            setCursorId(null);
+            setHasNextPage(false);
           }
         } else {
+          setHasAccessToken(false);
           setTransactions([]);
+          setCursorTS(null);
+          setCursorId(null);
+          setHasNextPage(false);
         }
       };
       window.ethereum.on("accountsChanged", handleAccountsChanged);
@@ -94,7 +97,7 @@ export default function History(): ReactElement {
   }, []);
 
   useEffect(() => {
-    if (account) {
+    if (account && hasAccessToken) {
       // Reset pagination and fetch with new filter
       fetchTransactions(null, null, filterType);
     }
@@ -106,14 +109,21 @@ export default function History(): ReactElement {
         setPageLoading(true);
         const provider = new ethers.BrowserProvider(window.ethereum!);
         const accounts = await provider.send("eth_accounts", []);
-        setAccount(accounts[0] || null);
-        if (accounts.length > 0) {
-          if (
-            typeof window !== "undefined" &&
-            document.cookie.indexOf("lp_access_token=") !== -1
-          ) {
+        const nextAccount = accounts[0] || null;
+        setAccount(nextAccount);
+        if (nextAccount) {
+          const sessionActive = await authService.ensureSession(nextAccount);
+          setHasAccessToken(sessionActive);
+          if (sessionActive) {
             fetchTransactions(null, null, "all");
+          } else {
+            setTransactions([]);
+            setCursorTS(null);
+            setCursorId(null);
+            setHasNextPage(false);
           }
+        } else {
+          setHasAccessToken(false);
         }
       } catch (err) {
         console.error("Error checking wallet:", err);
@@ -132,11 +142,8 @@ export default function History(): ReactElement {
       const network = await provider.getNetwork();
       const chainId = authService.normalizeChainId(network.chainId.toString());
       await authService.ensureAuthenticated(account, chainId);
-      setHasAccessToken(
-        typeof window !== "undefined" && document.cookie
-          ? document.cookie.indexOf("lp_access_token=") !== -1
-          : false,
-      );
+      // Mark authenticated even if cookie is HttpOnly and not visible to JS.
+      setHasAccessToken(true);
       // load transactions after auth
       fetchTransactions(null, null, "all");
     } catch (err) {
@@ -174,8 +181,10 @@ export default function History(): ReactElement {
           cursorId: cursorTransactionId ?? undefined,
           type: filterTypeParam,
         }),
-        assetService.getAllAssets(),
+        assetService.getAllAssets().catch(() => []),
       ]);
+
+      setHasAccessToken(true);
 
       setHasNextPage(txData.hasMore);
       setCursorTS(txData.nextCursorTS || null);
@@ -195,24 +204,30 @@ export default function History(): ReactElement {
 
       for (const tx of txData?.transactions || []) {
         const asset = assetMap[tx.assetAddress.toLowerCase()];
-        if (!asset) continue; // Skip if asset not found
+        const decimals = asset?.decimals ?? 18;
+        const symbol = asset?.symbol ?? `${tx.assetAddress.slice(0, 6)}...`;
 
         const amountFormatted = parseFloat(
-          ethers.formatUnits(tx.amount, asset.decimals),
+          ethers.formatUnits(tx.amount, decimals),
         );
-        // Note: amountUSD currently not provided by backend
-        const amountUSDFormatted = null;
+        const amountUSDRaw =
+          typeof tx.amountUSD === "string" && tx.amountUSD.trim()
+            ? tx.amountUSD
+            : null;
+        const amountUSD = amountUSDRaw ? BigInt(amountUSDRaw) : null;
+        const amountUSDFormatted = amountUSD
+          ? parseFloat(ethers.formatUnits(amountUSD, 18))
+          : null;
 
         allTxs.push({
           type: tx.type,
-          symbol: asset.symbol,
+          symbol,
           amount: BigInt(tx.amount),
-          decimals: asset.decimals,
+          decimals,
           amountFormatted,
-          amountUSD: null,
+          amountUSD,
           amountUSDFormatted,
           hash: tx.transactionHash,
-          timestamp: tx.timestamp,
           blockNumber: tx.blockNumber,
         });
       }
@@ -235,11 +250,6 @@ export default function History(): ReactElement {
     if (!hasNextPage || loading) return;
     await fetchTransactions(cursorTS, cursorId, filterType);
   };
-
-  const formatDate = (timestamp: number | null): string =>
-    timestamp === null
-      ? "Unavailable"
-      : new Date(timestamp * 1000).toLocaleString();
 
   const getTypeIcon = (type: string): ReactElement | undefined => {
     switch (type) {
@@ -277,8 +287,12 @@ export default function History(): ReactElement {
     }
   };
 
-  const getTypeLabel = (type: string): string =>
-    type.charAt(0).toUpperCase() + type.slice(1);
+  const getTypeLabel = (type: unknown): string => {
+    if (typeof type !== "string") return "Unknown";
+    const trimmed = type.trim();
+    if (!trimmed) return "Unknown";
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  };
 
   const openInExplorer = (hash: string): void => {
     // Update this with your network's block explorer
@@ -399,7 +413,7 @@ export default function History(): ReactElement {
                     <TableCell sx={{ fontWeight: "bold" }}>
                       Value (USD)
                     </TableCell>
-                    <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Block</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>
                       Transaction
                     </TableCell>
@@ -446,10 +460,7 @@ export default function History(): ReactElement {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {formatDate(tx.timestamp)}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Block #{tx.blockNumber}
+                          #{tx.blockNumber}
                         </Typography>
                       </TableCell>
                       <TableCell>
