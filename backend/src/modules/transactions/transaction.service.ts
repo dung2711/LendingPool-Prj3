@@ -85,7 +85,7 @@ export function createTransactionService(deps: {
         assetAddress: (row.dataValues as Record<string, unknown>)[
           "assetAddress"
         ] as string,
-        type: row.type,
+        type: Array.isArray(row.type) ? (row.type[0] ?? "") : row.type,
         amount: row.amount,
         amountUSD: row.amountUSD,
         blockNumber: row.blockNumber.toString(),

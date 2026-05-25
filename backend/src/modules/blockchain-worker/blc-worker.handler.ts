@@ -1498,9 +1498,17 @@ export function createBLCWorkerHandler(deps: {
         { chainId, collateralFactor, transactionHash, blockNumber },
       );
 
+      const assets = await dbClient.asset.findAll({
+        where: {
+          chainId,
+        },
+      });
+
+      const assetIds = assets.map((a) => a.id);
+
       await dbClient.assetConfig.update(
         { collateralFactor },
-        { where: { chainId } },
+        { where: { assetId: { [Op.in]: assetIds } } },
       );
 
       logger.info("CollateralFactorUpdated processed: TX {transactionHash}", {
@@ -1552,13 +1560,21 @@ export function createBLCWorkerHandler(deps: {
         },
       );
 
+      const assets = await dbClient.asset.findAll({
+        where: {
+          chainId,
+        },
+      });
+
+      const assetIds = assets.map((a) => a.id);
+
       await dbClient.assetConfig.update(
         {
           closeFactor,
           liquidationIncentive,
           liquidationThreshold,
         },
-        { where: { chainId } },
+        { where: { assetId: { [Op.in]: assetIds } } },
       );
 
       logger.info("LiquidationParamsUpdated processed: TX {transactionHash}", {

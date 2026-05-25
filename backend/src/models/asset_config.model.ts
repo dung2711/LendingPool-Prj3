@@ -5,15 +5,12 @@ import {
   Model,
   type Sequelize,
 } from "sequelize";
-import { chainIds } from "src/shared/constants";
-import type { ChainId } from "src/shared/types";
 
 export class AssetConfig extends Model<
   InferAttributes<AssetConfig>,
   InferCreationAttributes<AssetConfig>
 > {
   declare id: string;
-  declare chainId: ChainId;
   declare assetId: bigint;
   declare baseRate: string;
   declare slope1: string;
@@ -38,13 +35,6 @@ export function initAssetConfigModel(sequelize: Sequelize): typeof AssetConfig {
       assetId: {
         type: DataTypes.BIGINT,
         allowNull: false,
-      },
-      chainId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        validate: {
-          isIn: [Object.values(chainIds)],
-        },
       },
       baseRate: {
         type: DataTypes.DECIMAL(36, 0),
