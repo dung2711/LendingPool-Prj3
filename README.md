@@ -3,7 +3,6 @@
 A full-stack decentralized lending and borrowing application built on Ethereum, inspired by the architectures of **Compound v2** and **Aave v2**. Users can deposit ERC-20 assets to earn interest, borrow against collateral, and participate in liquidations — all governed by smart contracts with no intermediaries.
 
 > **Thesis Project** — Developed as a graduation thesis at SOICT, Hanoi University of Science and Technology.  
-> **Live Demo**: [lending-pool-prj3.vercel.app](https://lending-pool-prj3.vercel.app)  
 > **Network**: Ethereum Sepolia Testnet
 
 ---
