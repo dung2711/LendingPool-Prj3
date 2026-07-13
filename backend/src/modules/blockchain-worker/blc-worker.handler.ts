@@ -463,6 +463,8 @@ export function createBLCWorkerHandler(deps: {
     assetAddress: string;
     depositedDelta?: bigint;
     borrowedDelta?: bigint;
+    withdrawnDelta?: bigint;
+    repaidDelta?: bigint;
     transaction: SequelizeTransaction;
   }) {
     const {
@@ -470,6 +472,8 @@ export function createBLCWorkerHandler(deps: {
       assetAddress,
       depositedDelta = 0n,
       borrowedDelta = 0n,
+      withdrawnDelta = 0n,
+      repaidDelta = 0n,
       transaction,
     } = params;
 
@@ -480,6 +484,12 @@ export function createBLCWorkerHandler(deps: {
         ),
         totalBorrowed: literal(
           `GREATEST(("totalBorrowed"::NUMERIC) + (${borrowedDelta.toString()})::NUMERIC, 0)`,
+        ),
+        totalWithdrawn: literal(
+          `GREATEST(("totalWithdrawn"::NUMERIC) + (${withdrawnDelta.toString()})::NUMERIC, 0)`,
+        ),
+        totalRepaid: literal(
+          `GREATEST(("totalRepaid"::NUMERIC) + (${repaidDelta.toString()})::NUMERIC, 0)`,
         ),
       },
       {

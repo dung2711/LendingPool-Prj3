@@ -21,6 +21,8 @@ export class Asset extends Model<
   declare isSupported: boolean;
   declare totalDeposited: string;
   declare totalBorrowed: string;
+  declare totalWithdrawn: string;
+  declare totalRepaid: string;
   declare treasuryBalance: string;
   declare createdAt: Date;
   declare updatedAt: Date;
@@ -65,6 +67,14 @@ export function initAssetModel(sequelize: Sequelize): typeof Asset {
         defaultValue: "0",
       },
       totalBorrowed: {
+        type: DataTypes.DECIMAL(78, 0),
+        defaultValue: "0",
+      },
+      totalWithdrawn: {
+        type: DataTypes.DECIMAL(78, 0),
+        defaultValue: "0",
+      },
+      totalRepaid: {
         type: DataTypes.DECIMAL(78, 0),
         defaultValue: "0",
       },
