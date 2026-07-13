@@ -360,8 +360,19 @@ export default function Liquidation(): ReactElement {
       setTransactionLoading(true);
       setError("");
 
+      const normalizedRepayAsset = repayAsset.trim();
+      const normalizedCollateralAsset = collateralAsset.trim();
+
+      if (
+        !ethers.isAddress(normalizedRepayAsset) ||
+        !ethers.isAddress(normalizedCollateralAsset)
+      ) {
+        setError("Please enter valid repay and collateral asset addresses");
+        return;
+      }
+
       const liquidation = await web3Service.getLiquidationContract();
-      const repayToken = await web3Service.getToken(repayAsset);
+      const repayToken = await web3Service.getToken(normalizedRepayAsset);
       const decimals = await repayToken.decimals();
       const amountInWei = ethers.parseUnits(repayAmount, decimals);
 
@@ -376,8 +387,8 @@ export default function Liquidation(): ReactElement {
       const liquidateTx = await liquidation.liquidate(
         selectedUser.address,
         account,
-        repayAsset,
-        collateralAsset,
+        normalizedRepayAsset,
+        normalizedCollateralAsset,
         amountInWei,
       );
       await liquidateTx.wait();
@@ -423,6 +434,8 @@ export default function Liquidation(): ReactElement {
   // Manual user check function
   const [checkAddress, setCheckAddress] = useState("");
   const [checkingUser, setCheckingUser] = useState(false);
+  const borrowedAssets = selectedAsset.filter((asset) => asset.borrowed > 0n);
+  const depositedAssets = selectedAsset.filter((asset) => asset.deposited > 0n);
 
   const handleCheckUser = async (): Promise<void> => {
     if (!checkAddress || !ethers.isAddress(checkAddress)) {
@@ -721,18 +734,37 @@ export default function Liquidation(): ReactElement {
                   Repay Asset
                 </Typography>
                 <TextField
-                  select
                   fullWidth
                   value={repayAsset}
                   onChange={(e) => setRepayAsset(e.target.value)}
+                  placeholder="Paste repay asset address"
                   size="small"
-                >
-                  {selectedAsset.map((asset) => (
-                    <option key={asset.assetAddress} value={asset.assetAddress}>
-                      {asset.symbol} (Borrowed: {formatAmount(asset.borrowed)})
-                    </option>
-                  ))}
-                </TextField>
+                />
+                <Box sx={{ mt: 1 }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mb: 0.5 }}
+                  >
+                    Available borrowed asset addresses
+                  </Typography>
+                  {borrowedAssets.length > 0 ? (
+                    borrowedAssets.map((asset) => (
+                      <Typography
+                        key={asset.assetAddress}
+                        variant="body2"
+                        sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
+                      >
+                        {asset.symbol}: {asset.assetAddress} (Borrowed:{" "}
+                        {formatAmount(asset.borrowed)})
+                      </Typography>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No borrowed assets found for this user.
+                    </Typography>
+                  )}
+                </Box>
               </Box>
 
               <Box>
@@ -740,19 +772,37 @@ export default function Liquidation(): ReactElement {
                   Collateral Asset
                 </Typography>
                 <TextField
-                  select
                   fullWidth
                   value={collateralAsset}
                   onChange={(e) => setCollateralAsset(e.target.value)}
+                  placeholder="Paste collateral asset address"
                   size="small"
-                >
-                  {selectedAsset.map((asset) => (
-                    <option key={asset.assetAddress} value={asset.assetAddress}>
-                      {asset.symbol} (Deposited: {formatAmount(asset.deposited)}
-                      )
-                    </option>
-                  ))}
-                </TextField>
+                />
+                <Box sx={{ mt: 1 }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mb: 0.5 }}
+                  >
+                    Available collateral asset addresses
+                  </Typography>
+                  {depositedAssets.length > 0 ? (
+                    depositedAssets.map((asset) => (
+                      <Typography
+                        key={asset.assetAddress}
+                        variant="body2"
+                        sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
+                      >
+                        {asset.symbol}: {asset.assetAddress} (Deposited:{" "}
+                        {formatAmount(asset.deposited)})
+                      </Typography>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No deposited assets found for this user.
+                    </Typography>
+                  )}
+                </Box>
               </Box>
 
               <Box>
