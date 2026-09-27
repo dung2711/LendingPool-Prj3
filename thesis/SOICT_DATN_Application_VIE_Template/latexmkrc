@@ -1,0 +1,6 @@
+$out_dir = 'build';
+$aux_dir = 'build';
+$emulate_aux = 1;
+$bibtex_fudge = 1;
+
+$clean_ext .= ' %R.run.xml %R.bbl %R.bcf %R.blg %R.acn %R.acr %R.alg %R.glg %R.glo %R.gls %R.ist';

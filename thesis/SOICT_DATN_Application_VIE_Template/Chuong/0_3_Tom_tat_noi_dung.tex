@@ -1,0 +1,23 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+\begin{center}
+    \Large{\textbf{TÓM TẮT NỘI DUNG ĐỒ ÁN}}\\
+\end{center}
+\vspace{1cm}
+Hệ thống tài chính truyền thống phụ thuộc vào các tổ chức trung gian như ngân hàng để vận hành dịch vụ vay và cho vay, dẫn đến chi phí vận hành cao, thiếu minh bạch, và loại trừ một bộ phận người dân không đủ điều kiện tiếp cận tín dụng. Tài chính phi tập trung (DeFi) đã ra đời nhằm giải quyết các hạn chế này bằng cách thay thế trung gian bằng hợp đồng thông minh trên blockchain. Các giao thức cho vay phi tập trung tiêu biểu như Compound và Aave đã chứng minh tính khả thi của mô hình này với tổng giá trị tài sản khóa lên đến hàng chục tỷ USD. Tuy nhiên, kiến trúc của các giao thức này rất phức tạp, tài liệu kỹ thuật phân tán và chủ yếu hướng đến nhà phát triển chuyên nghiệp, tạo ra rào cản lớn cho việc nghiên cứu và học tập trong môi trường học thuật.
+
+Đồ án lựa chọn hướng tiếp cận xây dựng một ứng dụng cho vay phi tập trung hoàn chỉnh trên nền tảng Ethereum, lấy cảm hứng từ kiến trúc của Compound v2 và Aave v2 nhưng tập trung vào việc thiết kế, phân tích và triển khai từ đầu nhằm làm rõ bản chất kỹ thuật của từng thành phần thay vì tái sử dụng mã nguồn có sẵn.
+
+Hệ thống được thiết kế theo kiến trúc ba tầng. Tầng hợp đồng thông minh gồm bảy smart contract viết bằng Solidity, áp dụng cơ chế Lazy Accrual kết hợp Global Interest Index, kiến trúc bảo mật năm tầng phòng vệ theo chiều sâu, và mẫu UUPS Proxy. Tầng backend sử dụng kiến trúc đa tiến trình event-driven với năm worker độc lập và RabbitMQ đảm bảo không mất sự kiện. Tầng frontend xây dựng bằng Next.js, xác thực người dùng qua chuẩn EIP-4361, và cập nhật dữ liệu thanh lý theo thời gian thực qua WebSocket.
+
+Đóng góp chính của đồ án là xây dựng thành công một hệ thống cho vay phi tập trung được triển khai trên mạng thử nghiệm Sepolia, đồng thời thể hiện rõ quy trình thiết kế và các quyết định kỹ thuật quan trọng trong từng tầng kiến trúc. Hệ thống đã được kiểm thử nghiêm ngặt với tổng cộng 198 test case tự động (127 test case smart contract và 71 test case backend, tỷ lệ pass 100\%), đạt mức bao phủ mã nguồn hơn 93\% trên tầng smart contract.
+
+\begin{flushright}
+Sinh viên thực hiện\\
+\begin{tabular}{@{}c@{}}
+\textit{(Ký và ghi rõ họ tên)}\\[1cm]
+\end{tabular}
+\end{flushright}
+
+\end{document}

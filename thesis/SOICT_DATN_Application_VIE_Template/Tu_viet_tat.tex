@@ -1,0 +1,325 @@
+\makenoidxglossaries
+
+% Từ viết tắt
+\newglossaryentry{ABI}{
+    type=\acronymtype,
+    name={ABI},
+    description={Application Binary Interface --- Giao diện nhị phân ứng dụng, định nghĩa cách gọi hàm và giải mã dữ liệu trả về của smart contract},
+    first={Application Binary Interface (ABI)}
+}
+\newglossaryentry{API}{
+    type=\acronymtype,
+    name={API},
+    description={Application Programming Interface --- Giao diện lập trình ứng dụng},
+    first={Application Programming Interface (API)}
+}
+\newglossaryentry{DAO}{
+    type=\acronymtype,
+    name={DAO},
+    description={Decentralized Autonomous Organization --- Tổ chức tự trị phi tập trung},
+    first={Decentralized Autonomous Organization (DAO)}
+}
+\newglossaryentry{DeFi}{
+    type=\acronymtype,
+    name={DeFi},
+    description={Decentralized Finance --- Tài chính phi tập trung},
+    first={Decentralized Finance (DeFi)}
+}
+\newglossaryentry{EIP}{
+    type=\acronymtype,
+    name={EIP},
+    description={Ethereum Improvement Proposal --- Đề xuất cải tiến Ethereum},
+    first={Ethereum Improvement Proposal (EIP)}
+}
+\newglossaryentry{ERC}{
+    type=\acronymtype,
+    name={ERC},
+    description={Ethereum Request for Comment --- Đề xuất tiêu chuẩn kỹ thuật trên Ethereum},
+    first={Ethereum Request for Comment (ERC)}
+}
+\newglossaryentry{ERD}{
+    type=\acronymtype,
+    name={ERD},
+    description={Entity-Relationship Diagram --- Sơ đồ thực thể - quan hệ},
+    first={Entity-Relationship Diagram (ERD)}
+}
+\newglossaryentry{EVM}{
+    type=\acronymtype,
+    name={EVM},
+    description={Ethereum Virtual Machine --- Máy ảo Ethereum, môi trường thực thi smart contract},
+    first={Ethereum Virtual Machine (EVM)}
+}
+\newglossaryentry{JWT}{
+    type=\acronymtype,
+    name={JWT},
+    description={JSON Web Token --- Chuẩn token xác thực theo định dạng JSON},
+    first={JSON Web Token (JWT)}
+}
+\newglossaryentry{MQ}{
+    type=\acronymtype,
+    name={MQ},
+    description={Message Queue --- Hàng đợi tin nhắn},
+    first={Message Queue (MQ)}
+}
+\newglossaryentry{ORM}{
+    type=\acronymtype,
+    name={ORM},
+    description={Object-Relational Mapping --- Ánh xạ đối tượng - quan hệ},
+    first={Object-Relational Mapping (ORM)}
+}
+\newglossaryentry{REST}{
+    type=\acronymtype,
+    name={REST},
+    description={Representational State Transfer --- Kiến trúc API theo phong cách biểu diễn trạng thái},
+    first={Representational State Transfer (REST)}
+}
+\newglossaryentry{RPC}{
+    type=\acronymtype,
+    name={RPC},
+    description={Remote Procedure Call --- Giao thức gọi thủ tục từ xa, dùng để giao tiếp với Ethereum node},
+    first={Remote Procedure Call (RPC)}
+}
+\newglossaryentry{SSD}{
+    type=\acronymtype,
+    name={SSD},
+    description={System Sequence Diagram --- Sơ đồ tuần tự hệ thống},
+    first={System Sequence Diagram (SSD)}
+}
+\newglossaryentry{SMTP}{
+    type=\acronymtype,
+    name={SMTP},
+    description={Simple Mail Transfer Protocol --- Giao thức truyền thư điện tử đơn giản},
+    first={Simple Mail Transfer Protocol (SMTP)}
+}
+\newglossaryentry{SSR}{
+    type=\acronymtype,
+    name={SSR},
+    description={Server-Side Rendering --- Kết xuất phía máy chủ},
+    first={Server-Side Rendering (SSR)}
+}
+\newglossaryentry{TTL}{
+    type=\acronymtype,
+    name={TTL},
+    description={Time To Live --- Thời gian sống của dữ liệu trong cache/Redis},
+    first={Time To Live (TTL)}
+}
+\newglossaryentry{TVL}{
+    type=\acronymtype,
+    name={TVL},
+    description={Total Value Locked --- Tổng giá trị tài sản bị khóa trong giao thức DeFi},
+    first={Total Value Locked (TVL)}
+}
+\newglossaryentry{TWAP}{
+    type=\acronymtype,
+    name={TWAP},
+    description={Time-Weighted Average Price --- Giá trung bình theo thời gian},
+    first={Time-Weighted Average Price (TWAP)}
+}
+\newglossaryentry{UUPS}{
+    type=\acronymtype,
+    name={UUPS},
+    description={Universal Upgradeable Proxy Standard --- Chuẩn proxy có thể nâng cấp theo kiểu phổ quát, EIP-1822},
+    first={Universal Upgradeable Proxy Standard (UUPS)}
+}
+\newglossaryentry{USDC}{
+    type=\acronymtype,
+    name={USDC},
+    description={USD Coin --- Stablecoin được neo giá 1:1 với USD},
+    first={USD Coin (USDC)}
+}
+\newglossaryentry{WBTC}{
+    type=\acronymtype,
+    name={WBTC},
+    description={Wrapped Bitcoin --- Bitcoin được bọc dưới dạng ERC20 token trên Ethereum},
+    first={Wrapped Bitcoin (WBTC)}
+}
+\newglossaryentry{WETH}{
+    type=\acronymtype,
+    name={WETH},
+    description={Wrapped Ether --- Ether được bọc dưới dạng ERC20 token},
+    first={Wrapped Ether (WETH)}
+}
+\newglossaryentry{WebSocket}{
+    type=\acronymtype,
+    name={WebSocket},
+    description={Giao thức kết nối hai chiều liên tục giữa client và server},
+    first={WebSocket}
+}
+
+% Thuật ngữ kỹ thuật
+\newglossaryentry{at_least_once_delivery}{
+    name={At-least-once delivery},
+    description={Cơ chế đảm bảo message được chuyển tới ít nhất một lần, message có thể bị gửi lại, đòi hỏi consumer phải xử lý idempotent}
+}
+\newglossaryentry{block}{
+    name={Block},
+    description={Đơn vị dữ liệu cơ bản trên blockchain, chứa tập hợp các giao dịch được xác nhận}
+}
+\newglossaryentry{blockchain}{
+    name={Blockchain},
+    description={Chuỗi khối, cơ sở dữ liệu phân tán lưu trữ dữ liệu theo chuỗi các block liên kết bằng mật mã}
+}
+\newglossaryentry{close_factor}{
+    name={Close factor},
+    description={Tỷ lệ tối đa phần nợ của người vay có thể bị thanh lý trong một lần}
+}
+\newglossaryentry{collateral}{
+    name={Collateral},
+    description={Tài sản thế chấp, tài sản người dùng khóa vào giao thức để bảo đảm cho khoản vay}
+}
+\newglossaryentry{ctoken}{
+    name={cToken},
+    description={Token đại diện cho vị thế gửi tiền trong Compound, tỷ giá quy đổi với tài sản gốc tăng dần theo lãi}
+}
+\newglossaryentry{atoken}{
+    name={aToken},
+    description={Token đại diện cho vị thế gửi tiền trong Aave, số dư tăng trực tiếp theo thời gian khi lãi tích lũy}
+}
+\newglossaryentry{delegatecall}{
+    name={DelegateCall},
+    description={Cơ chế trong EVM cho phép contract A thực thi code của contract B nhưng trong context storage của A, nền tảng của Proxy Pattern}
+}
+\newglossaryentry{defense_in_depth}{
+    name={Defense-in-depth},
+    description={Kiến trúc bảo mật nhiều lớp, nếu một lớp bị phá vỡ thì các lớp còn lại vẫn bảo vệ hệ thống}
+}
+\newglossaryentry{blockchain_event}{
+    name={Event (Blockchain)},
+    description={Bản ghi log được emit bởi smart contract sau khi thực thi một hàm, lưu trên blockchain nhưng không truy cập được từ contract khác}
+}
+\newglossaryentry{flash_loan}{
+    name={Flash loan},
+    description={Cơ chế vay không cần thế chấp với điều kiện hoàn trả trong cùng một giao dịch}
+}
+\newglossaryentry{gas}{
+    name={Gas},
+    description={Đơn vị đo lường chi phí tính toán trong EVM, người dùng trả gas fee bằng ETH để thực hiện giao dịch}
+}
+\newglossaryentry{global_interest_index}{
+    name={Global Interest Index},
+    description={Chỉ số tích lũy lãi suất toàn cục, tăng theo thời gian, cho phép tính lãi bất kỳ tài khoản nào với chi phí O(1)}
+}
+\newglossaryentry{health_factor}{
+    name={Health factor},
+    description={Hệ số sức khỏe, tỷ lệ giữa giá trị thế chấp đã điều chỉnh và giá trị nợ; khi nhỏ hơn 1 thì vị thế có thể bị thanh lý}
+}
+\newglossaryentry{idempotency}{
+    name={Idempotency},
+    description={Tính lũy đẳng, một thao tác được thực hiện nhiều lần cho kết quả giống như thực hiện một lần}
+}
+\newglossaryentry{implementation_contract}{
+    name={Implementation contract},
+    description={Contract chứa logic nghiệp vụ trong mẫu Proxy, được gọi thông qua delegatecall từ proxy}
+}
+\newglossaryentry{lazy_accrual}{
+    name={Lazy Accrual},
+    description={Cơ chế tích lũy lãi lười, không cập nhật lãi theo từng giây mà chỉ tính khi có tương tác với tài khoản, sử dụng Global Index để đảm bảo chính xác}
+}
+\newglossaryentry{liquidation}{
+    name={Liquidation},
+    description={Thanh lý, quá trình một bên thứ ba trả nợ thay cho người vay và nhận lại tài sản thế chấp cộng thêm phần thưởng}
+}
+\newglossaryentry{liquidation_incentive}{
+    name={Liquidation incentive},
+    description={Phần thưởng thanh lý, phần trăm thêm vào tài sản thế chấp mà liquidator nhận được, tạo động lực kinh tế}
+}
+\newglossaryentry{liquidation_threshold}{
+    name={Liquidation threshold},
+    description={Ngưỡng thanh lý, giá trị health factor mà dưới ngưỡng này vị thế có thể bị thanh lý}
+}
+\newglossaryentry{mainnet}{
+    name={Mainnet},
+    description={Mạng chính thức của Ethereum, nơi các giao dịch có giá trị thực}
+}
+\newglossaryentry{multisig_wallet}{
+    name={Multisig wallet},
+    description={Ví đa chữ ký, ví yêu cầu chữ ký của nhiều thành viên để thực thi giao dịch}
+}
+\newglossaryentry{nonce}{
+    name={Nonce},
+    description={Số ngẫu nhiên dùng một lần, trong xác thực SIWE để ngăn replay attack}
+}
+\newglossaryentry{on_chain}{
+    name={On-chain},
+    description={Dữ liệu hoặc logic được lưu trực tiếp trên blockchain}
+}
+\newglossaryentry{off_chain}{
+    name={Off-chain},
+    description={Dữ liệu hoặc xử lý diễn ra bên ngoài blockchain}
+}
+\newglossaryentry{oracle}{
+    name={Oracle},
+    description={Hệ thống cung cấp dữ liệu thực tế vào trong smart contract trên blockchain, ví dụ giá tài sản hoặc tỷ giá}
+}
+\newglossaryentry{overcollateralization}{
+    name={Overcollateralization},
+    description={Thế chấp quá mức, người vay phải ký gửi tài sản có giá trị lớn hơn khoản vay muốn nhận}
+}
+\newglossaryentry{pos}{
+    name={Proof of Stake (PoS)},
+    description={Cơ chế đồng thuận dựa trên cổ phần, validator đặt cược ETH để tham gia xác nhận block}
+}
+\newglossaryentry{proxy_contract}{
+    name={Proxy contract},
+    description={Contract trung gian chuyển tiếp lời gọi đến implementation contract, lưu trữ toàn bộ dữ liệu}
+}
+\newglossaryentry{pubsub}{
+    name={Pub/Sub},
+    description={Publish-Subscribe, mô hình giao tiếp trong đó producer publish sự kiện và consumer đăng ký nhận}
+}
+\newglossaryentry{reserve_factor}{
+    name={Reserve factor},
+    description={Tỷ lệ dự trữ, phần trăm lãi suất vay được giữ lại trong treasury của giao thức}
+}
+\newglossaryentry{sepolia}{
+    name={Sepolia},
+    description={Mạng thử nghiệm testnet của Ethereum dành cho developer}
+}
+\newglossaryentry{siwe}{
+    name={SIWE},
+    description={Sign-In with Ethereum (EIP-4361), chuẩn xác thực người dùng bằng chữ ký ví thay vì username/password}
+}
+\newglossaryentry{smart_contract}{
+    name={Smart contract},
+    description={Hợp đồng thông minh, chương trình tự thực thi được lưu trên blockchain, không thể thay đổi sau khi triển khai trừ khi dùng proxy}
+}
+\newglossaryentry{stablecoin}{
+    name={Stablecoin},
+    description={Tiền mã hóa ổn định giá, thường neo 1:1 với USD}
+}
+\newglossaryentry{storage_gap}{
+    name={Storage gap},
+    description={Kỹ thuật dự trữ storage slot trong contract upgradeable để tránh xung đột slot khi thêm biến mới sau upgrade}
+}
+\newglossaryentry{testnet}{
+    name={Testnet},
+    description={Mạng thử nghiệm của blockchain, dùng để phát triển và kiểm thử, token không có giá trị thực}
+}
+\newglossaryentry{timelock}{
+    name={Timelock},
+    description={Hợp đồng buộc các hành động quản trị phải chờ một khoảng thời gian cố định trước khi thực thi}
+}
+\newglossaryentry{transaction}{
+    name={Transaction},
+    description={Giao dịch, hành động trên blockchain do người dùng ký, thay đổi trạng thái ví dụ gửi ETH hoặc gọi hàm contract}
+}
+\newglossaryentry{two_slope_model}{
+    name={Two-Slope Model},
+    description={Mô hình lãi suất hai độ dốc, lãi suất tăng tuyến tính dưới ngưỡng utilization tối ưu và tăng dốc đứng hơn khi vượt ngưỡng}
+}
+\newglossaryentry{utilization_rate}{
+    name={Utilization rate},
+    description={Tỷ lệ sử dụng vốn = totalBorrows / totalDeposits, chỉ số quyết định lãi suất trong pool}
+}
+\newglossaryentry{uups_proxy}{
+    name={UUPS Proxy},
+    description={Loại proxy nâng cấp được trong đó logic upgrade nằm trong implementation contract, tiết kiệm gas hơn Transparent Proxy}
+}
+\newglossaryentry{view_function}{
+    name={View function},
+    description={Hàm smart contract chỉ đọc dữ liệu, không ghi blockchain, không tốn gas khi gọi từ off-chain}
+}
+\newglossaryentry{worker}{
+    name={Worker},
+    description={Tiến trình nền độc lập, trong kiến trúc backend của đồ án, mỗi worker đảm nhận một nhiệm vụ cụ thể}
+}

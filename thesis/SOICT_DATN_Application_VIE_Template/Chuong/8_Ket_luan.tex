@@ -1,0 +1,78 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+
+\section{Kết luận}
+
+
+Đồ án đã hoàn thành xây dựng và triển khai một ứng dụng vay và cho vay phi tập trung hoàn chỉnh trên nền tảng Ethereum~\cite{EthereumDocs}, bao gồm đầy đủ ba tầng kiến trúc: smart contract, backend và frontend. Bảng~\ref{table:conclusion} dưới đây đối chiếu từng mục tiêu đã đề ra tại Chương~\ref{chapter:Introduction} với kết quả cụ thể đạt được:
+
+\begin{table}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|p{0.31\textwidth}|p{0.49\textwidth}|p{0.20\textwidth}|}
+\hline
+\textbf{Mục tiêu đề ra (Chương I)} & \textbf{Kết quả đạt được} & \textbf{Trạng thái} \\ \hline
+Xây dựng lớp smart contract cốt lõi: gửi, vay, trả nợ, rút tài sản & 7 smart contract Solidity hoàn chỉnh; 4 nghiệp vụ chính hoạt động trên Sepolia & Hoàn thành \\ \hline
+Cơ chế tích lũy lãi suất theo mô hình Two-Slope & InterestRateModel triển khai Kinked Rate Model; lãi tích lũy O(1) qua Global Interest Index & Hoàn thành \\ \hline
+Cơ chế thanh lý vị thế dưới ngưỡng an toàn & Contract Liquidation với closeFactor + liquidationIncentive; health factor tính realtime & Hoàn thành \\ \hline
+Lớp quản trị: ví đa chữ ký + timelock & ProtocolController + ProtocolTimelock + Safe Multisig; quyền deployer được thu hồi sau migrate & Hoàn thành \\ \hline
+Hợp đồng có khả năng nâng cấp không mất dữ liệu & UUPS Proxy cho LendingPool và PriceRouter; storage gap 50 slot; đã kiểm thử upgrade trong test suite & Hoàn thành \\ \hline
+Quản lý treasury và trích xuất lợi nhuận giao thức & Reserve Factor tích lũy vào treasury; hàm withdrawTreasury qua ProtocolController; kiểm thử 5 test case & Hoàn thành \\ \hline
+Backend indexer lắng nghe dữ liệu blockchain (event-driven) & 5 tiến trình độc lập: blc-indexer, blc-worker, croner, noti-worker, http-server; RabbitMQ đảm bảo at-least-once & Hoàn thành \\ \hline
+Snapshot dữ liệu định kỳ và hệ thống thông báo & Croner chạy snapshot hằng ngày; noti-worker gửi email OTP và thông báo admin qua Nodemailer & Hoàn thành \\ \hline
+Giao diện người dùng: kết nối ví, giao dịch, theo dõi vị thế & Next.js với 7 trang chức năng; MetaMask; cập nhật số dư mỗi 15 giây qua view function & Hoàn thành \\ \hline
+Xác thực người dùng qua ví Ethereum & EIP-4361 (Sign-In with Ethereum); quản lý đa session; có thể thu hồi session theo thiết bị & Hoàn thành \\ \hline
+Kiểm thử và triển khai trên Sepolia & 127 test case smart contract (100\% pass); 71 test case backend (100\% pass); coverage >93\% statements & Hoàn thành \\ \hline
+Flash loan & Xác định ngoài phạm vi từ đầu & Ngoài phạm vi \\ \hline
+Đa chuỗi (multi-chain) & Xác định ngoài phạm vi từ đầu & Ngoài phạm vi \\ \hline
+Kiểm toán bảo mật chuyên sâu & Xác định ngoài phạm vi từ đầu & Ngoài phạm vi \\ \hline
+\end{tabular}
+}
+\caption{Mục tiêu và kết quả của đồ án}
+\label{table:conclusion}
+\end{table}
+
+
+Đối với kết quả kỹ thuật từng tầng trong hệ thống, nổi bật là tầng smart contract đạt được các chỉ số kỹ thuật sau kiểm thử, được thể hiện bằng bảng~\ref{table:smart-contract-testing-results} sau đây:
+
+\begin{table}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|p{0.49\textwidth}|p{0.51\textwidth}|}
+\hline
+\textbf{Chỉ số} & \textbf{Giá trị} \\ \hline
+Tổng số smart contract triển khai & 7 smart contract (9 deployment bao gồm proxy và implementation) \\ \hline
+Số test case & 127 (100\% pass) \\ \hline
+Statement coverage & 93.14\% \\ \hline
+Function coverage & 95\% \\ \hline
+Gas trung bình --- deposit & ~136,393 gas \\ \hline
+Gas trung bình --- liquidate & ~164,849 gas \\ \hline
+Gas deploy LendingPool & 3,396,978 gas (11.3\% block limit) \\ \hline
+Mạng triển khai & Ethereum Sepolia Testnet \\ \hline
+\end{tabular}
+}
+\caption{Thông số kiểm thử smart contract}
+\label{table:smart-contract-testing-results}
+\end{table}
+
+
+Cơ chế Lazy Accrual với Global Interest Index giải quyết được bài toán tích lũy lãi suất cho toàn bộ người dùng với chi phí O(1) thay vì O(n) --- không cần duyệt qua tất cả tài khoản mỗi block. Kiến trúc bảo mật 5 tầng phòng thủ theo chiều sâu (AccessControl, Pausable, ReentrancyGuard, modifier phân quyền, kiểm tra tham số đầu vào) cùng với mẫu UUPS Proxy đảm bảo hệ thống vừa an toàn vừa có khả năng nâng cấp trong tương lai. Tầng backend hoàn thành kiến trúc đa tiến trình event-driven với các đặc điểm kỹ thuật nổi bật: đảm bảo idempotency ở tầng database qua unique constraint (transactionHash, logIndex); hỗ trợ cập nhật thanh lý realtime qua Redis pub/sub $\rightarrow$ WebSocket $\rightarrow$ frontend. Tổng cộng 71 test case backend đều pass với chiến lược mock hoàn toàn, không phụ thuộc hạ tầng thực khi kiểm thử. Tầng frontend triển khai chiến lược lấy dữ liệu hai nguồn: dữ liệu quyết định tài chính (số dư thực tế, health factor) được đọc trực tiếp từ blockchain qua view function, trong khi dữ liệu lịch sử và tổng hợp được lấy từ backend API. Chiến lược này cân bằng giữa độ chính xác tuyệt đối và hiệu năng hiển thị.
+
+Bên cạnh những kết quả đạt được, hệ thống hiện còn một số hạn chế kỹ thuật cần thừa nhận:
+
+\(i\) Về smart contract: Branch coverage đạt 74\% --- thấp hơn mức lý tưởng do nhiều nhánh phòng thủ (defense-in-depth) khó tái hiện trong môi trường test thông thường, đặc biệt tại smart contract PriceRouter với các nhánh liên quan đến Chainlink Aggregator (40\% branch coverage). Hệ thống chưa có tích hợp kiểm tra tự động bảo mật (Slither, Mythril) trong CI pipeline.
+
+\(ii\) Về backend: Blc-indexer hiện hoạt động theo mô hình single-instance --- nếu tiến trình này gặp sự cố trong khoảng thời gian dài, sẽ có độ trễ index dữ liệu tích lũy. Chưa có cơ chế tự động phát hiện và cảnh báo khi indexer bị tụt hậu quá nhiều block so với head.
+
+\(iii\) Về frontend: Kiểm thử frontend chỉ dừng ở mức manual black-box testing, chưa có kiểm thử tự động end-to-end (Playwright, Cypress). Khi MetaMask từ chối giao dịch, thông báo lỗi hiển thị trực tiếp từ provider mà chưa được chuẩn hóa sang định dạng thân thiện với người dùng.
+
+\(iv\) Về bảo mật tổng thể: Hệ thống chưa được kiểm toán bảo mật bởi bên thứ ba. Với bất kỳ giao thức DeFi thực tế nào, kiểm toán chuyên sâu là yêu cầu bắt buộc trước khi triển khai trên mainnet.
+
+\section{Hướng phát triển tiếp theo}
+
+
+Từ nền tảng hiện có, các hướng phát triển tiếp theo có thể suy nghĩ tới theo thứ tự ưu tiên: Về mặt ngắn hạn, có thể làm hệ thống dày hơn về kiểm thử tự động, bổ sung kiểm thử tự động frontend bằng Playwright; tăng branch coverage cho PriceRouter bằng mock Chainlink Aggregator; tích hợp Slither vào CI pipeline để phân tích bảo mật tự động. Trong trung hạn, nên thực hiện kiểm toán bảo mật bởi bên thứ ba; bổ sung Flash Loan; xây dựng cơ chế quản trị DAO với token voting thay thế Multisig thuần túy; thêm E-Mode cho phép hệ số thế chấp cao với các tài sản tương quan chặt (tương tự Aave v3). Đối với dài hạn, có thể mở rộng sang đa chuỗi (Polygon, Arbitrum, Base); tối ưu hóa gas cost; triển khai trên Ethereum mainnet sau khi hoàn tất kiểm toán.
+
+
+\end{document}

@@ -1,0 +1,62 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+\section{Đặt vấn đề}
+\label{section:1.1}
+
+Trong hệ thống tài chính truyền thống, các hoạt động vay và cho vay được thực hiện thông qua các tổ chức trung gian như ngân hàng thương mại hoặc công ty tài chính. Mô hình này đặt ra một số hạn chế cố hữu: người dùng phải tin tưởng và phụ thuộc hoàn toàn vào bên thứ ba trong việc quản lý tài sản; quy trình phê duyệt khoản vay đòi hỏi thủ tục phức tạp, tốn thời gian và thường yêu cầu hồ sơ tín dụng; dữ liệu giao dịch và chính sách lãi suất thiếu minh bạch, người dùng không có khả năng kiểm chứng độc lập; ngoài ra, một bộ phận lớn dân số toàn cầu không có khả năng tiếp cận dịch vụ ngân hàng do rào cản địa lý, pháp lý hoặc kinh tế.
+
+Sự ra đời của công nghệ blockchain, đặc biệt là nền tảng Ethereum với khả năng thực thi hợp đồng thông minh (smart contract), đã mở ra một hướng tiếp cận mới nhằm giải quyết những hạn chế trên~\cite{EthereumWhitepaper,EthereumDocs}. Tài chính phi tập trung (Decentralized Finance --- DeFi) là hệ sinh thái các ứng dụng tài chính được xây dựng trên nền tảng blockchain, cho phép các giao dịch tài chính diễn ra trực tiếp giữa các bên mà không cần trung gian, với toàn bộ logic nghiệp vụ được mã hóa và thực thi tự động trên chuỗi~\cite{Gudgeon2020DeFi}. Các nghiên cứu tổng quan ghi nhận TVL của các giao thức DeFi tăng nhanh trong giai đoạn bùng nổ, phản ánh nhu cầu thực tế và quy mô đáng kể của lĩnh vực này~\cite{Gudgeon2020DeFi}.
+
+Trong hệ sinh thái DeFi, giao thức vay và cho vay phi tập trung (decentralized lending protocol) đóng vai trò nền tảng. Các giao thức tiêu biểu như Aave và Compound đã chứng minh tính khả thi của mô hình~\cite{AaveV2Whitepaper,CompoundV2Docs,CompoundWhitepaper}: người dùng có thể gửi tài sản kỹ thuật số để nhận lãi suất, hoặc vay tài sản dựa trên cơ chế thế chấp quá mức (overcollateralization) mà không cần thông qua bất kỳ tổ chức nào. Tuy nhiên, các giao thức thực tế này có độ phức tạp rất cao và tài liệu kỹ thuật đầy đủ về cách xây dựng một giao thức tương tự từ đầu còn hạn chế, tạo ra khoảng cách lớn giữa người học và thực tiễn ngành.
+
+Xuất phát từ bối cảnh đó, đồ án này đặt ra bài toán thiết kế, xây dựng và triển khai một ứng dụng vay và cho vay phi tập trung hoàn chỉnh trên nền tảng Ethereum. Bài toán không chỉ dừng lại ở việc xây dựng smart contract mà còn bao gồm toàn bộ hệ thống xung quanh --- từ cơ chế tích lũy lãi suất trên chuỗi, quản lý rủi ro và thanh lý vị thế, đến hệ thống backend index và lưu trữ event on-chain thành dạng có thể query được, tổng hợp dữ liệu người dùng và hỗ trợ xử lý dữ liệu off-chain kết hợp giao diện người dùng tương tác thời gian thực.
+
+\section{Mục tiêu và phạm vi đề tài}
+\label{section:1.2}
+
+Các giao thức DeFi lending thực tế hiện nay có thể chia thành hai thế hệ. Thế hệ đầu, tiêu biểu là Compound v2 và Aave v2, sử dụng mô hình pool thanh khoản chung và hỗ trợ nhiều loại tài sản. Thế hệ thứ hai như Aave v3 và Compound v3 bổ sung các tính năng nâng cao hơn như cô lập rủi ro theo tài sản, tối ưu hóa vốn đa chuỗi và cơ chế quản trị DAO~\cite{CompoundV2Docs,AaveV2Whitepaper,AaveV3TechPaper,CompoundIIIDocs}. Cả hai thế hệ đều đã được kiểm toán bảo mật nghiêm ngặt và triển khai với hàng tỷ USD tài sản. Tuy nhiên, do độ phức tạp cao và quy mô lớn, các hệ thống này không phù hợp làm điểm xuất phát để nghiên cứu và nắm bắt toàn bộ từ đầu.
+
+Dựa trên phân tích trên, đồ án này hướng tới xây dựng một giao thức lending phi tập trung ở quy mô đủ để hiểu và triển khai hoàn chỉnh, đồng thời áp dụng đúng các nguyên tắc thiết kế của thế hệ đầu tiên. Mục tiêu cụ thể bao gồm bốn nhóm chính.
+
+Nhóm thứ nhất là xây dựng lớp smart contract cốt lõi, bao gồm các chức năng gửi tài sản để nhận lãi, vay tài sản dựa trên thế chấp, trả nợ và rút tài sản; cơ chế tích lũy lãi suất theo mô hình Two-Slope (Kinked Rate Model); cơ chế thanh lý vị thế khi hệ số sức khỏe giảm xuống dưới ngưỡng an toàn; và lớp quản trị bao gồm ví đa chữ ký kết hợp với timelock để đảm bảo tính minh bạch, cùng với đó là cơ chế quản lý ngân quỹ (treasury) để trích xuất lợi nhuận giao thức và hợp đồng thông minh có khả năng nâng cấp toàn diện.
+
+Nhóm thứ hai là xây dựng hệ thống backend hỗ trợ theo kiến trúc event-driven, bao gồm lắng nghe blockchain để lưu trữ lịch sử giao dịch của người dùng và lịch sử quản trị của giao thức, tổng hợp dữ liệu tài sản vay, gửi, trả, rút của người dùng, giúp người dùng theo dõi được quá trình tương tác với giao thức, snapshot dữ liệu định kỳ phục vụ hiển thị lịch sử và hệ thống thông báo cho người dùng.
+
+Nhóm thứ ba là xây dựng giao diện người dùng cho phép kết nối ví, thực hiện các giao dịch tài chính, theo dõi vị thế cá nhân theo thời gian thực và xem lịch sử hoạt động trong giao thức.
+
+Nhóm thứ tư là kiểm thử và triển khai hệ thống trên mạng thử nghiệm Sepolia của Ethereum.
+
+Về phạm vi, đồ án tập trung vào các nội dung trên và xác định rõ các tính năng nằm ngoài phạm vi thực hiện, bao gồm: hỗ trợ đa chuỗi, cơ chế quản trị DAO phi tập trung, flash loan, tối ưu chi phí gas toàn giao thức và kiểm toán bảo mật chuyên sâu. Những tính năng này được ghi nhận là hướng phát triển tiếp theo trong Chương~\ref{chapter:Conclusion}.
+
+\section{Định hướng giải pháp}
+\label{section:1.3}
+
+Từ các yêu cầu đã xác định ở mục~\ref{section:1.2}, đồ án lựa chọn hướng tiếp cận và công nghệ theo ba tầng kiến trúc tách biệt.
+
+Tầng smart contract triển khai trên Ethereum --- nền tảng blockchain có hệ sinh thái DeFi trưởng thành nhất, cho phép tham chiếu trực tiếp từ các giao thức đã được kiểm chứng thực tế như Aave và Compound. Để giải quyết bài toán nâng cấp smart contract mà không làm gián đoạn hoạt động hay mất dữ liệu người dùng, các smart contract cốt lõi áp dụng mẫu UUPS Proxy~\cite{EIP1822,OpenZeppelinDocs}.
+
+Tầng backend sử dụng kiến trúc đa tiến trình hướng sự kiện thay vì monolith. Lựa chọn này xuất phát từ bản chất của dữ liệu blockchain: mọi thay đổi trạng thái đều được biểu diễn dưới dạng event liên tục, đòi hỏi từng thành phần phải xử lý và có thể mở rộng độc lập. Hệ thống lựa chọn tự xây blockchain indexer thay vì dùng The Graph hay Moralis, để giữ toàn quyền kiểm soát dữ liệu, tránh phụ thuộc vào bên thứ ba, và đơn giản hóa stack trong phạm vi đồ án.
+
+Tầng frontend sử dụng Next.js kết hợp ethers.js v6 và chuẩn EIP-4361 để xác thực người dùng trực tiếp qua ví Ethereum, không cần hệ thống tài khoản truyền thống~\cite{EIP4361,EthersJsDocs}.
+
+\section{Bố cục đồ án}
+\label{section:1.4}
+
+Phần còn lại của báo cáo được tổ chức như sau.
+
+Chương~\ref{chapter:SystemAnalysis} trình bày quá trình khảo sát và phân tích yêu cầu hệ thống. Chương này bắt đầu bằng việc so sánh các giao thức DeFi lending hiện có để xác định vị trí của đồ án trong bức tranh tổng thể, sau đó đi vào phân tích các yêu cầu chức năng thông qua các biểu đồ use case và sơ đồ SSD, cuối cùng là trình bày các yêu cầu phi chức năng của hệ thống.
+
+Chương~\ref{chapter:Theory} giới thiệu nền tảng lý thuyết và công nghệ sử dụng trong đồ án, bao gồm các khái niệm cốt lõi của DeFi, cơ chế hoạt động của Ethereum và smart contract, mô hình lãi suất, cũng như các công nghệ backend và frontend được áp dụng. Với mỗi công nghệ được trình bày, chương này phân tích lý do lựa chọn so với các giải pháp thay thế.
+
+Chương~\ref{chapter:SystemDesign} đi vào trình bày thiết kế chi tiết tầng smart contract và backend. Phần smart contract mô tả kiến trúc và logic nghiệp vụ của từng smart contract. Phần backend trình bày thiết kế cơ sở dữ liệu, kiến trúc đa tiến trình và các cơ chế xử lý đặc thù.
+
+Chương~\ref{chapter:Solutions} tập trung trình bày các giải pháp và đóng góp nổi bật của đồ án, bao gồm cơ chế tích lũy lãi suất Lazy Accrual với Global Interest Index, thiết kế bảo mật theo chiều sâu cho smart contract, các giải pháp đảm bảo tính nhất quán dữ liệu trong hệ thống phân tán và các chiến lược lắng nghe blockchain đảm bảo toàn vẹn dữ liệu cùng với giải pháp quản trị qua hai tầng tách biệt.
+
+Chương~\ref{chapter:Implementation} tập trung vào quá trình cài đặt, triển khai hệ thống và các quyết định kỹ thuật quan trọng.
+
+Chương~\ref{chapter:Testing} trình bày kết quả kiểm thử hệ thống, bao gồm kiểm thử smart contract, backend và frontend, kèm theo số liệu và đánh giá cụ thể.
+
+Chương~\ref{chapter:Conclusion} đưa ra kết luận về kết quả đạt được, so sánh với các giao thức tham chiếu, và trình bày các hướng phát triển tiếp theo.
+
+\end{document}
